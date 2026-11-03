@@ -24,6 +24,7 @@ class ScreenRegionSelectionActivity : Activity() {
     private lateinit var selection: RegionOverlay
     private lateinit var image: ImageView
     private lateinit var sourceFile: File
+    private var sourceFileOwned = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,9 +35,11 @@ class ScreenRegionSelectionActivity : Activity() {
             )
         val path = intent.getStringExtra(EXTRA_SCREEN_PATH)
         sourceFile = path?.let(::File) ?: run { finish(); return }
-        if (!sourceFile.isFile || !sourceFile.canonicalPath.startsWith(cacheDir.canonicalPath + File.separator)) {
+        val captureRoot = File(cacheDir, "one-ai-capture").canonicalPath + File.separator
+        if (!sourceFile.isFile || !sourceFile.canonicalPath.startsWith(captureRoot)) {
             finish(); return
         }
+        sourceFileOwned = true
         bitmap = BitmapFactory.decodeFile(sourceFile.absolutePath) ?: run { finish(); return }
 
         val root = LinearLayout(this).apply {
@@ -114,7 +117,7 @@ class ScreenRegionSelectionActivity : Activity() {
 
     private fun finishAndRelease() {
         if (::bitmap.isInitialized && !bitmap.isRecycled) bitmap.recycle()
-        runCatching { sourceFile.delete() }
+        if (sourceFileOwned) runCatching { sourceFile.delete() }
         finish()
     }
 
@@ -126,7 +129,7 @@ class ScreenRegionSelectionActivity : Activity() {
 
     override fun onDestroy() {
         if (::bitmap.isInitialized && !bitmap.isRecycled) bitmap.recycle()
-        if (::sourceFile.isInitialized) runCatching { sourceFile.delete() }
+        if (sourceFileOwned && ::sourceFile.isInitialized) runCatching { sourceFile.delete() }
         super.onDestroy()
     }
 
