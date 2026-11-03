@@ -36,7 +36,7 @@ class AiOrchestrator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            store.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"))
+            activity.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"))
             throw error
         }
     }
