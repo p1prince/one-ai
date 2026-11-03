@@ -86,18 +86,7 @@ class PluginRuntime(
         val installed = findInstalledPlugin(pluginId)
             ?: return PluginInvocationResult.Rejected("Plugin is not installed")
         if (!installed.enabled) return PluginInvocationResult.Rejected("Plugin is disabled")
-        if (input.actionId.isBlank() || input.actionId.length > 100 ||
-            input.actionId != input.actionId.trim() ||
-            input.capability.isBlank() || input.description.isBlank() ||
-            input.description.length > 500 || input.description != input.description.trim() ||
-            input.capability !in installed.capabilities) {
-            return PluginInvocationResult.Rejected("Plugin action details are invalid")
-        }
-        if (input.values.size > MAX_MAP_ENTRIES || input.values.any { (key, value) ->
-                key.isBlank() || key.length > MAX_KEY_LENGTH || value.length > MAX_VALUE_LENGTH
-            }) {
-            return PluginInvocationResult.Rejected("Plugin input exceeds the supported limits")
-        }
+        validateInput(input, installed)?.let { return PluginInvocationResult.Rejected(it) }
 
         val action = ActionRequest(pluginId, input.actionId, input.capability, input.description)
         when (val gate = actionGateway.check(action, approvalTicket)) {
@@ -128,6 +117,49 @@ class PluginRuntime(
         } catch (_: Exception) {
             PluginInvocationResult.Failed("The plugin action failed. Check its activity entry for details.")
         }
+    }
+
+    /**
+     * Issues a one-use ticket only for a currently installed, enabled plugin with
+     * a registered adapter and a valid action declaration. Call this only from
+     * the affirmative branch of SensitiveActionApprovalDialog.
+     */
+    fun approveSensitiveAction(pluginId: String, input: PluginActionInput): Result<String> {
+        val adapter = synchronized(this) { adapters[pluginId] }
+            ?: return Result.failure(IllegalStateException("No trusted adapter is registered for this plugin"))
+        val installed = findInstalledPlugin(pluginId)
+            ?: return Result.failure(IllegalStateException("Plugin is not installed"))
+        if (!installed.enabled) {
+            return Result.failure(IllegalStateException("Plugin is disabled"))
+        }
+        validateInput(input, installed)?.let {
+            return Result.failure(IllegalArgumentException(it))
+        }
+        val action = ActionRequest(pluginId, input.actionId, input.capability, input.description)
+        return runCatching {
+            val current = findInstalledPlugin(pluginId)
+            val stillRegistered = synchronized(this) { adapters[pluginId] === adapter }
+            check(current == installed && current.enabled && stillRegistered) {
+                "Plugin changed before approval could be issued"
+            }
+            actionGateway.confirmUserApproval(action)
+        }
+    }
+
+    private fun validateInput(input: PluginActionInput, installed: PluginRecord): String? {
+        if (input.actionId.isBlank() || input.actionId.length > 100 ||
+            input.actionId != input.actionId.trim() ||
+            input.capability.isBlank() || input.description.isBlank() ||
+            input.description.length > 500 || input.description != input.description.trim() ||
+            input.capability !in installed.capabilities) {
+            return "Plugin action details are invalid"
+        }
+        if (input.values.size > MAX_MAP_ENTRIES || input.values.any { (key, value) ->
+                key.isBlank() || key.length > MAX_KEY_LENGTH || value.length > MAX_VALUE_LENGTH
+            }) {
+            return "Plugin input exceeds the supported limits"
+        }
+        return null
     }
 
     private fun PluginActionOutput.isValidForCoreUi(): Boolean =
