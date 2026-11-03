@@ -57,3 +57,12 @@ Existing plugin records remain readable: missing manifest version defaults to v1
 ## Execution boundary
 
 Manifest v1 intentionally has no executable entry point, arbitrary code field, script field, downloaded DEX/JAR loader, or dynamic class-loading mechanism. Real integrations will be implemented as trusted in-app adapters or explicitly permissioned external integrations. Plugin descriptors remain inert until such an adapter is registered and passes the platform's security checks.
+
+
+## Trusted adapter contract
+
+The core now defines a generic `PluginAdapter` contract and `PluginRuntime` registry. A trusted adapter exposes the same validated manifest as its installed plugin record and implements a suspendable action handler. Registration is rejected when the plugin is missing, the manifest version differs, declared capabilities do not match, or another adapter is already registered for that plugin.
+
+Every invocation must include an action ID, declared capability, and human-readable action description. The runtime verifies that the plugin is still installed and enabled, bounds the input map, then calls the central `PluginActionGateway` immediately before adapter execution. Low-risk actions may proceed; sensitive actions return an approval-required result until the UI obtains an affirmative user decision and supplies a short-lived, one-use ticket bound to that exact action. Rejected actions never reach the adapter. Cancellation is propagated; unexpected adapter failures are returned as a generic failure result rather than exposing exception details.
+
+Adapters are trusted integration code, not arbitrary third-party code loaded from a manifest. Registration must be performed by reviewed app integration code. The registry is a contract foundation: the current Plugin Centre and Bubble do not yet register feature adapters, and no catalogue entry should be interpreted as a working integration.
