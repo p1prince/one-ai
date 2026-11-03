@@ -28,6 +28,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.DateFormat
+import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
@@ -164,16 +166,59 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
 }
 
 @Composable private fun ActivityPage(modifier:Modifier,store:OneAiStore,refresh:Int) {
-    val entries=store.activity()
-    LazyColumn(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) { item { Header("Activity","Recent actions performed within ONE AI.") };if(entries.isEmpty())item{CardBox{Text("Nothing here yet.",color=White)}};items(entries){CardBox{Text(it,color=White,fontSize=13.sp)}} }
+    val entries=store.activityEntries()
+    var confirmClear by remember { mutableStateOf(false) }
+    LazyColumn(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Header("Activity","A local record of recent ONE AI actions and outcomes.") }
+                TextButton(onClick={confirmClear=true},enabled=entries.isNotEmpty()) { Text("Clear history",color=Color(0xFFFF8A80)) }
+            }
+            Text("${entries.size} of 150 recent events • Stored on this device",color=Muted,fontSize=11.sp)
+        }
+        if(entries.isEmpty()) item { CardBox { Text("Nothing here yet.",color=White);Text("AI requests, command runs and security decisions will appear here.",color=Muted,fontSize=12.sp) } }
+        items(entries,key={"${it.timestamp}:${it.message}"}) {
+            CardBox {
+                Text(if(it.timestamp>0) DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(it.timestamp)) else "Earlier activity",color=Gold,fontSize=10.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(it.message,color=White,fontSize=13.sp)
+            }
+        }
+    }
+    if(confirmClear) AlertDialog(
+        onDismissRequest={confirmClear=false},
+        title={Text("Clear activity history?")},
+        text={Text("This permanently removes the locally stored activity entries from this device. It does not change your settings, plugins or commands.")},
+        confirmButton={TextButton(onClick={store.clearActivity();confirmClear=false}){Text("Clear history",color=Color(0xFFFF8A80))}},
+        dismissButton={TextButton(onClick={confirmClear=false}){Text("Cancel")}}
+    )
 }
 
 @Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
     var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
+    var confirmClearAiKey by remember { mutableStateOf(false) }
+    var confirmClearSearchKey by remember { mutableStateOf(false) }
+    val endpointIssue = com.oneai.app.ai.ProviderSettingsPolicy.endpointError(endpoint)
+    val hasAiKey = !vault.read().isNullOrBlank()
+    val hasSearchKey = !vault.readNamed("brave_search").isNullOrBlank()
+    val providerReady = endpointIssue == null && provider.isNotBlank() && model.isNotBlank() && hasAiKey
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
+        item { CardBox {
+            Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
+            ActionRow("AI provider",if(providerReady) "Configured • credentials stored securely" else if(!hasAiKey) "Needs an API key" else endpointIssue ?: "Complete provider name and model") {
+                Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
+            }
+            ActionRow("Web Research",if(hasSearchKey) "Brave Search credential stored" else "Optional • no search credential saved") {
+                Text(if(hasSearchKey) "READY" else "OPTIONAL",color=if(hasSearchKey) Gold else Muted,fontSize=10.sp)
+            }
+            ActionRow("Floating Bubble",if(bubble) "Enabled (Android overlay access may still be required)" else "Disabled") {
+                Text(if(bubble) "ON" else "OFF",color=Gold,fontSize=11.sp)
+            }
+            Text("${store.plugins().count { it.enabled }} enabled plugins • ${store.commands().count { it.enabled }} enabled commands",color=Muted,fontSize=11.sp)
+        } }
         item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
@@ -204,17 +249,36 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             OutlinedTextField(endpoint,{endpoint=it},modifier=Modifier.fillMaxWidth(),label={Text("HTTPS chat-completions endpoint")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),singleLine=true)
             OutlinedTextField(model,{model=it},modifier=Modifier.fillMaxWidth(),label={Text("Model")},singleLine=true)
             OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-            Button(onClick={store.setAiProviderName(provider);store.setAiEndpoint(endpoint);store.setAiModel(model);if(apiKey.isNotBlank())vault.save(apiKey);apiKey="";status="Provider settings saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
-            Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
+            if(endpointIssue!=null) Text(endpointIssue,color=Color(0xFFFF8A80),fontSize=11.sp)
+            Button(onClick={store.setAiProviderName(provider.trim());store.setAiEndpoint(endpoint.trim());store.setAiModel(model.trim());if(apiKey.isNotBlank())vault.save(apiKey.trim());apiKey="";status="Provider settings saved.";refresh()},enabled=endpointIssue==null&&provider.isNotBlank()&&model.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
+            Text("Credential status: ${if(hasAiKey) "saved (encrypted on this device)" else "not saved"}. Leave the key field blank to keep the existing key.",color=Muted,fontSize=11.sp)
+            Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Credentials use Android Keystore encryption.",color=Muted,fontSize=11.sp)
+            TextButton(onClick={confirmClearAiKey=true},enabled=hasAiKey){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox {
             Text("WEB RESEARCH",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             OutlinedTextField(braveSearchKey,{braveSearchKey=it},modifier=Modifier.fillMaxWidth(),label={Text("Brave Search API key (stored encrypted)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-            Button(onClick={vault.saveNamed("brave_search",braveSearchKey);braveSearchKey="";status="Web Research credential saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save search credential")}
+            Button(onClick={vault.saveNamed("brave_search",braveSearchKey.trim());braveSearchKey="";status="Web Research credential saved.";refresh()},enabled=braveSearchKey.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save search credential")}
+            Text("Credential status: ${if(hasSearchKey) "saved (encrypted separately)" else "not saved"}.",color=Muted,fontSize=11.sp)
             Text("Web Research uses Brave Search over HTTPS. This credential is stored separately from your AI provider key. Search requests require a separate ONE AI approval.",color=Muted,fontSize=11.sp)
+            TextButton(onClick={confirmClearSearchKey=true},enabled=hasSearchKey){Text("Remove search credential",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox { Text("SECURITY",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("• Plugins declare capabilities and start disabled.\n• The shell does not execute downloaded plugin code.\n• Provider credentials are encrypted with Android Keystore.\n• Android permissions are requested only when a feature needs them.",color=White,fontSize=12.sp) } }
     }
+    if(confirmClearAiKey) AlertDialog(
+        onDismissRequest={confirmClearAiKey=false},
+        title={Text("Remove AI provider key?")},
+        text={Text("ONE AI requests will stop working until you save a new provider key. Your provider name, endpoint and model settings will remain unchanged.")},
+        confirmButton={TextButton(onClick={vault.save("");store.log("Removed AI provider credential");confirmClearAiKey=false;status="AI provider key removed.";refresh()}){Text("Remove key",color=Color(0xFFFF8A80))}},
+        dismissButton={TextButton(onClick={confirmClearAiKey=false}){Text("Cancel")}}
+    )
+    if(confirmClearSearchKey) AlertDialog(
+        onDismissRequest={confirmClearSearchKey=false},
+        title={Text("Remove Brave Search key?")},
+        text={Text("Web Research will be unavailable until a new search credential is saved. Your AI provider key is not affected.")},
+        confirmButton={TextButton(onClick={vault.saveNamed("brave_search","");store.log("Removed Web Research credential");confirmClearSearchKey=false;status="Web Research credential removed.";refresh()}){Text("Remove key",color=Color(0xFFFF8A80))}},
+        dismissButton={TextButton(onClick={confirmClearSearchKey=false}){Text("Cancel")}}
+    )
 }

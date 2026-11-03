@@ -16,6 +16,7 @@ data class PluginRecord(
 )
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
+data class ActivityEntry(val timestamp: Long, val message: String)
 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
@@ -90,9 +91,17 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
         writeArray("activity", trimmed)
     }
 
-    fun activity(): List<String> = readArray("activity").let { a ->
-        (0 until a.length()).map { i -> a.getJSONObject(i).optString("message") }
+    fun activityEntries(): List<ActivityEntry> = readArray("activity").let { a ->
+        (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            ActivityEntry(item.optLong("time", 0L), item.optString("message"))
+        }
     }
+
+    /** Backward-compatible message-only view for existing callers. */
+    fun activity(): List<String> = activityEntries().map { it.message }
+
+    fun clearActivity() { writeArray("activity", JSONArray()) }
 
     fun setBubbleEnabled(enabled: Boolean) { prefs.edit().putBoolean("bubble_enabled", enabled).apply() }
     fun bubbleEnabled() = prefs.getBoolean("bubble_enabled", false)

@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 10 — settings, activity history and user controls.** Stage 8 passed Device Control CI runs #390–#391 on 282bde7. Stage 9's separate-project review, trusted AutoDroid launcher adapter and approval path passed CI run #394 on 7d5ad3b. AutoDroid remains independent; remote macro execution is not exposed. No APK has been built.
+**Current focus: Stage 10 — settings, activity history and user controls.** Stage 8 passed Device Control CI runs #390–#391 on 282bde7. Stage 9's separate-project review, trusted AutoDroid launcher adapter and approval path passed CI run #394 on 7d5ad3b. Stage 10 now adds provider readiness status, HTTPS endpoint validation, credential removal controls, timestamped activity history and confirmed history clearing. No APK has been built.
 
 ## Current status
 
