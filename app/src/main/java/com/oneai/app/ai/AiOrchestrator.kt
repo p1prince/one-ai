@@ -1,5 +1,7 @@
 package com.oneai.app.ai
 
+import kotlinx.coroutines.CancellationException
+
 /**
  * Shared entry point for AI requests from screens, commands and the bubble.
  * This initial layer normalizes requests and records outcomes. Android actions
@@ -31,6 +33,8 @@ class AiOrchestrator(
             )
             activity.log("AI response received (" + completion.provider + ")")
             completion
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             store.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"))
             throw error
