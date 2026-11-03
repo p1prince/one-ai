@@ -118,14 +118,16 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
 
 @Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,refresh:()->Unit) {
     var tick by remember { mutableIntStateOf(0) }
+    var operationMessage by remember { mutableStateOf("") }
     val installed=manager.installed(); val available=manager.catalogue.filterNot { t->installed.any{it.id==t.id} }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
         if(installed.isEmpty()) item { CardBox { Text("No plugins installed",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI starts empty. Install only the capabilities you want.",color=Muted,fontSize=12.sp) } }
-        items(installed,key={it.id}) { p -> CardBox { Text(p.name,color=White,fontWeight=FontWeight.SemiBold);Text(p.description,color=Muted,fontSize=12.sp);Text("v${p.version} • ${p.capabilities.joinToString()}",color=Gold,fontSize=10.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{manager.setEnabled(p.id,it);tick++;refresh()});TextButton(onClick={manager.remove(p.id);tick++;refresh()}){Text("Remove",color=Color(0xFFFF8A80))}} } }
+        items(installed,key={it.id}) { p -> CardBox { Text(p.name,color=White,fontWeight=FontWeight.SemiBold);Text(p.description,color=Muted,fontSize=12.sp);Text("v${p.version} • ${p.capabilities.joinToString()}",color=Gold,fontSize=10.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{manager.setEnabled(p.id,it).onFailure { error -> operationMessage=error.message ?: "Plugin change failed" }.onSuccess { operationMessage="" };tick++;refresh()});TextButton(onClick={manager.remove(p.id).onFailure { error -> operationMessage=error.message ?: "Plugin removal failed" }.onSuccess { operationMessage="" };tick++;refresh()}){Text("Remove",color=Color(0xFFFF8A80))}} } }
         item { Text("AVAILABLE CAPABILITIES",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
-        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={manager.install(t);tick++;refresh()},modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
+        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={manager.install(t).onFailure { error -> operationMessage=error.message ?: "Plugin installation failed" }.onSuccess { operationMessage="Installed ${it.name}; it remains disabled." };tick++;refresh()},modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
+        if(operationMessage.isNotBlank()) item { Text(operationMessage,color=Gold,fontSize=12.sp) }
     }
 }
 
