@@ -91,6 +91,7 @@ fun PluginActionButton(
                 val ticket = runtime.approveSensitiveAction(pluginId, input)
                 ticket.fold(
                     onSuccess = { ticket ->
+                        awaitingApproval = false
                         if (input.capability == "microphone" &&
                             context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
                         ) {
