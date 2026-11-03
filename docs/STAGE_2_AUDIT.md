@@ -115,3 +115,58 @@ Each step is one commit, CI-checked on its exact commit, with no merge and no AP
 10. Stage 11 acceptance matrix, separating CI, unit, integration, emulator and device results.
 
 Rules honoured: no merge of PR #1, no APK, no invented design details, 12 stages preserved.
+
+---
+
+## 9. Update 2 — dependency map and deeper read (step 2 of the correction plan)
+
+Evidence: import graph generated mechanically from `app/src/main/java`; additionally read in full or in part: `FloatingBubbleService.showPanel/showService`, `PluginActionGateway.kt`, the Plugins/Developer/Commands screens in `MainActivity.kt`, `PluginManager.kt` (all), `build.gradle.kts`. CI on the audit commit `d792357`: runs #404 and #405 passed.
+
+### 9.1 Mechanical package dependency map
+
+Edge counts are import statements between top-level packages (A → B means A imports B).
+
+| From → To | Imports | Assessment |
+|---|---:|---|
+| bubble → plugins | 17 | Expected only for a generic contract; currently capability-specific (F4) |
+| bubble → ai | 5 | Capability providers called from the Bubble |
+| bubble → security / core / commands | 3 / 1 / 1 | Acceptable (core) |
+| plugins → ai | 4 | Capability adapters call AI/search/vision providers |
+| plugins → security / core | 3 / 3 | Acceptable |
+| plugins → bubble | 2 | **Inverted**: plugin code depends on Bubble classes |
+| security → plugins | 3 | **Core → plugin**: `PluginActionButton` imports the runtime |
+| core → plugins / commands / ai / security | 1 / 1 / 1 / 2 | `OneAiStore` imports `PluginRuntime` (F11 confirmed) |
+| ai → security / core | 3 / 2 | Acceptable |
+| commands → ai / core | 2 / 1 | Acceptable |
+
+Conclusion: the layers are not cleanly separable today. Extracting capabilities (F2/F3) requires first inverting `plugins → bubble` and `core/security → plugins`.
+
+### 9.2 New and confirmed findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F12 | Plugin IDs are hard-coded in **three** places that must change together: `PluginManager.catalogue`, `PluginManager.serviceFor()`, `BubbleUiPolicy.availableServices()`. `MainActivity` Settings also hard-codes four of the six. Adding a plugin therefore needs core edits, contradicting Stage 8 ("no core source edits per extension"). | `PluginManager.kt:14–19, 72–79`; `BubbleUiPolicy.kt:28–33`; `MainActivity.kt:229–232` |
+| F13 | `FloatingBubbleService.showService()` is an if/else chain on capability name with inline UI for web search (text field), app list, settings list and AutoDroid. A generic plugin-contributed area does not exist. | `FloatingBubbleService.kt:177–250` |
+| F14 | Dead/stale code: a fallback branch still says "Voice Interface is not connected yet" and "Automation is not connected yet", but both services are handled earlier in the chain, so the branch is unreachable for them. Misleading text should not survive. | `FloatingBubbleService.kt:243–248` |
+| F15 | **Separation of plugin enablement vs. Bubble access exists in storage** (`plugins[].enabled` vs `bubble_services` set, empty by default) **and in Settings** (per-service switches). It is **not** exposed on the Plugins screen, which shows only install/remove-type actions and descriptions. Resolves the earlier "to verify" item: separate controls exist but live in Settings, keyed by hard-coded service names. | `OneAiStore.kt:108–109`; `MainActivity.kt:224–241`; Plugins screen |
+| F16 | Bubble hosts a generic **`command_manager`** service that runs enabled core commands without any plugin. This is core behaviour and consistent with the plan; it should be kept. It is also the one thing the Bubble shows when no plugin is installed. | `FloatingBubbleService.kt:178–199` |
+| F17 | Empty-by-default Bubble behaviour is present: with no enabled services the panel shows "No services enabled…". Positive finding; needs a test (none found for the panel). | `FloatingBubbleService.kt:155–170` |
+| F18 | Developer Mode creates **declarative descriptors only** (default capability `commands`). They install as records with no runnable code, which is safe but cannot become working extensions under the current design (F6). | `PluginManager.create`, Developer screen |
+| F19 | Credential storage supports a single provider-key alias in `SecretVault`; the tracker describes a second Brave credential slot. Plugin-owned secrets need a generic, plugin-scoped mechanism before Web Research can leave the core. (Second slot not re-read here; verify.) | `SecretVault.kt:16–21` |
+| F20 | The approval gateway (`PluginActionGateway`) is generic: it checks plugin existence and enablement, capability policy, requires a one-use ticket for sensitive actions, audits every outcome and can revoke pending approvals. It has no capability-specific code and is **reusable as the core security boundary** (class **C, R**, now read in full). | `PluginActionGateway.kt` |
+| F21 | Build is a single Gradle module (`app`) with only Compose, activity, lifecycle and coroutines dependencies plus JUnit. No Android instrumentation-test dependencies, so emulator tests cannot run today. minSdk 26, targetSdk 35, compileSdk 36. | `app/build.gradle.kts` |
+
+### 9.3 Effect on the proposed plan
+
+- Step 4 (core decoupling) must also invert `plugins → bubble` and `security → plugins`, and replace the three hard-coded ID tables (F12) with data supplied by registered plugins.
+- Step 5 (generic Bubble) now has a concrete shape: keep the shell, `command_manager`, ordering and visibility policy; replace the if/else chain with a plugin-contributed view contract; delete the stale branch (F14).
+- Step 6 must design the APK-plugin contract chosen in D1, including how Bubble UI is contributed across process boundaries (likely plugin-supplied declarative content rather than views).
+- Add a step: expose both controls (enabled, Bubble access) per plugin on the **Plugins** screen (F15), as Stage 9 requires.
+- Add tests for the empty Bubble panel (F17) and the empty-catalogue core (Stage 11).
+
+### 9.4 Still not done
+
+- Line-by-line read of the remaining 800 lines of `FloatingBubbleService` (the request/capture methods), `ActionSecurity.kt`, `SecretVault.kt` beyond line 21, the screen-capture activities, and the tests' actual assertions.
+- Dependency map is package-level; a class-level graph is needed before extraction begins.
+- Nothing has been run on a device or emulator. CI success means compile + unit tests only.
+- Visual design cannot be audited: the original reference was not recovered.

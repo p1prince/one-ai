@@ -27,7 +27,8 @@ Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 Novemb
 
 | Date | Commit | Scope | Verification |
 |---|---|---|---|
-| 2026-11-03 | `d792357` | Stage 2 audit + correction plan (docs only) | CI runs #404/#405 on that commit: check result before relying on them |
-| 2026-11-03 | (this commit) | Tracker rewritten to plan; legacy tracker archived; decision D1 recorded; AutoDroid doc scope note | Docs only |
+| 2026-11-03 | `d792357` | Stage 2 audit + correction plan (docs only) | CI #404, #405 passed (compile + unit tests) |
+| 2026-11-03 | `7dc6be0` | Tracker rewritten to plan; legacy tracker archived; decision D1 recorded; AutoDroid doc scope note | CI #406 passed, #407 in progress at last check |
+| 2026-11-03 | (audit update 2) | Dependency map, findings F12–F21, plan adjustments (docs only) | Pending CI |
 
-Known defects and open items: see findings F1–F11 in `docs/STAGE_2_AUDIT.md`.
+Known defects and open items: see findings F1–F21 in `docs/STAGE_2_AUDIT.md`.
