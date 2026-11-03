@@ -2,17 +2,17 @@
 
 This is the shared progress record for the foundation build. A batch is marked complete only after implementation and review.
 
-**Current focus: Batch 4 — Command System and reusable commands.**
+**Current focus: Batch 5 — Plugin architecture and developer SDK.**
 
-Batch 3 implementation includes provider-neutral contracts, the HTTPS adapter, normalized errors, shared orchestration, cancellation handling and main/bubble routing. Batch 4 implementation includes validated command creation, disabled-by-default commands, enable/disable/remove lifecycle, shared execution routing from the main screen and bubble, and unit tests. The first CI validation run failed at Kotlin compilation: the refresh callback inferred Int instead of Unit, and JSON arrays were treated as Kotlin collections. Those compile issues have been corrected on the latest branch commits; the latest head still awaits a fresh confirmed validation result. Provider endpoints reject embedded credentials/fragments and redirects are disabled. The bubble command path now reuses one store instance per execution.
+Batch 3 and Batch 4 implementation is in place: provider-neutral AI contracts, HTTPS adapter, shared orchestration, cancellation handling, validated disabled-by-default commands, lifecycle controls, shared main/bubble execution routing and unit tests. Initial CI validation found Kotlin compile errors; the callback and JSON array issues were corrected, but the latest branch head still needs a fresh validation run. Provider endpoints reject embedded credentials/fragments and redirects are disabled. The bubble command path reuses one store instance per execution. Batch 5 now adds a versioned declarative plugin manifest, capability and dependency validation, dependency-aware enable/disable/remove rules, backwards-compatible manifest metadata persistence, Plugin Centre error feedback, validator tests and SDK documentation. No executable plugin code is dynamically loaded.
 
 | # | Batch | Status | Completion criteria |
 |---:|---|---|---|
 | 1 | App shell, dashboard and navigation | 🟡 Existing foundation; verification pending | Main shell, navigation, responsive screens and error states reviewed |
 | 2 | Core architecture and persistent state | 🟡 Existing foundation; strengthening pending | Stable shared contracts, resilient persistence, lifecycle-safe state and validation |
 | 3 | AI provider engine and orchestration | 🟡 IMPLEMENTED — validation pending | Provider-neutral contract, secure request handling, normalized responses/errors, shared orchestration entry point, provider configuration and tests |
-| 4 | Command system and reusable commands | 🔵 IN PROGRESS | Validated command model, disabled-by-default creation, enable/disable/remove lifecycle, shared AI execution routing, results, audit trail and unit tests |
-| 5 | Plugin architecture and developer SDK | ⏳ UP NEXT | Versioned manifest, capability declarations, dependency validation, lifecycle and safe declarative SDK |
+| 4 | Command system and reusable commands | 🟡 IMPLEMENTED — validation pending | Validated command model, disabled-by-default creation, enable/disable/remove lifecycle, shared AI execution routing, results, audit trail and unit tests |
+| 5 | Plugin architecture and developer SDK | 🔵 IN PROGRESS | Versioned manifest, capability declarations, dependency validation, lifecycle and safe declarative SDK |
 | 6 | Security, permissions and action approvals | ⏳ UP NEXT | Capability policy, just-in-time consent, sensitive-action confirmation, secure storage and audit |
 | 7 | Floating Bubble and independent execution | ⏳ UP NEXT | Shared runtime, independent bubble navigation, reliable position/settings, capture hand-off and service lifecycle |
 | 8 | Web, screen, voice, app and device integrations | ⏳ UP NEXT | Real permissioned integrations; no placeholder presented as a working capability |
