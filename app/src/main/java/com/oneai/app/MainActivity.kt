@@ -204,7 +204,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             OutlinedTextField(model,{model=it},modifier=Modifier.fillMaxWidth(),label={Text("Model")},singleLine=true)
             OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true)
             Button(onClick={store.setAiProviderName(provider);store.setAiEndpoint(endpoint);store.setAiModel(model);if(apiKey.isNotBlank())vault.save(apiKey);apiKey="";status="Provider settings saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
-            Text("ONE AI currently supports OpenAI-compatible HTTPS chat-completions APIs. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
+            Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox { Text("SECURITY",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("• Plugins declare capabilities and start disabled.\n• The shell does not execute downloaded plugin code.\n• Provider credentials are encrypted with Android Keystore.\n• Android permissions are requested only when a feature needs them.",color=White,fontSize=12.sp) } }
