@@ -37,6 +37,8 @@ class ActionSecurityTest {
         val original = request()
         val token = gate.issueAfterUserApproval(original)
         assertFalse(gate.consume(token, request(action = "bluetooth.toggle")))
+        val secondToken = gate.issueAfterUserApproval(original)
+        assertFalse(gate.consume(secondToken, original.copy(description = "Send all device data")))
         assertFalse(gate.consume(token, original))
     }
 
