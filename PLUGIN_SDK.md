@@ -95,3 +95,8 @@ The Floating Bubble provides a search field. Each search is routed through `Plug
 ## Voice Interface integration (Stage 8)
 
 The optional Voice Interface plugin uses a trusted in-app adapter registered against the existing `one.voice.interface` manifest. One Bubble action requires an exact one-use `microphone` approval. Only after approval does the app open its non-exported capture Activity, request Android `RECORD_AUDIO` permission at runtime, and launch Android's speech-recognition UI. One recognized transcript is passed through the shared AI orchestrator; the response is spoken using Android TextToSpeech and returned to the Bubble. The capture UI remains outside the Bubble. Voice recognition availability and text-to-speech behavior depend on the Android device's installed services and must be tested on a physical device.
+
+
+## App Control integration (Stage 8)
+
+The optional App Control plugin uses the `app_launch` capability to enumerate launcher-visible applications and open a user-selected app through its exported Android launcher activity. The app catalog uses a launcher-intent `<queries>` declaration rather than broad `QUERY_ALL_PACKAGES` visibility. Every launch is routed through `PluginRuntime` and requires an exact-action, one-use approval naming the selected app. This integration does not sign in, inspect private app data, automate screens, or bypass another app's authentication. In-app automation remains a separate, permission-sensitive integration.
