@@ -1,6 +1,8 @@
 name: Android Validation
 
 on:
+  push:
+    branches: ['foundation/**']
   pull_request:
     branches: [main]
   workflow_dispatch:
