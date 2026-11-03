@@ -65,16 +65,20 @@ class FloatingBubbleService : Service() {
         }
         val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
         val size = prefs.getInt("bubble_size", 58)
-        val params = WindowManager.LayoutParams(size, size, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+        val safeSize = size.coerceIn(40, 96)
+        val maxX = (resources.displayMetrics.widthPixels - safeSize).coerceAtLeast(0)
+        val maxY = (resources.displayMetrics.heightPixels - safeSize).coerceAtLeast(0)
+        val params = WindowManager.LayoutParams(safeSize, safeSize, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt("bubble_x", 24); y = prefs.getInt("bubble_y", 220)
+            x = prefs.getInt("bubble_x", 24).coerceIn(0, maxX)
+            y = prefs.getInt("bubble_y", 220).coerceIn(0, maxY)
         }
         view.setOnTouchListener(object : android.view.View.OnTouchListener {
             var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
             override fun onTouch(v: android.view.View, e: MotionEvent): Boolean {
                 when (e.action) {
                     MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false; return true }
-                    MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; params.x=ox+dx; params.y=oy+dy; windowManager.updateViewLayout(view,params); return true }
+                    MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; params.x=(ox+dx).coerceIn(0,(resources.displayMetrics.widthPixels-params.width).coerceAtLeast(0)); params.y=(oy+dy).coerceIn(0,(resources.displayMetrics.heightPixels-params.height).coerceAtLeast(0)); runCatching { windowManager.updateViewLayout(view,params) }; return true }
                     MotionEvent.ACTION_UP -> {
                         getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE).edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
                         if (!moved) v.performClick()
@@ -84,7 +88,7 @@ class FloatingBubbleService : Service() {
                 return false
             }
         })
-        windowManager.addView(view, params); bubble = view; bubbleParams = params
+        runCatching { windowManager.addView(view, params) }.onSuccess { bubble = view; bubbleParams = params }.onFailure { stopSelf() }
     }
 
     private fun basePanel(): LinearLayout = LinearLayout(this).apply {
@@ -181,7 +185,7 @@ class FloatingBubbleService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
             gravity=Gravity.CENTER; x=0; y=0
         }
-        windowManager.addView(box,params); panel=box
+        runCatching { windowManager.addView(box,params) }.onSuccess { panel=box }
     }
 
     private fun resizeBubble() {
