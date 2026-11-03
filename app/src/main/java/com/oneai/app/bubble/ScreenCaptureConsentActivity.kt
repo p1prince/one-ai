@@ -52,6 +52,7 @@ internal object BubbleCaptureFeedback {
             putExtra(BubbleResultHandoff.EXTRA_CONTENT, content)
             if (imagePath != null) putExtra(BubbleResultHandoff.EXTRA_IMAGE_PATH, imagePath)
         }
-        if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
+        // The Bubble is already a running foreground service when this internal hand-off is sent.
+        context.startService(intent)
     }
 }
