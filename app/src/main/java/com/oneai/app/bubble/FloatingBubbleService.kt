@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
@@ -35,12 +37,21 @@ import com.oneai.app.ai.OpenAiCompatibleVisionProvider
 import com.oneai.app.ai.BraveSearchProvider
 import com.oneai.app.ai.WebSearchPolicy
 import com.oneai.app.plugins.WebResearchAdapter
+import com.oneai.app.plugins.VoiceInterfaceAdapter
+import com.oneai.app.plugins.VoiceInputProvider
+import com.oneai.app.plugins.VoiceOutputProvider
+import com.oneai.app.plugins.VoiceTextPolicy
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.UUID
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
@@ -50,6 +61,7 @@ class FloatingBubbleService : Service() {
     private val uiHandler = Handler(Looper.getMainLooper())
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
+    private var pendingVoiceCapture: CancellableContinuation<String>? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -201,6 +213,9 @@ class FloatingBubbleService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
             addButton(box, "Search the web") { requestWebSearch(query.text.toString()) }
+        } else if (service == "voice_interface") {
+            addLabel(box, "Speak one command and hear ONE AI's response. ONE AI asks for microphone permission only after you approve this voice session.")
+            addButton(box, "Start voice command") { requestVoiceInteraction() }
         } else {
             val message = when (service) {
                 "voice_interface" -> "Voice Interface is not connected yet. Voice capture, playback and runtime permission flows are still in development."
@@ -212,6 +227,143 @@ class FloatingBubbleService : Service() {
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
+    }
+
+    /** One explicit plugin approval gates one recording, AI request and spoken reply. */
+    private fun requestVoiceInteraction() {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = VoiceInterfaceAdapter(
+            inputProvider = VoiceInputProvider { captureVoiceInput() },
+            outputProvider = VoiceOutputProvider { speakVoiceResponse(it) },
+            orchestrator = AiOrchestrator(
+                AiProviderClient(store, SecretVault(this)),
+                store
+            )
+        )
+        if (VoiceInterfaceAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("Voice Interface unavailable", it.message ?: "Could not register the trusted voice adapter.")
+                return
+            }
+        }
+        val input = PluginActionInput(
+            actionId = VoiceInterfaceAdapter.VOICE_ACTION,
+            capability = "microphone",
+            description = "Record one voice command, send its transcript to the configured AI provider, and speak the response"
+        )
+        serviceScope.launch {
+            val decision = runtime.invoke(VoiceInterfaceAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "ALLOW ONE VOICE SESSION?", 16f)
+                        addLabel(box, "ONE AI will request Android microphone permission, listen once, send the recognized words to your configured AI provider, and speak its reply. Your voice is processed by Android's speech-recognition service; the transcript is sent to your AI provider.")
+                        addButton(box, "Cancel") { showService("voice_interface") }
+                        addButton(box, "Allow once") {
+                            val ticket = runtime.approveSensitiveAction(VoiceInterfaceAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("Voice session blocked", "ONE AI could not verify approval for this voice session.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(VoiceInterfaceAdapter.PLUGIN_ID, input, ticket)
+                                val message = when (result) {
+                                    is PluginInvocationResult.Completed -> result.output.content
+                                    is PluginInvocationResult.Rejected -> result.reason
+                                    is PluginInvocationResult.Failed -> result.message
+                                    is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
+                                }
+                                if (serviceJob.isActive) uiHandler.post {
+                                    if (serviceJob.isActive) showHandoffResult(
+                                        if (result is PluginInvocationResult.Completed) "Voice assistant" else "Voice session unavailable",
+                                        message
+                                    )
+                                }
+                            }
+                        }
+                        attachPanel(box)
+                    }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("Voice session blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("Voice session failed", decision.message)
+                    is PluginInvocationResult.Completed -> showHandoffResult("Voice assistant", decision.output.content)
+                }
+            }
+        }
+    }
+
+    private suspend fun captureVoiceInput(): String = suspendCancellableCoroutine { continuation ->
+        pendingVoiceCapture = continuation
+        continuation.invokeOnCancellation {
+            if (pendingVoiceCapture === continuation) pendingVoiceCapture = null
+        }
+        uiHandler.post {
+            if (!continuation.isActive || !serviceJob.isActive) return@post
+            runCatching {
+                startActivity(Intent(this, VoiceCaptureActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure { error ->
+                if (pendingVoiceCapture === continuation) pendingVoiceCapture = null
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+        }
+    }
+
+    private fun completeVoiceCapture(intent: Intent) {
+        val continuation = pendingVoiceCapture ?: return
+        pendingVoiceCapture = null
+        val value = intent.getStringExtra(EXTRA_VOICE_TEXT).orEmpty()
+        if (intent.getBooleanExtra(EXTRA_VOICE_SUCCESS, false)) {
+            val transcript = VoiceTextPolicy.normalizeTranscript(value)
+            if (transcript == null) continuation.resumeWithException(IllegalArgumentException("No usable speech was recognized."))
+            else continuation.resume(transcript)
+        } else {
+            continuation.resumeWithException(IllegalStateException(value.ifBlank { "Voice input was cancelled." }))
+        }
+    }
+
+    private suspend fun speakVoiceResponse(text: String) = suspendCancellableCoroutine<Unit> { continuation ->
+        uiHandler.post {
+            if (!continuation.isActive) return@post
+            lateinit var engine: TextToSpeech
+            engine = TextToSpeech(this) { status ->
+                if (!continuation.isActive) {
+                    engine.shutdown()
+                    return@TextToSpeech
+                }
+                if (status != TextToSpeech.SUCCESS) {
+                    engine.shutdown()
+                    continuation.resumeWithException(IllegalStateException("Android text-to-speech is unavailable."))
+                    return@TextToSpeech
+                }
+                val utteranceId = UUID.randomUUID().toString()
+                engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) = Unit
+                    override fun onDone(id: String?) {
+                        engine.shutdown()
+                        if (continuation.isActive) continuation.resume(Unit)
+                    }
+                    override fun onError(id: String?) {
+                        engine.shutdown()
+                        if (continuation.isActive) continuation.resumeWithException(IllegalStateException("Android text-to-speech failed."))
+                    }
+                })
+                val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+                if (result == TextToSpeech.ERROR) {
+                    engine.shutdown()
+                    if (continuation.isActive) continuation.resumeWithException(IllegalStateException("Android text-to-speech could not start."))
+                }
+            }
+            continuation.invokeOnCancellation {
+                uiHandler.post {
+                    runCatching { engine.stop() }
+                    runCatching { engine.shutdown() }
+                }
+            }
+        }
     }
 
     /** Web requests are routed through the plugin runtime and require an exact one-use approval. */
@@ -457,7 +609,9 @@ class FloatingBubbleService : Service() {
     private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == BubbleResultHandoff.ACTION_SHOW_RESULT) {
+        if (intent?.action == ACTION_VOICE_CAPTURE_RESULT) {
+            completeVoiceCapture(intent)
+        } else if (intent?.action == BubbleResultHandoff.ACTION_SHOW_RESULT) {
             if (bubble == null) showBubble()
             showHandoffResult(
                 intent.getStringExtra(BubbleResultHandoff.EXTRA_TITLE),
@@ -467,7 +621,13 @@ class FloatingBubbleService : Service() {
         }
         return START_STICKY
     }
-    override fun onDestroy() { serviceJob.cancel(); uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
+    override fun onDestroy() { pendingVoiceCapture?.cancel(); pendingVoiceCapture=null; serviceJob.cancel(); uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
-    companion object { const val CHANNEL="one_ai_bubble"; const val NOTIFICATION_ID=7104 }
+    companion object {
+        const val CHANNEL="one_ai_bubble"
+        const val NOTIFICATION_ID=7104
+        const val ACTION_VOICE_CAPTURE_RESULT="com.oneai.app.action.VOICE_CAPTURE_RESULT"
+        const val EXTRA_VOICE_SUCCESS="voice_success"
+        const val EXTRA_VOICE_TEXT="voice_text"
+    }
 }

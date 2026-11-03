@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 8 — real integrations.** Screen Intelligence and the first real Web Research connector are implemented in source. The latest confirmed full validation runs #338–#339 passed on the prior code head. Web Research source, UI, security and policy tests are now committed; current branch validation is queued/running. No APK has been built.
+**Current focus: Stage 8 — real integrations.** Screen Intelligence and the first real Web Research connector are implemented in source. Web Research implementation and security/UI refinements passed full validation runs #364–#365 on commit c2e519d. Voice Interface is now added on the same feature branch and awaits its new CI checks. No APK has been built.
 
 ## Current status
 
@@ -15,7 +15,7 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 | 5 | Plugin architecture and developer SDK | 🟠 Implementation frozen; verification pending | Versioned manifest, capability/dependency validation, lifecycle, trusted adapter registry, security-gated invocation and declarative SDK |
 | 6 | Security, permissions and action approvals | 🟠 Implementation frozen; verification pending | Capability policy, exact-action approval, just-in-time microphone permission, bounded execution audit and regression tests |
 | 7 | Floating Bubble and independent execution | 🟡 Source and automated policy tests implemented; capture-cleanup and artifact/image-policy CI passed; physical-device test reserved for Stage 11 | Independent overlay, command execution, preferences, bounded result handoff, explicit ONE AI approval, Android MediaProjection consent, one-frame capture, external region selector and private one-time artifact |
-| 8 | Web, screen, voice, app and device integrations | 🔵 IN PROGRESS — Screen Intelligence plus Web Research implemented in source; current Web Research CI pending; Voice, App and Device integrations remain | Real permissioned integrations; no placeholder presented as working functionality |
+| 8 | Web, screen, voice, app and device integrations | 🔵 IN PROGRESS — Screen Intelligence and Web Research CI verified; Voice Interface implementation now added and awaiting CI; App and Device integrations remain | Real permissioned integrations; no placeholder presented as working functionality |
 | 9 | AutoDroid integration boundary | ⏳ UP NEXT | Review separate AutoDroid project and define adapter; keep its repository independent |
 | 10 | Settings, activity history and user controls | ⏳ UP NEXT | Unified configuration, clear status, logs and recovery controls |
 | 11 | Full integration review and testing | ⏳ UP NEXT | Source review, automated tests, device testing, build validation and documented limitations |
@@ -41,9 +41,17 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - User must install and enable Web Research, enable its Bubble service, and configure a Brave Search API key in Settings.
 - Unit tests cover query validation, result URL validation and result formatting. API-key entry is masked in Settings. Current branch CI is still running; do not mark the connector verified until it passes.
 
+### Voice Interface — implementation added; CI pending
+- Trusted `VoiceInterfaceAdapter` uses the shared AI orchestrator, one-shot Android speech recognition, and Android TextToSpeech.
+- The Floating Bubble asks for a separate ONE AI approval before opening the microphone flow. Only after approval does the capture Activity request Android `RECORD_AUDIO` permission and launch the system speech-recognition UI outside the Bubble.
+- A single approved session captures one transcript, sends that transcript to the configured AI provider, and speaks the response. The transcript and answer return to the Bubble.
+- Speech recognition and speech output have bounded text policies and focused unit tests.
+- Voice capture is optional and remains disabled until the user installs/enables the plugin and enables its Bubble service.
+- Current branch CI and physical-device validation are pending. This is implementation in source, not yet release-verified.
+
 ### Still required in Stage 8
-- Confirm the latest Web Research code and documentation commits pass CI; fix any genuine failures.
-- Implement real Voice Interface, App Control and Device Control integrations. These are not complete and must not be presented as operational.
+- Confirm the Voice Interface implementation passes CI; fix any genuine failures.
+- Implement real App Control and Device Control integrations. These are not complete and must not be presented as operational.
 - Do not treat source compilation as proof of provider compatibility or device behavior.
 
 ## Important validation notes
@@ -54,7 +62,7 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Screen Intelligence and Web Research are not considered release-verified until their end-to-end paths are tested. A successful compile alone does not prove provider compatibility or device behavior.
 - Web Research uses a third-party Brave Search API; users must provide their own API key and explicitly approve each outbound query.
 - No APK has been built. The draft PR remains unmerged.
-- The most recent successful full validation before the Web Research changes is #338/#339. The current Web Research code and its later security/UI refinements are awaiting the latest branch CI result.
+- The latest Web Research implementation passed full validation #364/#365 on c2e519d. Voice Interface changes are newer and must pass their own CI before being marked verified.
 
 ## Working rules
 
