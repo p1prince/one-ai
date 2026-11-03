@@ -4,6 +4,8 @@ This is the shared progress record for the foundation build. A batch is marked c
 
 **Current focus: Batch 3 — AI provider engine and orchestration.**
 
+Batch 3 work completed so far: provider-neutral message/completion contract; OpenAI-compatible HTTPS adapter; normalized provider errors; coroutine cancellation handling; shared orchestration entry point; main assistant and bubble command paths routed through the orchestrator. Pending before completion: source/build validation and focused automated coverage.
+
 | # | Batch | Status | Completion criteria |
 |---:|---|---|---|
 | 1 | App shell, dashboard and navigation | 🟡 Existing foundation; verification pending | Main shell, navigation, responsive screens and error states reviewed |
