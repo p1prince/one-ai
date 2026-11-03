@@ -26,13 +26,25 @@ class PluginManager(private val store: OneAiStore) {
     fun setEnabled(id: String, enabled: Boolean) {
         val plugin = installed().firstOrNull { it.id == id } ?: return
         store.savePlugin(plugin.copy(enabled = enabled))
+        if (!enabled) serviceFor(plugin.id)?.let { service ->
+            store.setBubbleServices(store.bubbleServices() - service)
+        }
         store.log("${if (enabled) "Enabled" else "Disabled"} plugin: ${plugin.name}")
     }
     fun remove(id: String) {
         val name = installed().firstOrNull { it.id == id }?.name ?: id
+        serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
         store.log("Removed plugin: $name")
     }
+    private fun serviceFor(id: String): String? = when (id) {
+        "one.web.research" -> "web_research"
+        "one.screen.intelligence" -> "screen_intelligence"
+        "one.voice.interface" -> "voice_interface"
+        "one.automation.engine" -> "automation"
+        else -> null
+    }
+
     fun create(id: String, name: String, description: String, capabilities: List<String>): Result<PluginRecord> {
         val cleanId = id.trim().lowercase()
         if (!cleanId.matches(Regex("[a-z][a-z0-9]*(\\.[a-z0-9]+)+"))) return Result.failure(IllegalArgumentException("Use a reverse-domain plugin ID, e.g. dev.example.notes"))

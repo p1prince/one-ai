@@ -89,7 +89,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                 Page.Home -> HomePage(Modifier.padding(pad),store,{page=Page.Plugins},{page=Page.Commands},chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
-                Page.Commands -> CommandsPage(Modifier.padding(pad),store,refreshNow)
+                Page.Commands -> CommandsPage(Modifier.padding(pad),store,refreshNow,onAsk)
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
                 Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,onOpenOverlaySettings,refreshNow)
             }
@@ -145,14 +145,14 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     }
 }
 
-@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,refresh:()->Unit) {
-    var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")}
+@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,refresh:()->Unit,onAsk:(String,(String)->Unit)->Unit) {
+    var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")};var result by remember{mutableStateOf("")};var running by remember{mutableStateOf(false)}
     val commands=store.commands()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Command Manager","Build reusable instructions. Commands are not auto-enabled.") }
         item { CardBox { OutlinedTextField(title,{title=it},modifier=Modifier.fillMaxWidth(),label={Text("Command name")});OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),label={Text("Instruction")},minLines=2);Button(onClick={if(title.isNotBlank()&&prompt.isNotBlank()){store.saveCommand(CommandRecord("cmd_"+java.util.UUID.randomUUID(),title,prompt));store.log("Created command: $title");title="";prompt="";msg="Command saved";refresh()}},modifier=Modifier.fillMaxWidth()){Text("Save command")};if(msg.isNotBlank())Text(msg,color=Gold) } }
         if(commands.isEmpty()) item { CardBox { Text("No commands created yet.",color=White);Text("Create commands explicitly; installing a plugin does not add commands automatically.",color=Muted,fontSize=12.sp) } }
-        items(commands,key={it.id}) { c -> CardBox { Text(c.title,color=White,fontWeight=FontWeight.SemiBold);Text(c.prompt,color=Muted,fontSize=12.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(c.enabled)"Enabled" else "Disabled",color=Gold,modifier=Modifier.weight(1f));Switch(c.enabled,{store.saveCommand(c.copy(enabled=it));refresh()});TextButton(onClick={store.removeCommand(c.id);refresh()}){Text("Delete",color=Color(0xFFFF8A80))}} } }
+        items(commands,key={it.id}) { c -> CardBox { Text(c.title,color=White,fontWeight=FontWeight.SemiBold);Text(c.prompt,color=Muted,fontSize=12.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(c.enabled)"Enabled" else "Disabled",color=Gold,modifier=Modifier.weight(1f));Switch(c.enabled,{store.saveCommand(c.copy(enabled=it));refresh()});TextButton(onClick={store.removeCommand(c.id);refresh()}){Text("Delete",color=Color(0xFFFF8A80))}};Button(onClick={running=true;onAsk(c.prompt){result=it;running=false}},enabled=c.enabled&&!running,modifier=Modifier.fillMaxWidth()){Text(if(running)"Running…" else "Run with AI")};if(result.isNotBlank())Text(result,color=White,fontSize=12.sp) } }
     }
 }
 
@@ -172,7 +172,16 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;if(it)onOverlaySettings();onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
-            options.forEach { id -> Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)){Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f));Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})} }
+            val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
+            val availableOptions = buildList {
+                add("command_manager")
+                if ("one.web.research" in installedAndEnabled) add("web_research")
+                if ("one.screen.intelligence" in installedAndEnabled) add("screen_intelligence")
+                if ("one.voice.interface" in installedAndEnabled) add("voice_interface")
+                if ("one.automation.engine" in installedAndEnabled) add("automation")
+            }
+            availableOptions.forEach { id -> Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)){Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f));Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})} }
+            if (availableOptions.size == 1) Text("Install and enable optional plugins in Plugin Centre to expose their bubble services here.",color=Muted,fontSize=11.sp)
         } }
         item { CardBox {
             Text("AI PROVIDER",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)

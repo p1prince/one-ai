@@ -17,6 +17,14 @@ import android.widget.TextView
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import com.oneai.app.core.OneAiStore
+import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.security.SecretVault
+import android.os.Handler
+import android.os.Looper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
@@ -71,8 +79,10 @@ class FloatingBubbleService : Service() {
         background = GradientDrawable().apply { setColor(Color.rgb(26,28,32)); cornerRadius=28f; setStroke(2,Color.rgb(214,174,88)) }
     }
 
-    private fun addLabel(box: LinearLayout, text: String, size: Float = 14f) {
-        box.addView(TextView(this).apply { this.text=text; setTextColor(Color.WHITE); textSize=size; setPadding(0,8,0,8) })
+    private fun addLabel(box: LinearLayout, text: String, size: Float = 14f): TextView {
+        val label = TextView(this).apply { this.text=text; setTextColor(Color.WHITE); textSize=size; setPadding(0,8,0,8) }
+        box.addView(label)
+        return label
     }
 
     private fun addButton(box: LinearLayout, title: String, action: () -> Unit) {
@@ -100,8 +110,25 @@ class FloatingBubbleService : Service() {
         val box = basePanel()
         val title = service.replace('_',' ').replaceFirstChar { it.uppercase() }
         addLabel(box, "ONE AI  •  $title", 16f)
+        if (service == "command_manager") {
+            val commands = OneAiStore(this).commands().filter { it.enabled }
+            if (commands.isEmpty()) addLabel(box, "No enabled commands yet. Create commands in Command Manager.")
+            commands.forEach { command ->
+                addButton(box, "Run: ${command.title}") {
+                    val output = addLabel(box, "Running ${command.title}…", 12f)
+                    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                        val result = runCatching { AiProviderClient(OneAiStore(this@FloatingBubbleService), SecretVault(this@FloatingBubbleService)).ask(command.prompt) }
+                            .getOrElse { "Error: ${it.message}" }
+                        Handler(Looper.getMainLooper()).post { output.text = result }
+                    }
+                }
+            }
+            addButton(box, "Back to services") { showPanel() }
+            addButton(box, "Close panel") { hidePanel() }
+            attachPanel(box)
+            return
+        }
         val message = when (service) {
-            "command_manager" -> "Quick commands are managed in the Command Manager. The bubble stays independent; command execution will be connected to the approved command runtime."
             "web_research" -> "Web Research is enabled in this bubble. Connect a research provider in the Plugin Centre before running searches."
             "screen_intelligence" -> "Screen Intelligence requires a user-started screen-capture session. Start capture from its dedicated control when that integration is installed."
             "voice_interface" -> "Voice Interface is enabled. Microphone access and a voice provider are required before voice actions can run."
