@@ -19,7 +19,7 @@ The reusable `PluginActionButton` is the user-facing action entry point for trus
 ## Android permission boundaries
 
 Use Android's native permission and consent mechanisms in addition to ONE AI's own approval:
-- Screen capture: MediaProjection user consent.
+- Screen capture: ONE AI's exact-action approval followed by Android MediaProjection user consent for each capture session. The Stage 7 capture service is one-shot and the region selector runs outside the Bubble.
 - Microphone: RECORD_AUDIO is declared in the manifest and requested at action time, only after ONE AI's own explicit action approval. Denial prevents adapter execution.
 - Accessibility: user enables the service in Android Settings.
 - Device settings: supported intents/APIs and system confirmation where required.
@@ -34,4 +34,4 @@ The action gateway records policy decisions and approval events. PluginRuntime n
 
 ## Not implemented yet
 
-There is no general device-action executor, global permission manager, or real web/screen/voice integration in this batch. Screen capture still needs a MediaProjection consent/session flow; Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. The reusable approval/action host and microphone runtime-permission path are implemented, but no feature adapters are registered yet. This is a security foundation, not a claim that those capabilities are already operational.
+There is no general device-action executor, global permission manager, or real web/voice integration in this batch. Stage 7 now implements the screen-capture consent/session and external region-selection infrastructure, including a one-time private selected-image artifact hand-off; it does not implement image interpretation or register a Screen Intelligence adapter. Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. The reusable approval/action host and microphone runtime-permission path are implemented, but no feature adapters are registered yet. Real-device testing of the capture flow remains outstanding. This is a security foundation, not a claim that every capability is already operational.
