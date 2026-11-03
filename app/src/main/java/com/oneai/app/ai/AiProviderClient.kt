@@ -33,10 +33,12 @@ class AiProviderClient(
         }
         require(url.protocol.equals("https", ignoreCase = true)) { "Provider endpoint must use HTTPS." }
         require(url.host.isNotBlank()) { "Provider endpoint must include a host." }
+        require(url.userInfo == null && url.ref == null) { "Provider endpoint cannot contain embedded credentials or a fragment." }
 
         val connection = url.openConnection() as? HttpURLConnection
             ?: throw AiProviderException("CONNECTION_FAILED", "Could not open the provider connection.")
         try {
+            connection.instanceFollowRedirects = false
             connection.requestMethod = "POST"
             connection.connectTimeout = CONNECT_TIMEOUT_MS
             connection.readTimeout = READ_TIMEOUT_MS
