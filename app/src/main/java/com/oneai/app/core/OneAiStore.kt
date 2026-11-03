@@ -7,6 +7,7 @@ import com.oneai.app.ai.AiActivityLogger
 import com.oneai.app.commands.CommandRepository
 import com.oneai.app.security.ActionAuditLogger
 import com.oneai.app.security.PluginActionGateway
+import com.oneai.app.plugins.PluginRuntime
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
@@ -19,6 +20,7 @@ data class CommandRecord(val id: String, val title: String, val prompt: String, 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
     private val actionGateway by lazy { PluginActionGateway({ id -> plugins().firstOrNull { it.id == id } }, this) }
+    private val pluginRuntime by lazy { PluginRuntime({ id -> plugins().firstOrNull { it.id == id } }, actionGateway) }
 
     fun plugins(): List<PluginRecord> {
         val saved = readArray("plugins")
@@ -78,6 +80,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
     override fun record(event: String) { log(event) }
 
     fun pluginActionGateway(): PluginActionGateway = actionGateway
+    fun pluginRuntime(): PluginRuntime = pluginRuntime
 
     override fun log(message: String) {
         val logs = readArray("activity")
