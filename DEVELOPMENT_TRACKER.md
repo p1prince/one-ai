@@ -12,7 +12,7 @@ Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 Novemb
 |---:|---|---|---|
 | 1 | Design recovery and requirements freeze | 🟢 Spec written; owner confirmation of D2 pending | Visual values recovered from `b2d025a` and confirmed by owner (`docs/STAGE_1_SPEC.md`). Bubble visual design not recovered. |
 | 2 | Existing repository audit | 🔵 In progress | Draft audit and correction plan in `docs/STAGE_2_AUDIT.md`; awaiting owner approval. Exit needs file-by-file audit, dependency map, approved plan. |
-| 3 | Core application architecture | ⚪ Not started (code exists, unverified) | Core→plugin coupling to fix (F11). |
+| 3 | Core application architecture | 🔵 In progress | Done: single plugin→Bubble binding source (F12 partial), Settings omission fixed. Remaining: invert `security→plugins` and `plugins→bubble` (needs capability extraction), lifecycle/error/background-service interfaces, empty-catalogue test of `PluginManager` (needs a store abstraction). Not yet accepted. |
 | 4 | Main interface and navigation | ⚪ Not started (code exists, unverified) | Remove Commands tab; Command Manager becomes a Home module (owner decision, 4 Nov). See Stage 1 spec D1–D7. |
 | 5 | AI engine and orchestration | ⚪ Not started (code exists, unverified) | Provider-neutral engine appears reusable. |
 | 6 | Core command framework | ⚪ Not started | Existing router is a saved-prompt runner; no extension registration (F8). |
@@ -29,6 +29,10 @@ Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 Novemb
 |---|---|---|---|
 | 2026-11-03 | `d792357` | Stage 2 audit + correction plan (docs only) | CI #404, #405 passed (compile + unit tests) |
 | 2026-11-03 | `7dc6be0` | Tracker rewritten to plan; legacy tracker archived; decision D1 recorded; AutoDroid doc scope note | CI #406 passed, #407 in progress at last check |
-| 2026-11-03 | (audit update 2) | Dependency map, findings F12–F21, plan adjustments (docs only) | Pending CI |
+| 2026-11-03 | `354a519` | Audit update 2: dependency map, findings F12–F21 | CI #408, #409 passed |
+| 2026-11-04 | `9712d21` | Stage 1 spec from `b2d025a`; decisions D2/D3 (docs only) | CI #410, #411 passed |
+| 2026-11-04 | `53844df` | Stage 3 slice: `BuiltInCatalogue` as single source of plugin→Bubble bindings; `BubbleUiPolicy.availableServices` now takes bindings; Settings now lists App/Device Control Bubble toggles (defect: previously missing); 8 new unit tests | CI #412, #413 passed (compile + unit tests only; no emulator/device) |
+
+Fixed defects: Settings omitted Bubble toggles for App Control and Device Control (`53844df`).
 
 Known defects and open items: see findings F1–F21 in `docs/STAGE_2_AUDIT.md`.
