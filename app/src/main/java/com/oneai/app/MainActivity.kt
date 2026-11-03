@@ -1,14 +1,21 @@
 package com.oneai.app
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,172 +24,166 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.bubble.FloatingBubbleService
+import com.oneai.app.commands.CommandRouter
+import com.oneai.app.core.*
+import com.oneai.app.plugins.PluginManager
+import com.oneai.app.security.SecretVault
+import kotlinx.coroutines.launch
 
-private val Ink = Color(0xFF101114)
-private val Panel = Color(0xFF1A1C20)
-private val Gold = Color(0xFFD6AE58)
-private val Muted = Color(0xFF9699A1)
-private val White = Color(0xFFF5F3EE)
+private val Ink=Color(0xFF101114); private val Panel=Color(0xFF1A1C20); private val Gold=Color(0xFFD6AE58)
+private val Muted=Color(0xFF9699A1); private val White=Color(0xFFF5F3EE)
 
 class MainActivity : ComponentActivity() {
+    private lateinit var store: OneAiStore
+    private lateinit var plugins: PluginManager
+    private lateinit var vault: SecretVault
+    private lateinit var ai: AiProviderClient
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { OneAiApp() }
+        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault)
+        setContent { OneAiApp(store,plugins,vault,ai,
+            onBubbleToggle={ enabled -> toggleBubble(enabled) },
+            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { ai.ask(prompt) }.onSuccess { store.log("AI response received"); done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onOpenOverlaySettings={ if (Build.VERSION.SDK_INT>=23) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
+        ) }
+    }
+    private fun toggleBubble(enabled:Boolean) {
+        store.setBubbleEnabled(enabled)
+        if(enabled) {
+            if(Build.VERSION.SDK_INT>=23 && !Settings.canDrawOverlays(this)) {
+                store.setBubbleEnabled(false)
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                return
+            }
+            if(Build.VERSION.SDK_INT>=26) startForegroundService(Intent(this,FloatingBubbleService::class.java))
+            else startService(Intent(this,FloatingBubbleService::class.java))
+        } else stopService(Intent(this,FloatingBubbleService::class.java))
     }
 }
 
-private enum class Destination(val label: String) {
-    Home("Home"), Plugins("Plugins"), Develop("Develop"), Activity("Activity"), Settings("Settings")
-}
+private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), Develop("Develop"), Commands("Commands"), Activity("Activity"), Settings("Settings") }
 
 @Composable
-private fun OneAiApp() {
-    var selected by remember { mutableStateOf(Destination.Home) }
-    MaterialTheme(colorScheme = darkColorScheme(
-        primary = Gold, background = Ink, surface = Panel,
-        onPrimary = Ink, onBackground = White, onSurface = White
-    )) {
-        Scaffold(
-            containerColor = Ink,
-            bottomBar = {
-                NavigationBar(containerColor = Panel, contentColor = Gold) {
-                    Destination.entries.forEach { destination ->
-                        val icon = when (destination) {
-                            Destination.Home -> Icons.Default.Home
-                            Destination.Plugins -> Icons.Default.Extension
-                            Destination.Develop -> Icons.Default.Code
-                            Destination.Activity -> Icons.Default.History
-                            Destination.Settings -> Icons.Default.Settings
-                        }
-                        NavigationBarItem(
-                            selected = selected == destination,
-                            onClick = { selected = destination },
-                            icon = { Icon(icon, contentDescription = destination.label) },
-                            label = { Text(destination.label, fontSize = 10.sp) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Gold, selectedTextColor = Gold,
-                                indicatorColor = Gold.copy(alpha = 0.14f),
-                                unselectedIconColor = Muted, unselectedTextColor = Muted
-                            )
-                        )
-                    }
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient,
+                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onOpenOverlaySettings:()->Unit) {
+    var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
+    var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
+    val refreshNow={ refresh++ }
+    MaterialTheme(colorScheme=darkColorScheme(primary=Gold,background=Ink,surface=Panel,onPrimary=Ink,onBackground=White,onSurface=White)) {
+        Scaffold(containerColor=Ink, bottomBar={
+            NavigationBar(containerColor=Panel) {
+                listOf(Page.Home,Page.Plugins,Page.Develop,Page.Commands,Page.Activity,Page.Settings).forEach { p ->
+                    NavigationBarItem(selected=page==p,onClick={page=p;refresh++},icon={
+                        Icon(when(p){Page.Home->Icons.Default.Home;Page.Plugins->Icons.Default.Extension;Page.Develop->Icons.Default.Code;Page.Commands->Icons.Default.Terminal;Page.Activity->Icons.Default.History;Page.Settings->Icons.Default.Settings},p.title)
+                    },label={Text(p.title,fontSize=9.sp)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Gold.copy(alpha=.12f),unselectedIconColor=Muted,unselectedTextColor=Muted))
                 }
             }
-        ) { padding ->
-            when (selected) {
-                Destination.Home -> HomeScreen(Modifier.padding(padding), onPlugins = { selected = Destination.Plugins })
-                Destination.Plugins -> SimpleScreen(Modifier.padding(padding), "Plugin Centre", "Your platform starts with a clean slate.", "No plugins installed yet.")
-                Destination.Develop -> SimpleScreen(Modifier.padding(padding), "Developer Mode", "Build extensions for ONE AI.", "Developer tools will appear here.")
-                Destination.Activity -> SimpleScreen(Modifier.padding(padding), "Activity", "Your ONE AI activity will appear here.", "No activity yet.")
-                Destination.Settings -> SimpleScreen(Modifier.padding(padding), "Settings", "Manage your ONE AI experience.", "Core settings are coming in the next milestone.")
+        }) { pad ->
+            when(page) {
+                Page.Home -> HomePage(Modifier.padding(pad),store,{page=Page.Plugins},{page=Page.Commands},chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
+                Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
+                Page.Commands -> CommandsPage(Modifier.padding(pad),store,refreshNow)
+                Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,onOpenOverlaySettings,refreshNow)
             }
         }
     }
 }
 
-@Composable
-private fun HomeScreen(modifier: Modifier = Modifier, onPlugins: () -> Unit) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 26.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.size(42.dp).background(Gold, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                    Text("1", color = Ink, fontSize = 25.sp, fontWeight = FontWeight.Black)
-                }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("ONE AI", color = White, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Text("YOUR INTELLIGENT PLATFORM", color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp)
-                }
-                IconButton(onClick = {}) { Icon(Icons.Default.Settings, "Settings", tint = Muted) }
-            }
-        }
-        item {
-            Column {
-                Text("Your Control Centre", color = White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                Text("One platform. Infinite possibilities.", color = Muted, fontSize = 14.sp)
-            }
-        }
-        item {
-            Row(
-                Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.AutoAwesome, null, tint = Gold, modifier = Modifier.size(25.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Command ONE", color = White, fontWeight = FontWeight.SemiBold)
-                    Text("Your AI command interface is being prepared.", color = Muted, fontSize = 12.sp)
-                }
-                Icon(Icons.Default.ArrowForward, null, tint = Gold)
-            }
-        }
-        item { Text("PLATFORM MODULES", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp) }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ModuleCard(Icons.Default.Extension, "Plugin Centre", "Install and manage capabilities", onPlugins)
-                ModuleCard(Icons.Default.BubbleChart, "Floating Bubble", "Independent quick-access interface") {}
-                ModuleCard(Icons.Default.Code, "Developer Mode", "Create and test your own plugins") {}
-                ModuleCard(Icons.Default.Tune, "Command Manager", "Organise commands and shortcuts") {}
-            }
-        }
-        item { Text("SYSTEM STATUS", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatusCard("AI CORE", "Foundation", Modifier.weight(1f))
-                StatusCard("EXTENSIONS", "None installed", Modifier.weight(1f))
-                StatusCard("SECURITY", "Ready", Modifier.weight(1f))
-            }
+@Composable private fun Header(title:String,subtitle:String) { Column(Modifier.padding(bottom=16.dp)) { Text(title,color=White,fontSize=27.sp,fontWeight=FontWeight.Bold);Text(subtitle,color=Muted,fontSize=13.sp) } }
+@Composable private fun CardBox(content:@Composable ColumnScope.()->Unit) { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(16.dp)).padding(16.dp),content=content) }
+@Composable private fun ActionRow(title:String,detail:String,action:@Composable RowScope.()->Unit) { Row(Modifier.fillMaxWidth().padding(vertical=9.dp),verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)){Text(title,color=White,fontWeight=FontWeight.SemiBold);Text(detail,color=Muted,fontSize=12.sp)};action() } }
+
+@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,toPlugins:()->Unit,toCommands:()->Unit,result:String,busy:Boolean,onAsk:(String)->Unit) {
+    var prompt by remember { mutableStateOf("") }
+    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)) {
+        item { Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(42.dp).background(Gold,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center){Text("1",color=Ink,fontSize=25.sp,fontWeight=FontWeight.Black)};Spacer(Modifier.width(12.dp));Column{Text("ONE AI",color=White,fontSize=20.sp,fontWeight=FontWeight.Bold,letterSpacing=2.sp);Text("YOUR INTELLIGENT PLATFORM",color=Muted,fontSize=9.sp)} } }
+        item { Header("Your Control Centre","One platform. Infinite possibilities.") }
+        item { CardBox { Text("COMMAND ONE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),placeholder={Text("What would you like ONE AI to do?")},minLines=2);Spacer(Modifier.height(8.dp));Button(onClick={if(prompt.isNotBlank())onAsk(prompt)},enabled=prompt.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth()){Text(if(busy)"Thinking…" else "Send command")};if(result.isNotBlank()){Spacer(Modifier.height(10.dp));Text(result,color=White,fontSize=13.sp)} } }
+        item { CardBox { Text("PLATFORM MODULES",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);ActionRow("Plugin Centre","Install and manage optional capabilities"){TextButton(onClick=toPlugins){Text("OPEN")}};ActionRow("Command Manager","Create reusable instructions"){TextButton(onClick=toCommands){Text("OPEN")}};ActionRow("Floating Bubble",if(store.bubbleEnabled())"Enabled in settings" else "Off by default"){Text(if(store.bubbleEnabled())"ON" else "OFF",color=Gold)} } }
+        item { CardBox { Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("AI CORE     Ready for provider setup",color=White,fontSize=12.sp);Text("PLUGINS     ${store.plugins().count{it.enabled}} enabled / ${store.plugins().size} installed",color=White,fontSize=12.sp);Text("SECURITY    Explicit capabilities • no arbitrary code loading",color=White,fontSize=12.sp) } }
+    }
+}
+
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,refresh:()->Unit) {
+    var tick by remember { mutableIntStateOf(0) }
+    val installed=manager.installed(); val available=manager.catalogue.filterNot { t->installed.any{it.id==t.id} }
+    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
+        item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
+        if(installed.isEmpty()) item { CardBox { Text("No plugins installed",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI starts empty. Install only the capabilities you want.",color=Muted,fontSize=12.sp) } }
+        items(installed,key={it.id}) { p -> CardBox { Text(p.name,color=White,fontWeight=FontWeight.SemiBold);Text(p.description,color=Muted,fontSize=12.sp);Text("v${p.version} • ${p.capabilities.joinToString()}",color=Gold,fontSize=10.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{manager.setEnabled(p.id,it);tick++;refresh()});TextButton(onClick={manager.remove(p.id);tick++;refresh()}){Text("Remove",color=Color(0xFFFF8A80))}} } }
+        item { Text("AVAILABLE CAPABILITIES",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
+        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={manager.install(t);tick++;refresh()},modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
+    }
+}
+
+@Composable private fun DeveloperPage(modifier:Modifier,store:OneAiStore,manager:PluginManager,refresh:()->Unit) {
+    var id by remember{mutableStateOf("")};var name by remember{mutableStateOf("")};var description by remember{mutableStateOf("")};var message by remember{mutableStateOf("")}
+    var dev by remember{mutableStateOf(store.developerMode())}
+    Column(modifier.fillMaxSize().padding(20.dp)) {
+        Header("Developer Mode","Create safe plugin descriptors for your own extensions.")
+        CardBox {
+            ActionRow("Developer Mode","Required before creating a plugin"){Switch(dev,{dev=it;store.setDeveloperMode(it)})}
+            if(dev) {
+                OutlinedTextField(id,{id=it},modifier=Modifier.fillMaxWidth(),label={Text("Plugin ID (dev.example.plugin)")})
+                OutlinedTextField(name,{name=it},modifier=Modifier.fillMaxWidth(),label={Text("Plugin name")})
+                OutlinedTextField(description,{description=it},modifier=Modifier.fillMaxWidth(),label={Text("Description")})
+                Spacer(Modifier.height(8.dp))
+                Button(onClick={val r=manager.create(id,name,description,listOf("commands"));message=r.fold({"Created ${it.name}. It is disabled until you enable it."},{it.message?:"Could not create plugin"});refresh()},modifier=Modifier.fillMaxWidth(),enabled=id.isNotBlank()&&name.isNotBlank()){Text("Create plugin descriptor")}
+                Text("Generated plugins are declarative descriptors. ONE AI does not load arbitrary executable code into its core process.",color=Muted,fontSize=11.sp)
+            } else Text("Turn on Developer Mode to access plugin creation tools.",color=Muted)
+            if(message.isNotBlank())Text(message,color=Gold)
         }
     }
 }
 
-@Composable
-private fun ModuleCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(15.dp)).clickable(onClick = onClick).padding(15.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(42.dp).background(Gold.copy(alpha = 0.12f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Gold)
-        }
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = White, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Muted, fontSize = 12.sp)
-        }
-        Icon(Icons.Default.ChevronRight, null, tint = Muted)
+@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,refresh:()->Unit) {
+    var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")}
+    val commands=store.commands()
+    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Header("Command Manager","Build reusable instructions. Commands are not auto-enabled.") }
+        item { CardBox { OutlinedTextField(title,{title=it},modifier=Modifier.fillMaxWidth(),label={Text("Command name")});OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),label={Text("Instruction")},minLines=2);Button(onClick={if(title.isNotBlank()&&prompt.isNotBlank()){store.saveCommand(CommandRecord("cmd_"+java.util.UUID.randomUUID(),title,prompt));store.log("Created command: $title");title="";prompt="";msg="Command saved";refresh()}},modifier=Modifier.fillMaxWidth()){Text("Save command")};if(msg.isNotBlank())Text(msg,color=Gold) } }
+        if(commands.isEmpty()) item { CardBox { Text("No commands created yet.",color=White);Text("Create commands explicitly; installing a plugin does not add commands automatically.",color=Muted,fontSize=12.sp) } }
+        items(commands,key={it.id}) { c -> CardBox { Text(c.title,color=White,fontWeight=FontWeight.SemiBold);Text(c.prompt,color=Muted,fontSize=12.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(c.enabled)"Enabled" else "Disabled",color=Gold,modifier=Modifier.weight(1f));Switch(c.enabled,{store.saveCommand(c.copy(enabled=it));refresh()});TextButton(onClick={store.removeCommand(c.id);refresh()}){Text("Delete",color=Color(0xFFFF8A80))}} } }
     }
 }
 
-@Composable
-private fun StatusCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.background(Panel, RoundedCornerShape(13.dp)).padding(11.dp)) {
-        Text(title, color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(7.dp))
-        Text(value, color = Gold, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-    }
+@Composable private fun ActivityPage(modifier:Modifier,store:OneAiStore,refresh:Int) {
+    val entries=store.activity()
+    LazyColumn(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) { item { Header("Activity","Recent actions performed within ONE AI.") };if(entries.isEmpty())item{CardBox{Text("Nothing here yet.",color=White)}};items(entries){CardBox{Text(it,color=White,fontSize=13.sp)}} }
 }
 
-@Composable
-private fun SimpleScreen(modifier: Modifier, title: String, subtitle: String, empty: String) {
-    Column(modifier.fillMaxSize().padding(22.dp)) {
-        Text(title, color = White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text(subtitle, color = Muted)
-        Spacer(Modifier.height(28.dp))
-        Column(
-            Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(18.dp)).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(Icons.Default.Layers, null, tint = Gold, modifier = Modifier.size(35.dp))
-            Spacer(Modifier.height(12.dp))
-            Text(empty, color = White, fontWeight = FontWeight.Medium)
-        }
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,onOverlaySettings:()->Unit,refresh:()->Unit) {
+    var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
+    var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
+    var apiKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
+    val options=listOf("command_manager","web_research","screen_intelligence","voice_interface","automation")
+    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { Header("Settings","Configure the core, AI provider and floating interface.") }
+        item { CardBox {
+            Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
+            ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;if(it)onOverlaySettings();onBubbleToggle(it)})}
+            Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
+            options.forEach { id -> Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)){Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f));Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})} }
+        } }
+        item { CardBox {
+            Text("AI PROVIDER",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
+            OutlinedTextField(provider,{provider=it},modifier=Modifier.fillMaxWidth(),label={Text("Provider label")})
+            OutlinedTextField(endpoint,{endpoint=it},modifier=Modifier.fillMaxWidth(),label={Text("HTTPS chat-completions endpoint")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),singleLine=true)
+            OutlinedTextField(model,{model=it},modifier=Modifier.fillMaxWidth(),label={Text("Model")},singleLine=true)
+            OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true)
+            Button(onClick={store.setAiProviderName(provider);store.setAiEndpoint(endpoint);store.setAiModel(model);if(apiKey.isNotBlank())vault.save(apiKey);apiKey="";status="Provider settings saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
+            Text("ONE AI currently supports OpenAI-compatible HTTPS chat-completions APIs. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
+            if(status.isNotBlank())Text(status,color=Gold)
+        } }
+        item { CardBox { Text("SECURITY",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("• Plugins declare capabilities and start disabled.\n• The shell does not execute downloaded plugin code.\n• Provider credentials are encrypted with Android Keystore.\n• Android permissions are requested only when a feature needs them.",color=White,fontSize=12.sp) } }
     }
 }
