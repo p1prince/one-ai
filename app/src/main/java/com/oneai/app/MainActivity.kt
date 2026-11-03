@@ -46,10 +46,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var vault: SecretVault
     private lateinit var ai: AiProviderClient
     private lateinit var orchestrator: AiOrchestrator
+    private lateinit var commandRouter: CommandRouter
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(ai,store)
-        setContent { OneAiApp(store,plugins,vault,ai,
+        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(ai,store); commandRouter=CommandRouter(store,orchestrator)
+        setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
         ) }
@@ -71,7 +72,7 @@ class MainActivity : ComponentActivity() {
 private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), Develop("Develop"), Commands("Commands"), Activity("Activity"), Settings("Settings") }
 
 @Composable
-private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient,
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
@@ -90,7 +91,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                 Page.Home -> HomePage(Modifier.padding(pad),store,{page=Page.Plugins},{page=Page.Commands},chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
-                Page.Commands -> CommandsPage(Modifier.padding(pad),store,refreshNow,onAsk)
+                Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onAsk)
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
                 Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,refreshNow)
             }
@@ -146,14 +147,14 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     }
 }
 
-@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,refresh:()->Unit,onAsk:(String,(String)->Unit)->Unit) {
+@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,router:CommandRouter,refresh:()->Unit,onAsk:(String,(String)->Unit)->Unit) {
     var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")};var result by remember{mutableStateOf("")};var running by remember{mutableStateOf(false)}
     val commands=store.commands()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Command Manager","Build reusable instructions. Commands are not auto-enabled.") }
-        item { CardBox { OutlinedTextField(title,{title=it},modifier=Modifier.fillMaxWidth(),label={Text("Command name")});OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),label={Text("Instruction")},minLines=2);Button(onClick={if(title.isNotBlank()&&prompt.isNotBlank()){store.saveCommand(CommandRecord("cmd_"+java.util.UUID.randomUUID(),title,prompt));store.log("Created command: $title");title="";prompt="";msg="Command saved";refresh()}},modifier=Modifier.fillMaxWidth()){Text("Save command")};if(msg.isNotBlank())Text(msg,color=Gold) } }
+        item { CardBox { OutlinedTextField(title,{title=it},modifier=Modifier.fillMaxWidth(),label={Text("Command name")});OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),label={Text("Instruction")},minLines=2);Button(onClick={if(title.isNotBlank()&&prompt.isNotBlank()){router.add(title,prompt).onSuccess { title="";prompt="";msg="Command saved (disabled by default)";refresh() }.onFailure { msg=it.message ?: "Could not save command" }}},modifier=Modifier.fillMaxWidth()){Text("Save command")};if(msg.isNotBlank())Text(msg,color=Gold) } }
         if(commands.isEmpty()) item { CardBox { Text("No commands created yet.",color=White);Text("Create commands explicitly; installing a plugin does not add commands automatically.",color=Muted,fontSize=12.sp) } }
-        items(commands,key={it.id}) { c -> CardBox { Text(c.title,color=White,fontWeight=FontWeight.SemiBold);Text(c.prompt,color=Muted,fontSize=12.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(c.enabled)"Enabled" else "Disabled",color=Gold,modifier=Modifier.weight(1f));Switch(c.enabled,{store.saveCommand(c.copy(enabled=it));refresh()});TextButton(onClick={store.removeCommand(c.id);refresh()}){Text("Delete",color=Color(0xFFFF8A80))}};Button(onClick={running=true;onAsk(c.prompt){result=it;running=false}},enabled=c.enabled&&!running,modifier=Modifier.fillMaxWidth()){Text(if(running)"Running…" else "Run with AI")};if(result.isNotBlank())Text(result,color=White,fontSize=12.sp) } }
+        items(commands,key={it.id}) { c -> CardBox { Text(c.title,color=White,fontWeight=FontWeight.SemiBold);Text(c.prompt,color=Muted,fontSize=12.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(c.enabled)"Enabled" else "Disabled",color=Gold,modifier=Modifier.weight(1f));Switch(c.enabled,{router.setEnabled(c.id,it);refresh()});TextButton(onClick={router.remove(c.id);refresh()}){Text("Delete",color=Color(0xFFFF8A80))}};Button(onClick={running=true;onAsk("Run saved command: "+c.title+"\\n\\n"+c.prompt){result=it;running=false}},enabled=c.enabled&&!running,modifier=Modifier.fillMaxWidth()){Text(if(running)"Running…" else "Run with AI")};if(result.isNotBlank())Text(result,color=White,fontSize=12.sp) } }
     }
 }
 
