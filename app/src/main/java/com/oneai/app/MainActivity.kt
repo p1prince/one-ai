@@ -33,6 +33,8 @@ import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.plugins.BuiltInCatalogue
+import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.core.*
@@ -224,13 +226,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
             val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-            val availableOptions = buildList {
-                add("command_manager")
-                if ("one.web.research" in installedAndEnabled) add("web_research")
-                if ("one.screen.intelligence" in installedAndEnabled) add("screen_intelligence")
-                if ("one.voice.interface" in installedAndEnabled) add("voice_interface")
-                if ("one.automation.engine" in installedAndEnabled) add("automation")
-            }
+            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, BuiltInCatalogue.bubbleBindings).toList()
             val savedOrder = store.bubbleServiceOrder().filter { it in availableOptions }
             val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
             orderedOptions.forEachIndexed { index, id ->

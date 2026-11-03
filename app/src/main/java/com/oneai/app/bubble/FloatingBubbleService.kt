@@ -26,6 +26,7 @@ import android.graphics.drawable.GradientDrawable
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.ActionRequest
@@ -155,7 +156,7 @@ class FloatingBubbleService : Service() {
     private fun showPanel() {
         val store = OneAiStore(this)
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-        val availableServices = BubbleUiPolicy.availableServices(enabledPlugins)
+        val availableServices = BubbleUiPolicy.availableServices(enabledPlugins, BuiltInCatalogue.bubbleBindings)
         // Ignore stale saved toggles when a plugin is disabled or removed.
         val enabled = BubbleUiPolicy.visibleServices(store.bubbleServices(), availableServices)
         val box = basePanel()

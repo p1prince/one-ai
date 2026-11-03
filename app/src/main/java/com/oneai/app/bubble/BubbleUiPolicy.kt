@@ -23,14 +23,15 @@ object BubbleUiPolicy {
         return BubblePosition(x.coerceIn(0, maxX), y.coerceIn(0, maxY))
     }
 
-    fun availableServices(enabledPluginIds: Set<String>): Set<String> = buildSet {
-        add("command_manager")
-        if ("one.web.research" in enabledPluginIds) add("web_research")
-        if ("one.screen.intelligence" in enabledPluginIds) add("screen_intelligence")
-        if ("one.voice.interface" in enabledPluginIds) add("voice_interface")
-        if ("one.app.control" in enabledPluginIds) add("app_control")
-        if ("one.device.actions" in enabledPluginIds) add("device_control")
-        if ("one.automation.engine" in enabledPluginIds) add("automation")
+    const val COMMAND_MANAGER = "command_manager"
+
+    /**
+     * Core command service plus the Bubble service of every enabled plugin that has a binding.
+     * [bindings] maps plugin ID to service ID; nothing about specific plugins is known here.
+     */
+    fun availableServices(enabledPluginIds: Set<String>, bindings: Map<String, String>): Set<String> = buildSet {
+        add(COMMAND_MANAGER)
+        bindings.forEach { (pluginId, service) -> if (pluginId in enabledPluginIds) add(service) }
     }
 
     fun visibleServices(savedServices: Set<String>, availableServices: Set<String>): Set<String> =
