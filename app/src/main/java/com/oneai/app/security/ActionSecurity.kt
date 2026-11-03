@@ -21,7 +21,7 @@ data class ActionAuthorization(
 object CapabilityPolicy {
     private val known = setOf(
         "commands", "internet", "screen_capture", "microphone", "audio",
-        "device_actions", "accessibility", "automation", "files", "internet"
+        "device_actions", "accessibility", "automation", "files"
     )
     private val approvalRequired = setOf(
         "screen_capture", "microphone", "device_actions", "accessibility",
