@@ -32,8 +32,9 @@ class PluginManifestValidatorTest {
         assertTrue(PluginManifestValidator.validate(manifest(version="latest")).isFailure)
     }
 
-    @Test fun rejectsUnknownCapabilities() {
+    @Test fun rejectsUnknownOrEmptyCapabilities() {
         assertTrue(PluginManifestValidator.validate(manifest(capabilities=listOf("execute_arbitrary_code"))).isFailure)
+        assertTrue(PluginManifestValidator.validate(manifest(capabilities=emptyList())).isFailure)
     }
 
     @Test fun removesDuplicateCapabilitiesButRejectsDuplicateDependencies() {
