@@ -18,12 +18,12 @@ data class PluginRecord(
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
 data class ActivityEntry(val timestamp: Long, val message: String)
 
-class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
     private val actionGateway by lazy { PluginActionGateway({ id -> plugins().firstOrNull { it.id == id } }, this) }
     private val pluginRuntime by lazy { PluginRuntime({ id -> plugins().firstOrNull { it.id == id } }, actionGateway) }
 
-    fun plugins(): List<PluginRecord> {
+    override fun plugins(): List<PluginRecord> {
         val saved = readArray("plugins")
         return (0 until saved.length()).mapNotNull { index ->
         val it = saved.optJSONObject(index) ?: return@mapNotNull null
@@ -36,7 +36,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
         }
     }
 
-    fun savePlugin(plugin: PluginRecord) {
+    override fun savePlugin(plugin: PluginRecord) {
         val all = plugins().filterNot { it.id == plugin.id } + plugin
         writeArray("plugins", JSONArray().apply { all.forEach { put(JSONObject().apply {
             put("id", it.id); put("name", it.name); put("version", it.version)
@@ -46,7 +46,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
         }) } })
     }
 
-    fun removePlugin(id: String) {
+    override fun removePlugin(id: String) {
         writeArray("plugins", JSONArray().apply { plugins().filterNot { it.id == id }.forEach { p ->
             put(JSONObject().apply {
                 put("id", p.id); put("name", p.name); put("version", p.version)
@@ -80,8 +80,8 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     override fun record(event: String) { log(event) }
 
-    fun pluginActionGateway(): PluginActionGateway = actionGateway
-    fun pluginRuntime(): PluginRuntime = pluginRuntime
+    override fun pluginActionGateway(): PluginActionGateway = actionGateway
+    override fun pluginRuntime(): PluginRuntime = pluginRuntime
 
     override fun log(message: String) {
         val logs = readArray("activity")
@@ -105,8 +105,8 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     fun setBubbleEnabled(enabled: Boolean) { prefs.edit().putBoolean("bubble_enabled", enabled).apply() }
     fun bubbleEnabled() = prefs.getBoolean("bubble_enabled", false)
-    fun setBubbleServices(services: Set<String>) { prefs.edit().putStringSet("bubble_services", services).apply() }
-    fun bubbleServices(): Set<String> = prefs.getStringSet("bubble_services", emptySet())?.toSet() ?: emptySet()
+    override fun setBubbleServices(services: Set<String>) { prefs.edit().putStringSet("bubble_services", services).apply() }
+    override fun bubbleServices(): Set<String> = prefs.getStringSet("bubble_services", emptySet())?.toSet() ?: emptySet()
     fun bubbleServiceOrder(): List<String> = prefs.getString("bubble_service_order", "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     fun setBubbleServiceOrder(order: List<String>) { prefs.edit().putString("bubble_service_order", order.distinct().joinToString(",")).apply() }
 
@@ -117,7 +117,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
     fun setAiProviderName(value: String) { prefs.edit().putString("ai_provider", value).apply() }
     fun aiProviderName() = prefs.getString("ai_provider", "OpenAI-compatible") ?: "OpenAI-compatible"
 
-    fun developerMode() = prefs.getBoolean("developer_mode", false)
+    override fun developerMode() = prefs.getBoolean("developer_mode", false)
     fun setDeveloperMode(value: Boolean) { prefs.edit().putBoolean("developer_mode", value).apply() }
 
     private fun readArray(key: String): JSONArray = runCatching { JSONArray(prefs.getString(key, "[]")) }.getOrElse { JSONArray() }

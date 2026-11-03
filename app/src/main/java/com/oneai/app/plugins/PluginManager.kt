@@ -1,10 +1,10 @@
 package com.oneai.app.plugins
 
-import com.oneai.app.core.OneAiStore
+import com.oneai.app.core.PluginStore
 import com.oneai.app.core.PluginRecord
 
 class PluginManager(
-    private val store: OneAiStore,
+    private val store: PluginStore,
     val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates
 ) {
 
