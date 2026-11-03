@@ -52,5 +52,11 @@ class PluginActionGateway(
         return approvals.issueAfterUserApproval(request)
     }
 
+    /** Records only a bounded outcome label; never pass secrets or plugin payloads. */
+    fun recordExecutionResult(pluginId: String, actionId: String, outcome: String) {
+        require(outcome in setOf("completed", "failed", "cancelled"))
+        audit.record("Plugin action $outcome: $pluginId/$actionId")
+    }
+
     fun revokePendingApprovals() = approvals.revokeAll()
 }
