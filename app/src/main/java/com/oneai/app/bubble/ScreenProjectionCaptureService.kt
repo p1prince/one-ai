@@ -50,8 +50,8 @@ class ScreenProjectionCaptureService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startCaptureForeground()
         runCatching {
+            startCaptureForeground()
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             projection = manager.getMediaProjection(resultCode, resultData)
             beginSingleFrameCapture()
