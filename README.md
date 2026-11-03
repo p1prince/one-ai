@@ -7,7 +7,9 @@ ONE AI is a modular Android AI assistant platform built around a lightweight she
 - Premium graphite/gold Compose dashboard and six-section navigation.
 - Persistent plugin registry with catalogue, install, enable, disable and remove lifecycle.
 - Plugins and commands start disabled/empty; installation never silently enables a service or adds commands.
-- Developer Mode creates validated declarative plugin descriptors.
+- Developer Mode creates validated declarative plugin manifests (v1) with reverse-domain IDs, semantic versions, capability allowlists and dependency declarations.
+- Plugin lifecycle checks required dependencies before enabling, disabling or removing plugins; existing saved plugin records remain readable.
+- Plugin manifest contract and lifecycle rules are documented in `PLUGIN_SDK.md`.
 - Floating overlay service with draggable bubble and independent quick panel. It requires explicit Android overlay permission and remains off by default.
 - Bubble services are individually opted in and remembered.
 - Command Manager stores user-created instructions and sends them to the configured AI provider.
