@@ -170,7 +170,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
         item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;if(it)onOverlaySettings();onBubbleToggle(it)})}
+            ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;if(it)onOverlaySettings();onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
             options.forEach { id -> Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)){Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f));Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})} }
         } }

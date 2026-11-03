@@ -22,7 +22,6 @@ class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private var bubble: TextView? = null
     private var panel: LinearLayout? = null
-    private var panelParams: WindowManager.LayoutParams? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -33,11 +32,14 @@ class FloatingBubbleService : Service() {
 
     private fun notification(): Notification {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel(CHANNEL, "ONE AI Bubble", NotificationManager.IMPORTANCE_LOW))
-        return if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL)
-            .setContentTitle("ONE AI bubble active").setContentText("Tap the floating ONE icon to open quick actions.")
-            .setSmallIcon(android.R.drawable.ic_dialog_info).build()
-        else @Suppress("DEPRECATION") Notification.Builder(this).setContentTitle("ONE AI bubble active")
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, "ONE AI Bubble", NotificationManager.IMPORTANCE_LOW))
+            return Notification.Builder(this, CHANNEL).setContentTitle("ONE AI bubble active")
+                .setContentText("Tap the floating ONE icon to open quick actions.")
+                .setSmallIcon(android.R.drawable.ic_dialog_info).build()
+        }
+        @Suppress("DEPRECATION")
+        return Notification.Builder(this).setContentTitle("ONE AI bubble active")
             .setSmallIcon(android.R.drawable.ic_dialog_info).build()
     }
 
@@ -57,41 +59,72 @@ class FloatingBubbleService : Service() {
                     MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false; return true }
                     MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; params.x=ox+dx; params.y=oy+dy; windowManager.updateViewLayout(view,params); return true }
                     MotionEvent.ACTION_UP -> { if (!moved) v.performClick(); return true }
-                }; return false
+                }
+                return false
             }
         })
         windowManager.addView(view, params); bubble = view
     }
 
+    private fun basePanel(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(22,18,22,18)
+        background = GradientDrawable().apply { setColor(Color.rgb(26,28,32)); cornerRadius=28f; setStroke(2,Color.rgb(214,174,88)) }
+    }
+
+    private fun addLabel(box: LinearLayout, text: String, size: Float = 14f) {
+        box.addView(TextView(this).apply { this.text=text; setTextColor(Color.WHITE); textSize=size; setPadding(0,8,0,8) })
+    }
+
+    private fun addButton(box: LinearLayout, title: String, action: () -> Unit) {
+        box.addView(Button(this).apply { text=title; setOnClickListener { action() } })
+    }
+
     private fun showPanel() {
         val store = OneAiStore(this)
         val enabled = store.bubbleServices()
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(22,18,22,18)
-            background = GradientDrawable().apply { setColor(Color.rgb(26,28,32)); cornerRadius=28f; setStroke(2,Color.rgb(214,174,88)) }
+        val box = basePanel()
+        addLabel(box, "ONE AI  •  QUICK PANEL", 16f)
+        if (enabled.isEmpty()) {
+            addLabel(box, "No services enabled. Choose services in ONE AI Settings.")
+        } else {
+            enabled.sorted().forEach { service ->
+                addButton(box, service.replace('_',' ').replaceFirstChar { it.uppercase() }) { showService(service) }
+            }
         }
-        box.addView(TextView(this).apply { text="ONE AI  •  QUICK PANEL"; setTextColor(Color.rgb(214,174,88)); textSize=16f })
-        if (enabled.isEmpty()) box.addView(TextView(this).apply { text="No services enabled. Enable bubble services in ONE AI Settings."; setTextColor(Color.WHITE); textSize=13f; setPadding(0,18,0,12) })
-        enabled.forEach { service ->
-            box.addView(Button(this).apply {
-                text = service.replace('_',' ').replaceFirstChar { it.uppercase() }
-                setOnClickListener {
-                    val launch = packageManager.getLaunchIntentForPackage(packageName)
-                    launch?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    launch?.putExtra("one_ai_bubble_service", service)
-                    if (launch != null) startActivity(launch)
-                }
-            })
-        }
-        box.addView(Button(this).apply { text="Close panel"; setOnClickListener { hidePanel() } })
-        val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.82f).toInt(), WindowManager.LayoutParams.WRAP_CONTENT,
-            overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
-            gravity=Gravity.CENTER; x=0; y=0
-        }
-        windowManager.addView(box,params); panel=box; panelParams=params
+        addButton(box, "Close panel") { hidePanel() }
+        attachPanel(box)
     }
 
-    private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null; panelParams=null }
+    /** Service views are rendered inside the overlay; they never redirect to MainActivity. */
+    private fun showService(service: String) {
+        val box = basePanel()
+        val title = service.replace('_',' ').replaceFirstChar { it.uppercase() }
+        addLabel(box, "ONE AI  •  $title", 16f)
+        val message = when (service) {
+            "command_manager" -> "Quick commands are managed in the Command Manager. The bubble stays independent; command execution will be connected to the approved command runtime."
+            "web_research" -> "Web Research is enabled in this bubble. Connect a research provider in the Plugin Centre before running searches."
+            "screen_intelligence" -> "Screen Intelligence requires a user-started screen-capture session. Start capture from its dedicated control when that integration is installed."
+            "voice_interface" -> "Voice Interface is enabled. Microphone access and a voice provider are required before voice actions can run."
+            "automation" -> "Automation is enabled. Install and explicitly enable a compatible automation plugin before running device workflows."
+            else -> "This service is enabled, but no compatible provider is connected yet."
+        }
+        addLabel(box, message)
+        addButton(box, "Back to services") { showPanel() }
+        addButton(box, "Close panel") { hidePanel() }
+        attachPanel(box)
+    }
+
+    private fun attachPanel(box: LinearLayout) {
+        hidePanel()
+        val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.84f).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+            gravity=Gravity.CENTER; x=0; y=0
+        }
+        windowManager.addView(box,params); panel=box
+    }
+
+    private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
     override fun onDestroy() { hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; super.onDestroy() }
