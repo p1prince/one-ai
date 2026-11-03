@@ -172,14 +172,21 @@ class FloatingBubbleService : Service() {
             attachPanel(box)
             return
         }
-        val message = when (service) {
-            "web_research" -> "Web Research is currently a plugin slot only. Search execution and provider connection are not implemented yet."
-            "screen_intelligence" -> "Screen capture and region selection are not implemented yet. This service is not available for actions until its permissioned capture flow is added."
-            "voice_interface" -> "Voice Interface is currently a plugin slot only. Voice capture, playback and runtime permission flows are not implemented yet."
-            "automation" -> "Automation is currently an integration slot only. No device workflow executor is connected yet."
-            else -> "This service is enabled, but no compatible provider is connected yet."
+        if (service == "screen_intelligence") {
+            addLabel(box, "Capture requires Android's system permission prompt. The screenshot and region selector open outside the Bubble; only the selected image reference returns here.")
+            addButton(box, "Capture screen region") {
+                runCatching { ScreenCaptureConsentActivity.launch(this) }
+                    .onFailure { showHandoffResult("Capture unavailable", "ONE AI could not open Android's screen-capture consent screen.") }
+            }
+        } else {
+            val message = when (service) {
+                "web_research" -> "Web Research is currently a plugin slot only. Search execution and provider connection are not implemented yet."
+                "voice_interface" -> "Voice Interface is currently a plugin slot only. Voice capture, playback and runtime permission flows are not implemented yet."
+                "automation" -> "Automation is currently an integration slot only. No device workflow executor is connected yet."
+                else -> "This service is enabled, but no compatible provider is connected yet."
+            }
+            addLabel(box, message)
         }
-        addLabel(box, message)
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
@@ -223,12 +230,20 @@ class FloatingBubbleService : Service() {
     }
 
     /** Receives validated text results from trusted feature modules without opening MainActivity. */
-    private fun showHandoffResult(title: String?, content: String?) {
-        val result = BubbleResultHandoff.validate(title, content) ?: return
+    private fun showHandoffResult(title: String?, content: String?, imagePath: String? = null) {
+        val result = BubbleResultHandoff.validate(title, content, imagePath) ?: return
+        val safeImage = result.imagePath?.let { path ->
+            runCatching {
+                val file = java.io.File(path)
+                val allowedRoot = java.io.File(cacheDir, "one-ai-selected").canonicalPath + java.io.File.separator
+                file.takeIf { it.isFile && it.canonicalPath.startsWith(allowedRoot) }
+            }.getOrNull()
+        }
         val box = basePanel()
         addLabel(box, "ONE AI  •  RESULT", 16f)
         addLabel(box, result.title, 14f)
         addLabel(box, result.content, 13f)
+        if (safeImage != null) addLabel(box, "Selected image is stored privately and ready for the Screen Intelligence adapter.", 11f)
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
@@ -240,7 +255,8 @@ class FloatingBubbleService : Service() {
         if (intent?.action == BubbleResultHandoff.ACTION_SHOW_RESULT) {
             showHandoffResult(
                 intent.getStringExtra(BubbleResultHandoff.EXTRA_TITLE),
-                intent.getStringExtra(BubbleResultHandoff.EXTRA_CONTENT)
+                intent.getStringExtra(BubbleResultHandoff.EXTRA_CONTENT),
+                intent.getStringExtra(BubbleResultHandoff.EXTRA_IMAGE_PATH)
             )
         }
         return START_STICKY
