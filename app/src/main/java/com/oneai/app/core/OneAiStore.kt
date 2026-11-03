@@ -4,6 +4,7 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import com.oneai.app.ai.AiActivityLogger
+import com.oneai.app.commands.CommandRepository
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
@@ -12,7 +13,7 @@ data class PluginRecord(
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = true)
 
-class OneAiStore(context: Context) : AiActivityLogger {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
 
     fun plugins(): List<PluginRecord> = readArray("plugins").mapNotNull {
@@ -42,18 +43,18 @@ class OneAiStore(context: Context) : AiActivityLogger {
         } })
     }
 
-    fun commands(): List<CommandRecord> = readArray("commands").mapNotNull {
+    override fun commands(): List<CommandRecord> = readArray("commands").mapNotNull {
         runCatching { CommandRecord(it.getString("id"), it.getString("title"), it.getString("prompt"), it.optBoolean("enabled", true)) }.getOrNull()
     }
 
-    fun saveCommand(command: CommandRecord) {
+    override fun saveCommand(command: CommandRecord) {
         val all = commands().filterNot { it.id == command.id } + command
         writeArray("commands", JSONArray().apply { all.forEach { put(JSONObject().apply {
             put("id", it.id); put("title", it.title); put("prompt", it.prompt); put("enabled", it.enabled)
         }) } })
     }
 
-    fun removeCommand(id: String) {
+    override fun removeCommand(id: String) {
         writeArray("commands", JSONArray().apply { commands().filterNot { it.id == id }.forEach {
             put(JSONObject().put("id", it.id).put("title", it.title).put("prompt", it.prompt).put("enabled", it.enabled))
         } })
