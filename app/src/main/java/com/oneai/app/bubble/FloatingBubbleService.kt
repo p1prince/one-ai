@@ -102,7 +102,16 @@ class FloatingBubbleService : Service() {
 
     private fun showPanel() {
         val store = OneAiStore(this)
-        val enabled = store.bubbleServices()
+        val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
+        val availableServices = buildSet {
+            add("command_manager")
+            if ("one.web.research" in enabledPlugins) add("web_research")
+            if ("one.screen.intelligence" in enabledPlugins) add("screen_intelligence")
+            if ("one.voice.interface" in enabledPlugins) add("voice_interface")
+            if ("one.automation.engine" in enabledPlugins) add("automation")
+        }
+        // Ignore stale saved toggles when a plugin is disabled or removed.
+        val enabled = store.bubbleServices().intersect(availableServices)
         val box = basePanel()
         addLabel(box, "ONE AI  •  QUICK PANEL", 16f)
         if (enabled.isEmpty()) {
