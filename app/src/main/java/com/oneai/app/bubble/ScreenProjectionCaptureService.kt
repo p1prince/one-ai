@@ -30,7 +30,12 @@ class ScreenProjectionCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra(ScreenCaptureConsentActivity.EXTRA_RESULT_CODE, 0) ?: 0
-        val resultData = intent?.parcelableIntentExtra(ScreenCaptureConsentActivity.EXTRA_RESULT_DATA)
+        val resultData: Intent? = if (Build.VERSION.SDK_INT >= 33) {
+            intent?.getParcelableExtra(ScreenCaptureConsentActivity.EXTRA_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(ScreenCaptureConsentActivity.EXTRA_RESULT_DATA)
+        }
         if (resultCode == 0 || resultData == null || projection != null) {
             stopSelf()
             return START_NOT_STICKY
@@ -136,9 +141,6 @@ class ScreenProjectionCaptureService : Service() {
 
     override fun onDestroy() { releaseCapture(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
-
-    private inline fun <reified T : android.os.Parcelable> Intent.parcelableIntentExtra(key: String): T? =
-        if (Build.VERSION.SDK_INT >= 33) getParcelableExtra(key, T::class.java) else @Suppress("DEPRECATION") (getParcelableExtra(key) as? T)
 
     companion object { private const val CHANNEL = "one_ai_capture"; private const val NOTIFICATION_ID = 7105 }
 }
