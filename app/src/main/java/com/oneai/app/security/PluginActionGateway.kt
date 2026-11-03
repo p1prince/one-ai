@@ -46,8 +46,8 @@ class PluginActionGateway(
     fun confirmUserApproval(request: ActionRequest): String {
         val plugin = findPlugin(request.pluginId) ?: throw IllegalStateException("Plugin is not installed")
         val authorization = CapabilityPolicy.evaluate(request, plugin.enabled, plugin.capabilities.toSet())
-        check(authorization.allowed) { authorization.reason }
-        check(authorization.requiresUserApproval) { "This action does not require a sensitive-action approval ticket" }
+        kotlin.check(authorization.allowed) { authorization.reason }
+        kotlin.check(authorization.requiresUserApproval) { "This action does not require a sensitive-action approval ticket" }
         audit.record("User approved sensitive action: ${plugin.id}/${request.actionId}")
         return approvals.issueAfterUserApproval(request)
     }
