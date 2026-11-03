@@ -4,7 +4,7 @@ This is the shared progress record for the foundation build. A batch is marked c
 
 **Current focus: Batch 4 — Command System and reusable commands.**
 
-Batch 3 implementation includes provider-neutral contracts, the HTTPS adapter, normalized errors, shared orchestration, cancellation handling and main/bubble routing. Orchestrator tests are added; final completion awaits a confirmed non-APK validation workflow result. Batch 4 is underway: validated command creation, disabled-by-default commands, lifecycle controls, shared execution routing and unit tests.
+Batch 3 implementation includes provider-neutral contracts, the HTTPS adapter, normalized errors, shared orchestration, cancellation handling and main/bubble routing. Orchestrator and command-router unit tests are added; final completion awaits a confirmed non-APK validation workflow result. Batch 4 is underway: validated command creation, disabled-by-default commands (including the data-model default), enable/disable/remove lifecycle, shared execution routing from the main screen and bubble, and unit tests. Provider endpoints now reject embedded credentials/fragments and redirects are disabled.
 
 | # | Batch | Status | Completion criteria |
 |---:|---|---|---|
