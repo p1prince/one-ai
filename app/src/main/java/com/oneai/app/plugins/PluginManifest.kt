@@ -38,7 +38,9 @@ object PluginManifestValidator {
         require(description.length <= 500) { "Plugin description must be 500 characters or fewer" }
         require(manifest.capabilities.size <= 12) { "A plugin may declare at most 12 capabilities" }
         val capabilities = manifest.capabilities.map { it.trim().lowercase() }.distinct()
+        require(capabilities.isNotEmpty()) { "Declare at least one capability" }
         require(capabilities.all { it in supportedCapabilities }) { "One or more capabilities are not supported" }
+        require(manifest.dependencies.size <= 16) { "A plugin may declare at most 16 dependencies" }
         val dependencies = manifest.dependencies.map { it.trim().lowercase() }.distinct()
         require(dependencies.size == manifest.dependencies.size) { "Duplicate plugin dependencies are not allowed" }
         require(dependencies.all { pluginId.matches(it) }) { "Every dependency must use a valid reverse-domain plugin ID" }
