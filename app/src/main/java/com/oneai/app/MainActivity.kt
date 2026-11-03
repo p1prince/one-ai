@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,7 +76,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), Develop("Develop"), Commands("Commands"), Activity("Activity"), Settings("Settings") }
+/** Five permanent navigation destinations. [Commands] is a Home sub-screen (Command Manager), not a destination. */
+internal enum class Page(val title:String) {
+    Home("Home"), Plugins("Plugins"), Develop("Develop"), Commands("Command Manager"), Activity("Activity"), Settings("Settings");
+    companion object { val destinations = listOf(Home, Plugins, Develop, Activity, Settings) }
+}
 
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
@@ -87,18 +92,20 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     MaterialTheme(colorScheme=darkColorScheme(primary=Gold,background=Ink,surface=Panel,onPrimary=Ink,onBackground=White,onSurface=White)) {
         Scaffold(containerColor=Ink, bottomBar={
             NavigationBar(containerColor=Panel) {
-                listOf(Page.Home,Page.Plugins,Page.Develop,Page.Commands,Page.Activity,Page.Settings).forEach { p ->
-                    NavigationBarItem(selected=page==p,onClick={page=p;refresh++},icon={
-                        Icon(when(p){Page.Home->Icons.Default.Home;Page.Plugins->Icons.Default.Extension;Page.Develop->Icons.Default.Code;Page.Commands->Icons.Default.Terminal;Page.Activity->Icons.Default.History;Page.Settings->Icons.Default.Settings},p.title)
-                    },label={Text(p.title,fontSize=9.sp)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Gold.copy(alpha=.12f),unselectedIconColor=Muted,unselectedTextColor=Muted))
+                Page.destinations.forEach { p ->
+                    val selected = page==p || (p==Page.Home && page==Page.Commands)
+                    NavigationBarItem(selected=selected,onClick={page=p;refresh++},icon={
+                        Icon(when(p){Page.Home->Icons.Default.Home;Page.Plugins->Icons.Default.Extension;Page.Develop->Icons.Default.Code;Page.Activity->Icons.Default.History;else->Icons.Default.Settings},p.title)
+                    },label={Text(p.title,fontSize=10.sp)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Gold.copy(alpha=.14f),unselectedIconColor=Muted,unselectedTextColor=Muted))
                 }
             }
         }) { pad ->
+            BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
-                Page.Home -> HomePage(Modifier.padding(pad),store,{page=Page.Plugins},{page=Page.Commands},chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
+                Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
-                Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand)
+                Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
                 Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,refreshNow)
             }
@@ -110,14 +117,59 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
 @Composable private fun CardBox(content:@Composable ColumnScope.()->Unit) { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(16.dp)).padding(16.dp),content=content) }
 @Composable private fun ActionRow(title:String,detail:String,action:@Composable RowScope.()->Unit) { Row(Modifier.fillMaxWidth().padding(vertical=9.dp),verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)){Text(title,color=White,fontWeight=FontWeight.SemiBold);Text(detail,color=Muted,fontSize=12.sp)};action() } }
 
-@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,toPlugins:()->Unit,toCommands:()->Unit,result:String,busy:Boolean,onAsk:(String)->Unit) {
+@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,go:(Page)->Unit,result:String,busy:Boolean,onAsk:(String)->Unit) {
     var prompt by remember { mutableStateOf("") }
-    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)) {
-        item { Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(42.dp).background(Gold,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center){Text("1",color=Ink,fontSize=25.sp,fontWeight=FontWeight.Black)};Spacer(Modifier.width(12.dp));Column{Text("ONE AI",color=White,fontSize=20.sp,fontWeight=FontWeight.Bold,letterSpacing=2.sp);Text("YOUR INTELLIGENT PLATFORM",color=Muted,fontSize=9.sp)} } }
-        item { Header("Your Control Centre","One platform. Infinite possibilities.") }
-        item { CardBox { Text("COMMAND ONE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold);Spacer(Modifier.height(8.dp));OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),placeholder={Text("What would you like ONE AI to do?")},minLines=2);Spacer(Modifier.height(8.dp));Button(onClick={if(prompt.isNotBlank())onAsk(prompt)},enabled=prompt.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth()){Text(if(busy)"Thinking…" else "Send command")};if(result.isNotBlank()){Spacer(Modifier.height(10.dp));Text(result,color=White,fontSize=13.sp)} } }
-        item { CardBox { Text("PLATFORM MODULES",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);ActionRow("Plugin Centre","Install and manage optional capabilities"){TextButton(onClick=toPlugins){Text("OPEN")}};ActionRow("Command Manager","Create reusable instructions"){TextButton(onClick=toCommands){Text("OPEN")}};ActionRow("Floating Bubble",if(store.bubbleEnabled())"Enabled in settings" else "Off by default"){Text(if(store.bubbleEnabled())"ON" else "OFF",color=Gold)} } }
-        item { CardBox { Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("AI CORE     Ready for provider setup",color=White,fontSize=12.sp);Text("PLUGINS     ${store.plugins().count{it.enabled}} enabled / ${store.plugins().size} installed",color=White,fontSize=12.sp);Text("SECURITY    Explicit capabilities • no arbitrary code loading",color=White,fontSize=12.sp) } }
+    val installed = store.plugins()
+    LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=26.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        item { Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth()){
+            Box(Modifier.size(42.dp).background(Gold,RoundedCornerShape(13.dp)),contentAlignment=Alignment.Center){Text("1",color=Ink,fontSize=25.sp,fontWeight=FontWeight.Black)}
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)){Text("ONE AI",color=White,fontSize=20.sp,fontWeight=FontWeight.Bold,letterSpacing=2.sp);Text("YOUR INTELLIGENT PLATFORM",color=Muted,fontSize=9.sp,letterSpacing=1.5.sp)}
+            IconButton(onClick={go(Page.Settings)}){Icon(Icons.Default.Settings,"Settings",tint=Muted)}
+        } }
+        item { Column { Text("Your Control Centre",color=White,fontSize=27.sp,fontWeight=FontWeight.Bold);Text("One platform. Infinite possibilities.",color=Muted,fontSize=14.sp) } }
+        item { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(18.dp)).padding(16.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically){
+                Icon(Icons.Default.AutoAwesome,null,tint=Gold,modifier=Modifier.size(25.dp));Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)){Text("Command ONE",color=White,fontWeight=FontWeight.SemiBold);Text("Your AI command interface is being prepared.",color=Muted,fontSize=12.sp)}
+                Icon(Icons.Default.ArrowForward,null,tint=Gold)
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),placeholder={Text("What would you like ONE AI to do?")},minLines=2)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick={if(prompt.isNotBlank())onAsk(prompt)},enabled=prompt.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth()){Text(if(busy)"Thinking…" else "Send command")}
+            if(result.isNotBlank()){Spacer(Modifier.height(10.dp));Text(result,color=White,fontSize=13.sp)}
+        } }
+        item { Text("PLATFORM MODULES",color=Muted,fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.4.sp) }
+        item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            ModuleCard(Icons.Default.Extension,"Plugin Centre","Install and manage capabilities"){go(Page.Plugins)}
+            ModuleCard(Icons.Default.BubbleChart,"Floating Bubble","Independent quick-access interface"){go(Page.Settings)}
+            ModuleCard(Icons.Default.Code,"Developer Mode","Create and test your own plugins"){go(Page.Develop)}
+            ModuleCard(Icons.Default.Tune,"Command Manager","Organise commands and shortcuts"){go(Page.Commands)}
+        } }
+        item { Text("SYSTEM STATUS",color=Muted,fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.4.sp) }
+        item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            StatusCard("AI CORE","Foundation",Modifier.weight(1f))
+            StatusCard("EXTENSIONS",if(installed.isEmpty())"None installed" else "${installed.size} installed",Modifier.weight(1f))
+            StatusCard("SECURITY","Ready",Modifier.weight(1f))
+        } }
+    }
+}
+
+@Composable private fun ModuleCard(icon:androidx.compose.ui.graphics.vector.ImageVector,title:String,subtitle:String,onClick:()->Unit) {
+    Row(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(15.dp)).clickable(onClick=onClick).padding(15.dp),verticalAlignment=Alignment.CenterVertically) {
+        Box(Modifier.size(42.dp).background(Gold.copy(alpha=0.12f),RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center){Icon(icon,null,tint=Gold)}
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)){Text(title,color=White,fontWeight=FontWeight.SemiBold);Text(subtitle,color=Muted,fontSize=12.sp)}
+        Icon(Icons.Default.ChevronRight,null,tint=Muted)
+    }
+}
+
+@Composable private fun StatusCard(title:String,value:String,modifier:Modifier=Modifier) {
+    Column(modifier.background(Panel,RoundedCornerShape(13.dp)).padding(11.dp)) {
+        Text(title,color=Muted,fontSize=9.sp,fontWeight=FontWeight.Bold)
+        Spacer(Modifier.height(7.dp))
+        Text(value,color=Gold,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
     }
 }
 
@@ -156,10 +208,11 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     }
 }
 
-@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,router:CommandRouter,refresh:()->Unit,onRun:(String,(String)->Unit)->Unit) {
+@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,router:CommandRouter,refresh:()->Unit,onRun:(String,(String)->Unit)->Unit,onBack:()->Unit) {
     var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")};var result by remember{mutableStateOf("")};var running by remember{mutableStateOf(false)}
     val commands=store.commands()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        item { TextButton(onClick=onBack){Icon(Icons.Default.ArrowBack,null,tint=Gold);Spacer(Modifier.width(6.dp));Text("Home",color=Gold)} }
         item { Header("Command Manager","Build reusable instructions. Commands are not auto-enabled.") }
         item { CardBox { OutlinedTextField(title,{title=it},modifier=Modifier.fillMaxWidth(),label={Text("Command name")});OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),label={Text("Instruction")},minLines=2);Button(onClick={if(title.isNotBlank()&&prompt.isNotBlank()){router.add(title,prompt).onSuccess { title="";prompt="";msg="Command saved (disabled by default)";refresh() }.onFailure { msg=it.message ?: "Could not save command" }}},modifier=Modifier.fillMaxWidth()){Text("Save command")};if(msg.isNotBlank())Text(msg,color=Gold) } }
         if(commands.isEmpty()) item { CardBox { Text("No commands created yet.",color=White);Text("Create commands explicitly; installing a plugin does not add commands automatically.",color=Muted,fontSize=12.sp) } }
