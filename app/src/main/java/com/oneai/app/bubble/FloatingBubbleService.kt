@@ -9,6 +9,8 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
+import android.view.View
+import android.widget.ScrollView
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Button
@@ -32,7 +34,7 @@ class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private var bubble: TextView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
-    private var panel: LinearLayout? = null
+    private var panel: View? = null
     private val uiHandler = Handler(Looper.getMainLooper())
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
@@ -166,10 +168,10 @@ class FloatingBubbleService : Service() {
             return
         }
         val message = when (service) {
-            "web_research" -> "Web Research is enabled in this bubble. Connect a research provider in the Plugin Centre before running searches."
-            "screen_intelligence" -> "Screen Intelligence requires a user-started screen-capture session. Start capture from its dedicated control when that integration is installed."
-            "voice_interface" -> "Voice Interface is enabled. Microphone access and a voice provider are required before voice actions can run."
-            "automation" -> "Automation is enabled. Install and explicitly enable a compatible automation plugin before running device workflows."
+            "web_research" -> "Web Research is currently a plugin slot only. Search execution and provider connection are not implemented yet."
+            "screen_intelligence" -> "Screen capture and region selection are not implemented yet. This service is not available for actions until its permissioned capture flow is added."
+            "voice_interface" -> "Voice Interface is currently a plugin slot only. Voice capture, playback and runtime permission flows are not implemented yet."
+            "automation" -> "Automation is currently an integration slot only. No device workflow executor is connected yet."
             else -> "This service is enabled, but no compatible provider is connected yet."
         }
         addLabel(box, message)
@@ -180,12 +182,22 @@ class FloatingBubbleService : Service() {
 
     private fun attachPanel(box: LinearLayout) {
         hidePanel()
+        // Keep large command/service lists inside the visible display instead of letting
+        // the overlay extend beyond the screen. The Bubble remains independently usable.
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(box, ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        val maxPanelHeight = (resources.displayMetrics.heightPixels * 0.78f).toInt().coerceAtLeast(320)
         val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.84f).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
+            maxPanelHeight, overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
             gravity=Gravity.CENTER; x=0; y=0
         }
-        runCatching { windowManager.addView(box,params) }.onSuccess { panel=box }
+        runCatching { windowManager.addView(scroll,params) }.onSuccess { panel=scroll }
     }
 
     private fun resizeBubble() {
