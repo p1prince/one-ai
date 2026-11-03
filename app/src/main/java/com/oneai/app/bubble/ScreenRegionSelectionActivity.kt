@@ -98,10 +98,15 @@ class ScreenRegionSelectionActivity : Activity() {
         val output = File(outputDir, "region-${System.currentTimeMillis()}.png")
         FileOutputStream(output).use { crop.compress(Bitmap.CompressFormat.PNG, 100, it) }
         crop.recycle()
+        if (!ScreenCaptureArtifactStore.publish(this, output)) {
+            output.delete()
+            android.widget.Toast.makeText(this, "The selected image could not be handed off safely.", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         BubbleCaptureFeedback.send(
             this,
             "Screen region selected",
-            "Your selected image is saved for the Screen Intelligence integration. Image interpretation is the next integration step.",
+            "Your selected image is stored privately for the Screen Intelligence integration. Image interpretation is the next integration step.",
             output.absolutePath
         )
         finishAndRelease()
