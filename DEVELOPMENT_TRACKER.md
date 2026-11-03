@@ -2,7 +2,9 @@
 
 This is the shared progress record for the foundation build. A batch is marked complete only after implementation and review.
 
-**Current focus: Batch 3 — AI provider engine and orchestration.**
+**Current focus: Batch 4 — Command System and reusable commands.**
+
+Batch 3 implementation now includes provider-neutral contracts, secure HTTPS adapter, normalized errors, shared orchestration, cancellation handling, and main/bubble routing. Focused orchestrator tests have been added. Its final status remains pending the automated validation workflow result.
 
 Batch 3 work completed so far: provider-neutral message/completion contract; OpenAI-compatible HTTPS adapter; normalized provider errors; coroutine cancellation handling; shared orchestration entry point; main assistant and bubble command paths routed through the orchestrator. A separate Android validation workflow now runs unit-test and lint tasks on foundation branches and pull requests; it does not assemble or upload an APK. Pending before completion: confirm that workflow passes and add focused automated coverage.
 
@@ -10,8 +12,8 @@ Batch 3 work completed so far: provider-neutral message/completion contract; Ope
 |---:|---|---|---|
 | 1 | App shell, dashboard and navigation | 🟡 Existing foundation; verification pending | Main shell, navigation, responsive screens and error states reviewed |
 | 2 | Core architecture and persistent state | 🟡 Existing foundation; strengthening pending | Stable shared contracts, resilient persistence, lifecycle-safe state and validation |
-| 3 | AI provider engine and orchestration | 🔵 IN PROGRESS | Provider-neutral contract, secure request handling, normalized responses/errors, shared orchestration entry point, provider configuration and tests |
-| 4 | Command system and reusable commands | ⏳ UP NEXT | Validated command model, lifecycle, execution routing, results and audit trail |
+| 3 | AI provider engine and orchestration | 🟡 IMPLEMENTED — validation pending | Provider-neutral contract, secure request handling, normalized responses/errors, shared orchestration entry point, provider configuration and tests |
+| 4 | Command system and reusable commands | 🔵 IN PROGRESS | Validated command model, disabled-by-default creation, enable/disable/remove lifecycle, shared AI execution routing, results, audit trail and tests |
 | 5 | Plugin architecture and developer SDK | ⏳ UP NEXT | Versioned manifest, capability declarations, dependency validation, lifecycle and safe declarative SDK |
 | 6 | Security, permissions and action approvals | ⏳ UP NEXT | Capability policy, just-in-time consent, sensitive-action confirmation, secure storage and audit |
 | 7 | Floating Bubble and independent execution | ⏳ UP NEXT | Shared runtime, independent bubble navigation, reliable position/settings, capture hand-off and service lifecycle |
