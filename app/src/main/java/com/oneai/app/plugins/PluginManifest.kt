@@ -19,7 +19,7 @@ data class PluginManifest(
 object PluginManifestValidator {
     val supportedCapabilities = setOf(
         "commands", "internet", "screen_capture", "microphone", "audio",
-        "device_actions", "accessibility", "automation", "files"
+        "device_actions", "accessibility", "automation", "files", "app_launch"
     )
     private val pluginId = Regex("[a-z][a-z0-9]*(\\.[a-z0-9]+)+")
     private val semanticVersion = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?")
