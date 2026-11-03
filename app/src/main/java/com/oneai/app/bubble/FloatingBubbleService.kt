@@ -67,21 +67,32 @@ class FloatingBubbleService : Service() {
             setOnClickListener { if (panel == null) showPanel() else hidePanel() }
         }
         val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
-        val size = prefs.getInt("bubble_size", 58)
-        val safeSize = size.coerceIn(40, 96)
-        val maxX = (resources.displayMetrics.widthPixels - safeSize).coerceAtLeast(0)
-        val maxY = (resources.displayMetrics.heightPixels - safeSize).coerceAtLeast(0)
+        val safeSize = BubbleUiPolicy.safeSize(
+            prefs.getInt("bubble_size", BubbleUiPolicy.DEFAULT_SIZE_DP)
+        )
+        val position = BubbleUiPolicy.clampPosition(
+            prefs.getInt("bubble_x", 24),
+            prefs.getInt("bubble_y", 220),
+            safeSize,
+            safeSize,
+            resources.displayMetrics.widthPixels,
+            resources.displayMetrics.heightPixels
+        )
         val params = WindowManager.LayoutParams(safeSize, safeSize, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt("bubble_x", 24).coerceIn(0, maxX)
-            y = prefs.getInt("bubble_y", 220).coerceIn(0, maxY)
+            x = position.x
+            y = position.y
         }
         view.setOnTouchListener(object : android.view.View.OnTouchListener {
             var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
             override fun onTouch(v: android.view.View, e: MotionEvent): Boolean {
                 when (e.action) {
                     MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false; return true }
-                    MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; params.x=(ox+dx).coerceIn(0,(resources.displayMetrics.widthPixels-params.width).coerceAtLeast(0)); params.y=(oy+dy).coerceIn(0,(resources.displayMetrics.heightPixels-params.height).coerceAtLeast(0)); runCatching { windowManager.updateViewLayout(view,params) }; return true }
+                    MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; val position = BubbleUiPolicy.clampPosition(
+                            ox + dx, oy + dy, params.width, params.height,
+                            resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+                        ); params.x = position.x; params.y = position.y
+                        runCatching { windowManager.updateViewLayout(view,params) }; return true }
                     MotionEvent.ACTION_UP -> {
                         getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE).edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
                         if (!moved) v.performClick()
@@ -112,22 +123,15 @@ class FloatingBubbleService : Service() {
     private fun showPanel() {
         val store = OneAiStore(this)
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-        val availableServices = buildSet {
-            add("command_manager")
-            if ("one.web.research" in enabledPlugins) add("web_research")
-            if ("one.screen.intelligence" in enabledPlugins) add("screen_intelligence")
-            if ("one.voice.interface" in enabledPlugins) add("voice_interface")
-            if ("one.automation.engine" in enabledPlugins) add("automation")
-        }
+        val availableServices = BubbleUiPolicy.availableServices(enabledPlugins)
         // Ignore stale saved toggles when a plugin is disabled or removed.
-        val enabled = store.bubbleServices().intersect(availableServices)
+        val enabled = BubbleUiPolicy.visibleServices(store.bubbleServices(), availableServices)
         val box = basePanel()
         addLabel(box, "ONE AI  •  QUICK PANEL", 16f)
         if (enabled.isEmpty()) {
             addLabel(box, "No services enabled. Choose services in ONE AI Settings.")
         } else {
-            val order = store.bubbleServiceOrder().filter { it in enabled }
-            (order + enabled.filterNot { it in order }.sorted()).forEach { service ->
+            BubbleUiPolicy.orderedServices(store.bubbleServiceOrder(), enabled).forEach { service ->
                 addButton(box, service.replace('_',' ').replaceFirstChar { it.uppercase() }) { showService(service) }
             }
         }
