@@ -47,8 +47,8 @@ class PluginActionGatewayTest {
     }
 
     @Test fun lowRiskActionDoesNotNeedApprovalTicket() {
-        val lowRisk = plugin().copy(capabilities = listOf("internet"))
-        val request = ActionRequest(lowRisk.id, "research.search", "internet", "Search the web")
+        val lowRisk = plugin().copy(capabilities = listOf("commands"))
+        val request = ActionRequest(lowRisk.id, "command.prepare", "commands", "Prepare a command")
         val gateway = PluginActionGateway({ lowRisk }, ActionAuditLogger {})
         assertTrue(gateway.check(request) is ActionGateResult.Permitted)
     }
