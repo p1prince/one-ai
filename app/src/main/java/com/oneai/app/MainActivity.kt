@@ -170,7 +170,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
 @Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
-    var apiKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
+    var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
         item { CardBox {
@@ -205,6 +205,13 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true)
             Button(onClick={store.setAiProviderName(provider);store.setAiEndpoint(endpoint);store.setAiModel(model);if(apiKey.isNotBlank())vault.save(apiKey);apiKey="";status="Provider settings saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
             Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
+            if(status.isNotBlank())Text(status,color=Gold)
+        } }
+        item { CardBox {
+            Text("WEB RESEARCH",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
+            OutlinedTextField(braveSearchKey,{braveSearchKey=it},modifier=Modifier.fillMaxWidth(),label={Text("Brave Search API key (stored encrypted)")},singleLine=true)
+            Button(onClick={vault.saveNamed("brave_search",braveSearchKey);braveSearchKey="";status="Web Research credential saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save search credential")}
+            Text("Web Research uses Brave Search over HTTPS. This credential is stored separately from your AI provider key. Search requests require a separate ONE AI approval.",color=Muted,fontSize=11.sp)
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox { Text("SECURITY",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("• Plugins declare capabilities and start disabled.\n• The shell does not execute downloaded plugin code.\n• Provider credentials are encrypted with Android Keystore.\n• Android permissions are requested only when a feature needs them.",color=White,fontSize=12.sp) } }
