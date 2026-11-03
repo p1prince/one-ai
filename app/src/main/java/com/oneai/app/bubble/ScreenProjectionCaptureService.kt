@@ -113,15 +113,17 @@ class ScreenProjectionCaptureService : Service() {
                 val pixelStride = plane.pixelStride
                 val rowStride = plane.rowStride
                 val paddedWidth = rowStride / pixelStride
-                padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+                val paddedBitmap = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+                padded = paddedBitmap
                 val buffer: ByteBuffer = plane.buffer
-                padded.copyPixelsFromBuffer(buffer)
-                bitmap = Bitmap.createBitmap(padded, 0, 0, width, height)
+                paddedBitmap.copyPixelsFromBuffer(buffer)
+                val croppedBitmap = Bitmap.createBitmap(paddedBitmap, 0, 0, width, height)
+                bitmap = croppedBitmap
                 val output = File(cacheDir, "one-ai-capture").apply { mkdirs() }
                 val file = File(output, "screen-${System.currentTimeMillis()}.png")
                 partialFile = file
                 FileOutputStream(file).use {
-                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
+                    check(croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
                         "Could not encode the captured screen frame"
                     }
                 }
