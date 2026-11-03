@@ -222,9 +222,29 @@ class FloatingBubbleService : Service() {
         uiHandler.postDelayed({ if (bubble == null) showBubble() }, 60_000L)
     }
 
+    /** Receives validated text results from trusted feature modules without opening MainActivity. */
+    private fun showHandoffResult(title: String?, content: String?) {
+        val result = BubbleResultHandoff.validate(title, content) ?: return
+        val box = basePanel()
+        addLabel(box, "ONE AI  •  RESULT", 16f)
+        addLabel(box, result.title, 14f)
+        addLabel(box, result.content, 13f)
+        addButton(box, "Back to services") { showPanel() }
+        addButton(box, "Close panel") { hidePanel() }
+        attachPanel(box)
+    }
+
     private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == BubbleResultHandoff.ACTION_SHOW_RESULT) {
+            showHandoffResult(
+                intent.getStringExtra(BubbleResultHandoff.EXTRA_TITLE),
+                intent.getStringExtra(BubbleResultHandoff.EXTRA_CONTENT)
+            )
+        }
+        return START_STICKY
+    }
     override fun onDestroy() { serviceJob.cancel(); uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { const val CHANNEL="one_ai_bubble"; const val NOTIFICATION_ID=7104 }
