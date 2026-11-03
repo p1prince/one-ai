@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.AiOrchestrator
 import com.oneai.app.bubble.FloatingBubbleService
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.core.*
@@ -44,12 +45,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var plugins: PluginManager
     private lateinit var vault: SecretVault
     private lateinit var ai: AiProviderClient
+    private lateinit var orchestrator: AiOrchestrator
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault)
+        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(ai,store)
         setContent { OneAiApp(store,plugins,vault,ai,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
-            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { ai.ask(prompt) }.onSuccess { store.log("AI response received"); done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
         ) }
     }
     private fun toggleBubble(enabled:Boolean) {
