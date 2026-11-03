@@ -83,3 +83,10 @@ The Stage 7 capture framework now provides a user-initiated path from the Bubble
 6. A bounded result message and private artifact reference are returned to the Bubble. The Bubble does not display the screenshot itself.
 
 Stage 8 adds a trusted Screen Intelligence adapter and an optional OpenAI-compatible vision provider. The adapter consumes the selected image artifact once, validates its private path and format, and deletes it after processing. The Bubble requires a second explicit one-time approval before sending the image to the configured provider over HTTPS; the screen-capture approval does not authorize upload. The configured model must support image input. The end-to-end flow remains subject to CI and real-device verification.
+
+
+## Web Research integration (Stage 8)
+
+The Web Research catalogue entry now has a trusted in-app adapter backed by a provider-neutral `WebSearchProvider` contract and a Brave Search API connector. The connector uses HTTPS, sends its API token in the `X-Subscription-Token` header, bounds response bodies to 1 MiB, accepts only HTTP(S) result links without embedded credentials or fragments, and limits returned results. Its credential is stored in a separate Android Keystore-encrypted slot (`brave_search`) and does not replace the primary AI provider key.
+
+The Floating Bubble provides a search field. Each search is routed through `PluginRuntime` as the `internet` capability and requires a separate, exact-action, one-use approval before the query is sent to Brave Search. The provider credential must first be configured in Settings, and the Web Research plugin must be installed and enabled. CI and end-to-end device validation are still pending; do not treat the integration as release-verified yet.
