@@ -108,13 +108,17 @@ class PluginRuntime(
         return try {
             val output = adapter.execute(input)
             if (!output.isValidForCoreUi()) {
+                actionGateway.recordExecutionResult(pluginId, input.actionId, "failed")
                 PluginInvocationResult.Failed("The plugin returned data outside the supported limits.")
             } else {
+                actionGateway.recordExecutionResult(pluginId, input.actionId, "completed")
                 PluginInvocationResult.Completed(output)
             }
         } catch (cancelled: CancellationException) {
+            actionGateway.recordExecutionResult(pluginId, input.actionId, "cancelled")
             throw cancelled
         } catch (_: Exception) {
+            actionGateway.recordExecutionResult(pluginId, input.actionId, "failed")
             PluginInvocationResult.Failed("The plugin action failed. Check its activity entry for details.")
         }
     }
