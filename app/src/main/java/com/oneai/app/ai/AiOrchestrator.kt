@@ -29,7 +29,7 @@ class AiOrchestrator(
                     AiMessage("user", cleanPrompt)
                 )
             )
-            store.log("AI response received (" + completion.provider + ")")
+            activity.log("AI response received (" + completion.provider + ")")
             completion
         } catch (error: Exception) {
             store.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"))
