@@ -225,6 +225,9 @@ class FloatingBubbleService : Service() {
                 when (val approved = gateway.check(action, ticket)) {
                     is ActionGateResult.Permitted -> {
                         hidePanel()
+                        bubble?.let { runCatching { windowManager.removeView(it) } }
+                        bubble = null
+                        bubbleParams = null
                         ScreenCaptureConsentActivity.launch(this)
                     }
                     is ActionGateResult.AwaitingUserApproval ->
@@ -300,6 +303,7 @@ class FloatingBubbleService : Service() {
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == BubbleResultHandoff.ACTION_SHOW_RESULT) {
+            if (bubble == null) showBubble()
             showHandoffResult(
                 intent.getStringExtra(BubbleResultHandoff.EXTRA_TITLE),
                 intent.getStringExtra(BubbleResultHandoff.EXTRA_CONTENT),
