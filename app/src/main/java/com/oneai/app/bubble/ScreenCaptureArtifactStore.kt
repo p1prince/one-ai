@@ -16,6 +16,7 @@ object ScreenCaptureArtifactStore {
     @Synchronized
     fun publish(context: Context, image: File): Boolean {
         val safe = validatedFile(context, image.absolutePath) ?: return false
+        clear(context)
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_PATH, safe.absolutePath)
             .putLong(KEY_CREATED, System.currentTimeMillis())
