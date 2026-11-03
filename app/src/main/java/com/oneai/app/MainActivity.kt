@@ -78,7 +78,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
-    val refreshNow={ refresh++ }
+    val refreshNow: () -> Unit = { refresh++; Unit }
     MaterialTheme(colorScheme=darkColorScheme(primary=Gold,background=Ink,surface=Panel,onPrimary=Ink,onBackground=White,onSurface=White)) {
         Scaffold(containerColor=Ink, bottomBar={
             NavigationBar(containerColor=Panel) {
