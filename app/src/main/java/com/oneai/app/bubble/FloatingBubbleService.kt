@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ScrollView
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -186,9 +187,9 @@ class FloatingBubbleService : Service() {
         // the overlay extend beyond the screen. The Bubble remains independently usable.
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            addView(box, ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
+            addView(box, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
         val maxPanelHeight = (resources.displayMetrics.heightPixels * 0.78f).toInt().coerceAtLeast(320)
