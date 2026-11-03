@@ -215,24 +215,28 @@ class FloatingBubbleService : Service() {
             }
             is ActionGateResult.AwaitingUserApproval -> Unit
         }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Allow screen capture once?")
-            .setMessage("ONE AI will capture one screen frame so you can select a region. The screenshot stays in private app storage. Android will then show its own screen-sharing consent prompt.")
-            .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
-            .setPositiveButton("Continue") { dialog, _ ->
-                dialog.dismiss()
-                runCatching {
-                    val ticket = gateway.confirmUserApproval(action)
-                    when (val approved = gateway.check(action, ticket)) {
-                        is ActionGateResult.Permitted -> ScreenCaptureConsentActivity.launch(this)
-                        is ActionGateResult.AwaitingUserApproval -> showHandoffResult("Approval required", approved.authorization.reason)
-                        is ActionGateResult.Rejected -> showHandoffResult("Screen capture blocked", approved.authorization.reason)
+        val box = basePanel()
+        addLabel(box, "ALLOW SCREEN CAPTURE ONCE?", 16f)
+        addLabel(box, "ONE AI will capture one screen frame so you can select a region. The image stays in private app storage. Android will then show its own screen-sharing consent prompt.")
+        addButton(box, "Cancel") { showPanel() }
+        addButton(box, "Allow once and continue") {
+            runCatching {
+                val ticket = gateway.confirmUserApproval(action)
+                when (val approved = gateway.check(action, ticket)) {
+                    is ActionGateResult.Permitted -> {
+                        hidePanel()
+                        ScreenCaptureConsentActivity.launch(this)
                     }
-                }.onFailure {
-                    showHandoffResult("Screen capture blocked", "ONE AI could not verify approval for this capture.")
+                    is ActionGateResult.AwaitingUserApproval ->
+                        showHandoffResult("Approval required", approved.authorization.reason)
+                    is ActionGateResult.Rejected ->
+                        showHandoffResult("Screen capture blocked", approved.authorization.reason)
                 }
+            }.onFailure {
+                showHandoffResult("Screen capture blocked", "ONE AI could not verify approval for this capture.")
             }
-            .show()
+        }
+        attachPanel(box)
     }
 
     private fun attachPanel(box: LinearLayout) {
