@@ -8,19 +8,25 @@ class ActionSecurityTest {
         ActionRequest("dev.example.device", action, capability, "Turn Wi-Fi off")
 
     @Test fun disabledPluginAndUnknownCapabilityAreBlocked() {
-        assertFalse(CapabilityPolicy.evaluate(request(), false).allowed)
-        assertFalse(CapabilityPolicy.evaluate(request("run_shell"), true).allowed)
+        assertFalse(CapabilityPolicy.evaluate(request(), false, setOf("device_actions")).allowed)
+        assertFalse(CapabilityPolicy.evaluate(request("run_shell"), true, setOf("run_shell")).allowed)
+    }
+
+    @Test fun pluginCannotUseAnUndeclaredCapability() {
+        val result = CapabilityPolicy.evaluate(request(), true, setOf("commands"))
+        assertFalse(result.allowed)
+        assertEquals(ActionRisk.BLOCKED, result.risk)
     }
 
     @Test fun sensitiveCapabilitiesRequireApproval() {
-        val result = CapabilityPolicy.evaluate(request(), true)
+        val result = CapabilityPolicy.evaluate(request(), true, setOf("device_actions"))
         assertTrue(result.allowed)
         assertTrue(result.requiresUserApproval)
         assertEquals(ActionRisk.SENSITIVE, result.risk)
     }
 
     @Test fun lowRiskCapabilityDoesNotRequireAdditionalApproval() {
-        val result = CapabilityPolicy.evaluate(request("internet"), true)
+        val result = CapabilityPolicy.evaluate(request("internet"), true, setOf("internet"))
         assertTrue(result.allowed)
         assertFalse(result.requiresUserApproval)
         assertEquals(ActionRisk.LOW, result.risk)
