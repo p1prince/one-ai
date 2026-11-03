@@ -3,6 +3,7 @@ package com.oneai.app.plugins
 import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.ActionRequest
 import com.oneai.app.security.PluginActionGateway
+import com.oneai.app.core.PluginRecord
 import kotlinx.coroutines.CancellationException
 
 /** Input delivered to a trusted, registered plugin adapter after core policy checks. */
@@ -42,16 +43,9 @@ sealed interface PluginInvocationResult {
  * by trusted app integration code; declarative manifests alone cannot execute.
  */
 class PluginRuntime(
-    private val findInstalledPlugin: (String) -> InstalledPlugin?,
+    private val findInstalledPlugin: (String) -> PluginRecord?,
     private val actionGateway: PluginActionGateway
 ) {
-    data class InstalledPlugin(
-        val id: String,
-        val enabled: Boolean,
-        val manifestVersion: Int,
-        val capabilities: Set<String>
-    )
-
     private val adapters = linkedMapOf<String, PluginAdapter>()
 
     @Synchronized
@@ -64,7 +58,7 @@ class PluginRuntime(
         val installed = findInstalledPlugin(manifest.id)
             ?: return Result.failure(IllegalStateException("Install the plugin before registering its adapter"))
         if (installed.manifestVersion != manifest.manifestVersion ||
-            installed.capabilities != manifest.capabilities.toSet()) {
+            installed.capabilities.toSet() != manifest.capabilities.toSet()) {
             return Result.failure(IllegalStateException("Adapter manifest does not match the installed plugin declaration"))
         }
         adapters[manifest.id] = adapter
