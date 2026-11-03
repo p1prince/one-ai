@@ -28,6 +28,7 @@ object BubbleUiPolicy {
         if ("one.web.research" in enabledPluginIds) add("web_research")
         if ("one.screen.intelligence" in enabledPluginIds) add("screen_intelligence")
         if ("one.voice.interface" in enabledPluginIds) add("voice_interface")
+        if ("one.app.control" in enabledPluginIds) add("app_control")
         if ("one.automation.engine" in enabledPluginIds) add("automation")
     }
 
