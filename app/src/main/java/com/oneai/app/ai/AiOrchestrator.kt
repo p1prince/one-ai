@@ -1,7 +1,5 @@
 package com.oneai.app.ai
 
-import com.oneai.app.core.OneAiStore
-
 /**
  * Shared entry point for AI requests from screens, commands and the bubble.
  * This initial layer normalizes requests and records outcomes. Android actions
@@ -9,7 +7,7 @@ import com.oneai.app.core.OneAiStore
  */
 class AiOrchestrator(
     private val provider: AiProvider,
-    private val store: OneAiStore
+    private val activity: AiActivityLogger
 ) {
     suspend fun respond(prompt: String): AiCompletion {
         val cleanPrompt = prompt.trim()
@@ -18,7 +16,7 @@ class AiOrchestrator(
             "The message is too long. Maximum length is $MAX_PROMPT_LENGTH characters."
         }
 
-        store.log("AI request started")
+        activity.log("AI request started")
         return try {
             val completion = provider.complete(
                 listOf(
