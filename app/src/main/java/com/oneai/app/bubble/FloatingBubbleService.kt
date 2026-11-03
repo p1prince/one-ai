@@ -23,6 +23,8 @@ import com.oneai.app.core.OneAiStore
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
 import com.oneai.app.commands.CommandRouter
+import com.oneai.app.security.ActionGateResult
+import com.oneai.app.security.ActionRequest
 import com.oneai.app.security.SecretVault
 import android.os.Handler
 import android.os.Looper
@@ -175,8 +177,7 @@ class FloatingBubbleService : Service() {
         if (service == "screen_intelligence") {
             addLabel(box, "Capture requires Android's system permission prompt. The screenshot and region selector open outside the Bubble; only the selected image reference returns here.")
             addButton(box, "Capture screen region") {
-                runCatching { ScreenCaptureConsentActivity.launch(this) }
-                    .onFailure { showHandoffResult("Capture unavailable", "ONE AI could not open Android's screen-capture consent screen.") }
+                requestScreenCaptureApproval()
             }
         } else {
             val message = when (service) {
@@ -190,6 +191,48 @@ class FloatingBubbleService : Service() {
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
+    }
+
+    /** ONE AI approval is consumed before Android's separate MediaProjection consent prompt. */
+    private fun requestScreenCaptureApproval() {
+        val pluginId = "one.screen.intelligence"
+        val action = ActionRequest(
+            pluginId = pluginId,
+            actionId = "capture_region",
+            capability = "screen_capture",
+            description = "Capture one screen frame and let me select a region"
+        )
+        val store = OneAiStore(this)
+        val gateway = store.pluginActionGateway()
+        when (val decision = gateway.check(action)) {
+            is ActionGateResult.Rejected -> {
+                showHandoffResult("Screen capture blocked", decision.authorization.reason)
+                return
+            }
+            is ActionGateResult.Permitted -> {
+                showHandoffResult("Screen capture unavailable", "This sensitive action unexpectedly bypassed its approval requirement.")
+                return
+            }
+            is ActionGateResult.AwaitingUserApproval -> Unit
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Allow screen capture once?")
+            .setMessage("ONE AI will capture one screen frame so you can select a region. The screenshot stays in private app storage. Android will then show its own screen-sharing consent prompt.")
+            .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton("Continue") { dialog, _ ->
+                dialog.dismiss()
+                runCatching {
+                    val ticket = gateway.confirmUserApproval(action)
+                    when (val approved = gateway.check(action, ticket)) {
+                        is ActionGateResult.Permitted -> ScreenCaptureConsentActivity.launch(this)
+                        is ActionGateResult.AwaitingUserApproval -> showHandoffResult("Approval required", approved.authorization.reason)
+                        is ActionGateResult.Rejected -> showHandoffResult("Screen capture blocked", approved.authorization.reason)
+                    }
+                }.onFailure {
+                    showHandoffResult("Screen capture blocked", "ONE AI could not verify approval for this capture.")
+                }
+            }
+            .show()
     }
 
     private fun attachPanel(box: LinearLayout) {
