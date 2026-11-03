@@ -12,7 +12,8 @@ ONE AI is a modular Android AI assistant platform built around a lightweight she
 - Bubble services are individually opted in and remembered.
 - Command Manager stores user-created instructions and sends them to the configured AI provider.
 - The bubble's Command Manager lists and executes enabled commands without redirecting to the main app.
-- OpenAI-compatible HTTPS chat-completions provider client with model/endpoint settings.
+- Provider-neutral AI interface with an OpenAI-compatible HTTPS chat-completions adapter.
+- Shared AI orchestration entry point used by the main assistant and floating-bubble command execution; it records request outcomes and does not claim unimplemented device actions.
 - Provider API keys encrypted using Android Keystore AES-GCM.
 - Local activity log and persistent settings.
 - Plugin descriptors declare capabilities. The shell does not dynamically load untrusted executable code.
