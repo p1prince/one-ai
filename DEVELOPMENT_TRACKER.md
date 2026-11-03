@@ -4,7 +4,7 @@ This is the shared progress record for the foundation build. A batch is marked c
 
 **Current focus: Batch 4 — Command System and reusable commands.**
 
-Batch 3 implementation includes provider-neutral contracts, the HTTPS adapter, normalized errors, shared orchestration, cancellation handling and main/bubble routing. Orchestrator and command-router unit tests are added; final completion awaits a confirmed non-APK validation workflow result. Batch 4 is underway: validated command creation, disabled-by-default commands (including the data-model default), enable/disable/remove lifecycle, shared execution routing from the main screen and bubble, and unit tests. Provider endpoints now reject embedded credentials/fragments and redirects are disabled.
+Batch 3 implementation includes provider-neutral contracts, the HTTPS adapter, normalized errors, shared orchestration, cancellation handling and main/bubble routing. Batch 4 implementation includes validated command creation, disabled-by-default commands, enable/disable/remove lifecycle, shared execution routing from the main screen and bubble, and unit tests. The first CI validation run failed at Kotlin compilation: the refresh callback inferred Int instead of Unit, and JSON arrays were treated as Kotlin collections. Those compile issues have been corrected on the latest branch commits; the latest head still awaits a fresh confirmed validation result. Provider endpoints reject embedded credentials/fragments and redirects are disabled. The bubble command path now reuses one store instance per execution.
 
 | # | Batch | Status | Completion criteria |
 |---:|---|---|---|
