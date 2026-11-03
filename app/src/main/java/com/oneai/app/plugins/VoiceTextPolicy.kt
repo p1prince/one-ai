@@ -4,7 +4,7 @@ package com.oneai.app.plugins
 object VoiceTextPolicy {
     fun normalizeTranscript(value: String): String? {
         val clean = value.trim()
-        if (clean.length !in 2..4_000 || clean.any { it.isISOControl() && it !in '\n' .toChar() .toString() }) {
+        if (clean.length !in 2..4_000 || clean.any { it.isISOControl() }) {
             return null
         }
         return clean

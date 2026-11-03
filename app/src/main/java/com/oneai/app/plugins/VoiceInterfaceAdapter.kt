@@ -1,6 +1,7 @@
 package com.oneai.app.plugins
 
 import com.oneai.app.ai.AiOrchestrator
+import kotlinx.coroutines.CancellationException
 
 fun interface VoiceInputProvider {
     suspend fun captureSpeech(): String
@@ -37,8 +38,14 @@ class VoiceInterfaceAdapter(
         val speechNote = if (speech == null) {
             "Spoken playback was unavailable; the response is shown below."
         } else {
-            runCatching { outputProvider.speak(speech) }
-                .fold({ "" }, { " Spoken playback was unavailable; the response is shown below." })
+            try {
+                outputProvider.speak(speech)
+                ""
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                " Spoken playback was unavailable; the response is shown below."
+            }
         }
         return PluginActionOutput(
             title = "Voice assistant response",
