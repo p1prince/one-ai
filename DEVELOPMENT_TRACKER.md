@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 10 — settings, activity history and user controls.** Stage 8 passed Device Control CI runs #390–#391 on 282bde7. Stage 9's separate-project review, trusted AutoDroid launcher adapter and approval path passed CI run #394 on 7d5ad3b. Stage 10 now adds provider readiness status, HTTPS endpoint validation, credential removal controls, timestamped activity history and confirmed history clearing. No APK has been built.
+**Current focus: Stage 11 — full integration review and testing.** Stage 10 settings, activity history and user controls passed Android validation runs #398 and #399 on ca2f300 (compilation and unit tests; no APK). Stage 8 passed Device Control CI runs #390–#391 on 282bde7. Stage 9's trusted AutoDroid launcher boundary passed CI run #394 on 7d5ad3b. No APK has been built.
 
 ## Current status
 
@@ -17,8 +17,8 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 | 7 | Floating Bubble and independent execution | 🟡 Source and automated policy tests implemented; capture-cleanup and artifact/image-policy CI passed; physical-device test reserved for Stage 11 | Independent overlay, command execution, preferences, bounded result handoff, explicit ONE AI approval, Android MediaProjection consent, one-frame capture, external region selector and private one-time artifact |
 | 8 | Web, screen, voice, app and device integrations | ✅ IMPLEMENTED AND CI VERIFIED — Screen Intelligence and Web Research; Voice Interface (#366–#369); App Control (#388–#389); Device Control (#390–#391 on 282bde7) | Real permissioned integrations; physical-device verification is reserved for Stage 11 |
 | 9 | AutoDroid integration boundary | ✅ IMPLEMENTED AND CI VERIFIED (#394 on 7d5ad3b) — trusted, one-use-approved launcher hand-off; AutoDroid repository remains independent; physical launch test reserved for Stage 11 | Review the separate project, define a trusted adapter, preserve permission/consent boundaries, and keep its repository independent |
-| 10 | Settings, activity history and user controls | 🔵 IN PROGRESS | Unified configuration, clear status, logs and recovery controls |
-| 11 | Full integration review and testing | ⏳ UP NEXT | Source review, automated tests, device testing, build validation and documented limitations |
+| 10 | Settings, activity history and user controls | ✅ IMPLEMENTED AND CI VERIFIED (#398–#399 on ca2f300) | Unified configuration, clear status, logs and recovery controls |
+| 11 | Full integration review and testing | 🔵 IN PROGRESS | Source review, automated tests, device testing, build validation and documented limitations |
 | 12 | First foundation release / APK | 🔒 BLOCKED — do not build yet | Only after Stages 1–11 are complete and the user authorizes the release build |
 
 ## Stage 8 — Screen Intelligence and Web Research
@@ -62,6 +62,14 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Every action requires a fresh exact-action, one-use approval before ONE AI opens the corresponding Android Settings screen.
 - Android remains responsible for changing settings, showing system confirmations and enforcing OS restrictions. The adapter does not silently toggle restricted settings or execute arbitrary intents.
 - Focused adapter and allowlist policy tests added. Validation runs #390 and #391 both passed on commit 282bde7. Physical-device checks remain for Stage 11.
+
+## Stage 10 — Settings, activity history and user controls
+- Settings shows AI provider, Web Research credential and Floating Bubble readiness, plus enabled plugin and command counts.
+- Provider endpoint input is validated as HTTPS and rejects malformed URLs, embedded user-info and fragments before settings can be saved.
+- AI provider and Brave Search credentials remain separately encrypted with Android Keystore; each can be explicitly removed after a confirmation dialog.
+- Activity history displays local timestamps, retains a bounded 150-event window and offers a confirmation-protected clear action. Existing message-only activity reads remain backward compatible.
+- Validation runs #398 and #399 passed on commit ca2f300, including Android compilation and unit tests without building an APK.
+- Stage 10 is complete. Physical-device settings and persistence checks remain part of Stage 11.
 
 ## Stage 9 — AutoDroid integration boundary
 - AutoDroid was reviewed as a separate Kotlin/Android automation application using its own Room database, repository and macro execution use cases.
