@@ -41,6 +41,9 @@ import com.oneai.app.plugins.VoiceInterfaceAdapter
 import com.oneai.app.plugins.VoiceInputProvider
 import com.oneai.app.plugins.VoiceOutputProvider
 import com.oneai.app.plugins.VoiceTextPolicy
+import com.oneai.app.plugins.AppControlAdapter
+import com.oneai.app.plugins.AndroidAppLauncher
+import com.oneai.app.plugins.InstalledAppCatalog
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -213,6 +216,13 @@ class FloatingBubbleService : Service() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
             addButton(box, "Search the web") { requestWebSearch(query.text.toString()) }
+        } else if (service == "app_control") {
+            addLabel(box, "Choose an installed app to open. ONE AI will ask before launching it. This does not sign in, read private app data, or automate actions inside the selected app.")
+            val apps = InstalledAppCatalog.load(this)
+            if (apps.isEmpty()) addLabel(box, "No launcher-visible apps were found.")
+            apps.forEach { target ->
+                addButton(box, target.label) { requestAppLaunch(target.packageName, target.label) }
+            }
         } else if (service == "voice_interface") {
             addLabel(box, "Speak one command and hear ONE AI's response. ONE AI asks for microphone permission only after you approve this voice session.")
             addButton(box, "Start voice command") { requestVoiceInteraction() }
@@ -291,6 +301,68 @@ class FloatingBubbleService : Service() {
                     is PluginInvocationResult.Rejected -> showHandoffResult("Voice session blocked", decision.reason)
                     is PluginInvocationResult.Failed -> showHandoffResult("Voice session failed", decision.message)
                     is PluginInvocationResult.Completed -> showHandoffResult("Voice assistant", decision.output.content)
+                }
+            }
+        }
+    }
+
+    /** Each selected app launch is routed through the plugin runtime and an exact one-use approval. */
+    private fun requestAppLaunch(packageName: String, appLabel: String) {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = AppControlAdapter(AndroidAppLauncher(this))
+        if (AppControlAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("App Control unavailable", it.message ?: "Could not register the trusted app launcher.")
+                return
+            }
+        }
+        val safeLabel = appLabel.take(80).ifBlank { packageName }
+        val input = PluginActionInput(
+            actionId = AppControlAdapter.LAUNCH_ACTION,
+            capability = "app_launch",
+            description = "Launch installed app $safeLabel ($packageName)",
+            values = mapOf("package_name" to packageName, "app_label" to safeLabel)
+        )
+        serviceScope.launch {
+            val decision = runtime.invoke(AppControlAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "LAUNCH $safeLabel?", 16f)
+                        addLabel(box, "ONE AI will open this app using its Android launcher activity. It will not access the app's private data, sign in, or perform actions inside it.")
+                        addButton(box, "Cancel") { showService("app_control") }
+                        addButton(box, "Allow once and open") {
+                            val ticket = runtime.approveSensitiveAction(AppControlAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("App launch blocked", "ONE AI could not verify approval for this app launch.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(AppControlAdapter.PLUGIN_ID, input, ticket)
+                                val message = when (result) {
+                                    is PluginInvocationResult.Completed -> result.output.content
+                                    is PluginInvocationResult.Rejected -> result.reason
+                                    is PluginInvocationResult.Failed -> result.message
+                                    is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
+                                }
+                                if (serviceJob.isActive) uiHandler.post {
+                                    if (serviceJob.isActive) showHandoffResult(
+                                        if (result is PluginInvocationResult.Completed && result.output.title == "App opened") "App launched" else "App launch result",
+                                        message
+                                    )
+                                }
+                            }
+                        }
+                        attachPanel(box)
+                    }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("App launch blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("App launch failed", decision.message)
+                    is PluginInvocationResult.Completed -> showHandoffResult(decision.output.title, decision.output.content)
                 }
             }
         }
