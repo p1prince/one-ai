@@ -8,7 +8,8 @@ import com.oneai.app.commands.CommandRepository
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
-    val capabilities: List<String>, val enabled: Boolean, val developerCreated: Boolean = false
+    val capabilities: List<String>, val enabled: Boolean, val developerCreated: Boolean = false,
+    val manifestVersion: Int = 1, val dependencies: List<String> = emptyList()
 )
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
@@ -23,7 +24,8 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
         runCatching {
             PluginRecord(it.getString("id"), it.getString("name"), it.optString("version", "1.0"),
                 it.optString("description", ""), it.getJSONArray("capabilities").toStringList(),
-                it.optBoolean("enabled", false), it.optBoolean("developerCreated", false))
+                it.optBoolean("enabled", false), it.optBoolean("developerCreated", false),
+                it.optInt("manifestVersion", 1), it.optJSONArray("dependencies")?.toStringList() ?: emptyList())
         }.getOrNull()
         }
     }
@@ -34,6 +36,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
             put("id", it.id); put("name", it.name); put("version", it.version)
             put("description", it.description); put("capabilities", JSONArray(it.capabilities))
             put("enabled", it.enabled); put("developerCreated", it.developerCreated)
+            put("manifestVersion", it.manifestVersion); put("dependencies", JSONArray(it.dependencies))
         }) } })
     }
 
@@ -43,6 +46,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
                 put("id", p.id); put("name", p.name); put("version", p.version)
                 put("description", p.description); put("capabilities", JSONArray(p.capabilities))
                 put("enabled", p.enabled); put("developerCreated", p.developerCreated)
+                put("manifestVersion", p.manifestVersion); put("dependencies", JSONArray(p.dependencies))
             })
         } })
     }
