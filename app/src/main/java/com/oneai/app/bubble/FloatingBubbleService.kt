@@ -33,6 +33,7 @@ import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginInvocationResult
 import com.oneai.app.ai.OpenAiCompatibleVisionProvider
 import com.oneai.app.ai.BraveSearchProvider
+import com.oneai.app.ai.WebSearchPolicy
 import com.oneai.app.plugins.WebResearchAdapter
 import android.os.Handler
 import android.os.Looper
@@ -215,6 +216,11 @@ class FloatingBubbleService : Service() {
 
     /** Web requests are routed through the plugin runtime and require an exact one-use approval. */
     private fun requestWebSearch(query: String) {
+        val normalizedQuery = WebSearchPolicy.normalizeQuery(query)
+        if (normalizedQuery == null) {
+            showHandoffResult("Search query needed", "Enter a search query between 2 and 300 characters.")
+            return
+        }
         val store = OneAiStore(this)
         val runtime = store.pluginRuntime()
         val adapter = WebResearchAdapter(BraveSearchProvider(SecretVault(this)))
@@ -227,8 +233,8 @@ class FloatingBubbleService : Service() {
         val input = PluginActionInput(
             actionId = WebResearchAdapter.SEARCH_ACTION,
             capability = "internet",
-            description = "Search the web for the query entered in the ONE AI Bubble",
-            values = mapOf("query" to query)
+            description = "Search the web for: $normalizedQuery",
+            values = mapOf("query" to normalizedQuery)
         )
         serviceScope.launch {
             val decision = runtime.invoke(WebResearchAdapter.PLUGIN_ID, input)
@@ -240,7 +246,7 @@ class FloatingBubbleService : Service() {
                         val box = basePanel()
                         addLabel(box, "ALLOW THIS WEB SEARCH ONCE?", 16f)
                         addLabel(box, "ONE AI will send this query to Brave Search over HTTPS. Search terms may be processed by that provider. Review the query before approving.")
-                        addLabel(box, query.trim().take(300), 12f)
+                        addLabel(box, normalizedQuery, 12f)
                         addButton(box, "Cancel") { showPanel() }
                         addButton(box, "Allow once and search") {
                             val ticket = runtime.approveSensitiveAction(WebResearchAdapter.PLUGIN_ID, input)
