@@ -105,35 +105,45 @@ class ScreenProjectionCaptureService : Service() {
                 return@setOnImageAvailableListener
             }
             val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
+            var padded: Bitmap? = null
+            var bitmap: Bitmap? = null
+            var partialFile: File? = null
             try {
                 val plane = image.planes.first()
                 val pixelStride = plane.pixelStride
                 val rowStride = plane.rowStride
                 val paddedWidth = rowStride / pixelStride
-                val padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+                padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
                 val buffer: ByteBuffer = plane.buffer
                 padded.copyPixelsFromBuffer(buffer)
-                val bitmap = Bitmap.createBitmap(padded, 0, 0, width, height)
-                padded.recycle()
+                bitmap = Bitmap.createBitmap(padded, 0, 0, width, height)
                 val output = File(cacheDir, "one-ai-capture").apply { mkdirs() }
                 val file = File(output, "screen-${System.currentTimeMillis()}.png")
-                FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                bitmap.recycle()
-                delivered = true
-                timeoutHandler.removeCallbacks(captureTimeout)
+                partialFile = file
+                FileOutputStream(file).use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
+                        "Could not encode the captured screen frame"
+                    }
+                }
                 val selector = Intent(this, ScreenRegionSelectionActivity::class.java).apply {
                     putExtra(ScreenRegionSelectionActivity.EXTRA_SCREEN_PATH, file.absolutePath)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 startActivity(selector)
+                partialFile = null
+                delivered = true
+                timeoutHandler.removeCallbacks(captureTimeout)
                 releaseCapture()
                 stopSelf()
-            } catch (_: Throwable) {
+            } catch (_: Exception) {
+                partialFile?.let { runCatching { it.delete() } }
                 BubbleCaptureFeedback.send(this, "Screen capture failed", "ONE AI could not prepare the captured frame.")
                 releaseCapture()
                 stopSelf()
             } finally {
                 image.close()
+                padded?.let { if (!it.isRecycled) it.recycle() }
+                bitmap?.let { if (!it.isRecycled) it.recycle() }
             }
         }, null)
         display = activeProjection.createVirtualDisplay(
