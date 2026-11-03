@@ -2,6 +2,7 @@ package com.oneai.app.plugins
 
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.security.ActionAuditLogger
+import com.oneai.app.security.ActionRequest
 import com.oneai.app.security.PluginActionGateway
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -16,9 +17,15 @@ class PluginRuntimeTest {
         capabilities = listOf("commands", "device_actions")
     )
 
-    private fun plugin(enabled: Boolean = true, capabilities: List<String> = manifest.capabilities) =
-        PluginRecord(manifest.id, manifest.name, manifest.version, manifest.description,
-            capabilities, enabled, manifestVersion = manifest.manifestVersion)
+    private fun plugin(
+        enabled: Boolean = true,
+        capabilities: List<String> = manifest.capabilities,
+        name: String = manifest.name,
+        version: String = manifest.version,
+        description: String = manifest.description,
+        dependencies: List<String> = manifest.dependencies
+    ) = PluginRecord(manifest.id, name, version, description,
+        capabilities, enabled, manifestVersion = manifest.manifestVersion, dependencies = dependencies)
 
     private class TestAdapter(
         override val manifest: PluginManifest,
@@ -41,6 +48,22 @@ class PluginRuntimeTest {
             PluginActionGateway({ plugin(capabilities = listOf("commands")) }, ActionAuditLogger {})
         )
         assertTrue(mismatch.register(adapter).isFailure)
+    }
+
+    @Test fun registrationRejectsAnyInstalledDeclarationMismatch() {
+        val mismatches = listOf(
+            plugin(name = "Different name"),
+            plugin(version = "2.0.0"),
+            plugin(description = "Different description"),
+            plugin(dependencies = listOf("dev.example.base"))
+        )
+        mismatches.forEach { installed ->
+            val runtime = PluginRuntime({ installed },
+                PluginActionGateway({ installed }, ActionAuditLogger {}))
+            assertTrue(runtime.register(TestAdapter(manifest) {
+                PluginActionOutput("ok", "done")
+            }).isFailure)
+        }
     }
 
     @Test fun lowRiskActionExecutesOnlyThroughRegisteredEnabledAdapter() = runBlocking {
@@ -68,7 +91,7 @@ class PluginRuntimeTest {
         assertEquals(0, adapter.calls)
 
         val ticket = gateway.confirmUserApproval(
-            com.oneai.app.security.ActionRequest(manifest.id, input.actionId, input.capability, input.description)
+            ActionRequest(manifest.id, input.actionId, input.capability, input.description)
         )
         assertTrue(runtime.invoke(manifest.id, input, ticket) is PluginInvocationResult.Completed)
         assertEquals(1, adapter.calls)
@@ -87,15 +110,44 @@ class PluginRuntimeTest {
         assertEquals(0, adapter.calls)
     }
 
-    @Test fun malformedOversizedInputIsRejectedBeforeAdapterRuns() = runBlocking {
+    @Test fun malformedAndOversizedInputIsRejectedBeforeAdapterRuns() = runBlocking {
         val installed = plugin()
         val adapter = TestAdapter(manifest) { PluginActionOutput("x", "y") }
         val runtime = PluginRuntime({ installed },
             PluginActionGateway({ installed }, ActionAuditLogger {}))
         assertTrue(runtime.register(adapter).isSuccess)
-        val oversized = PluginActionInput("prepare", "commands", "Prepare",
-            mapOf("payload" to "x".repeat(4_001)))
-        assertTrue(runtime.invoke(manifest.id, oversized) is PluginInvocationResult.Rejected)
+        val invalid = listOf(
+            PluginActionInput(" ", "commands", "Prepare"),
+            PluginActionInput("prepare", "unknown", "Prepare"),
+            PluginActionInput("prepare", "commands", "x".repeat(501)),
+            PluginActionInput("prepare", "commands", "Prepare", mapOf("payload" to "x".repeat(4_001))),
+            PluginActionInput("prepare", "commands", "Prepare", (0..32).associate { "k$it" to "v" })
+        )
+        invalid.forEach { input ->
+            assertTrue(runtime.invoke(manifest.id, input) is PluginInvocationResult.Rejected)
+        }
+        assertEquals(0, adapter.calls)
+    }
+
+    @Test fun oversizedAdapterOutputIsNotReturnedToCoreUi() = runBlocking {
+        val installed = plugin()
+        val adapter = TestAdapter(manifest) { PluginActionOutput("Result", "x".repeat(20_001)) }
+        val runtime = PluginRuntime({ installed },
+            PluginActionGateway({ installed }, ActionAuditLogger {}))
+        assertTrue(runtime.register(adapter).isSuccess)
+        assertTrue(runtime.invoke(manifest.id,
+            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Failed)
+    }
+
+    @Test fun pluginRemovedBeforeInvocationCannotExecute() = runBlocking {
+        var installed: PluginRecord? = plugin()
+        val gateway = PluginActionGateway({ installed }, ActionAuditLogger {})
+        val runtime = PluginRuntime({ installed }, gateway)
+        val adapter = TestAdapter(manifest) { PluginActionOutput("x", "y") }
+        assertTrue(runtime.register(adapter).isSuccess)
+        installed = null
+        assertTrue(runtime.invoke(manifest.id,
+            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Rejected)
         assertEquals(0, adapter.calls)
     }
 }
