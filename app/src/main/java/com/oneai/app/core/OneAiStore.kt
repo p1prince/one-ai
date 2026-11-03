@@ -3,6 +3,7 @@ package com.oneai.app.core
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import com.oneai.app.ai.AiActivityLogger
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
@@ -11,7 +12,7 @@ data class PluginRecord(
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = true)
 
-class OneAiStore(context: Context) {
+class OneAiStore(context: Context) : AiActivityLogger {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
 
     fun plugins(): List<PluginRecord> = readArray("plugins").mapNotNull {
@@ -58,7 +59,7 @@ class OneAiStore(context: Context) {
         } })
     }
 
-    fun log(message: String) {
+    override fun log(message: String) {
         val logs = readArray("activity")
         logs.put(0, JSONObject().put("time", System.currentTimeMillis()).put("message", message))
         val trimmed = JSONArray()
