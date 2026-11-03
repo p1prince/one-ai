@@ -2,6 +2,7 @@ package com.oneai.app.ai
 
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.security.SecretVault
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -73,6 +74,8 @@ class AiProviderClient(
             if (answer.isBlank()) throw AiProviderException("EMPTY_RESPONSE", "The provider returned an empty answer.")
             AiCompletion(answer, json.optString("model", store.aiModel()), store.aiProviderName())
         } catch (e: AiProviderException) {
+            throw e
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             throw AiProviderException("REQUEST_FAILED", e.message?.take(250) ?: "The AI request failed.", e)
