@@ -148,7 +148,11 @@ class ScreenProjectionCaptureService : Service() {
         timeoutHandler.removeCallbacks(captureTimeout)
         runCatching { display?.release() }; display = null
         runCatching { reader?.setOnImageAvailableListener(null, null); reader?.close() }; reader = null
-        runCatching { projection?.stop() }; projection = null
+        // Clear the reference before stop(): MediaProjection may deliver onStop while
+        // this cleanup is running, and the callback must not recursively stop it.
+        val activeProjection = projection
+        projection = null
+        runCatching { activeProjection?.stop() }
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
     }
 
