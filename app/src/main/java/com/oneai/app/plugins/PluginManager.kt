@@ -46,7 +46,10 @@ class PluginManager(private val store: OneAiStore) {
             if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Disable dependent plugins first: ${dependents.joinToString { it.name }}"))
         }
         store.savePlugin(plugin.copy(enabled=enabled))
-        if (!enabled) serviceFor(plugin.id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
+        if (!enabled) {
+            store.pluginActionGateway().revokePendingApprovals()
+            serviceFor(plugin.id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
+        }
         store.log("${if (enabled) "Enabled" else "Disabled"} plugin: ${plugin.name}")
         return Result.success(Unit)
     }
@@ -56,6 +59,7 @@ class PluginManager(private val store: OneAiStore) {
             ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
         val dependents = installed().filter { id in it.dependencies }
         if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Remove dependent plugins first: ${dependents.joinToString { it.name }}"))
+        store.pluginActionGateway().revokePendingApprovals()
         serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
         store.log("Removed plugin: ${plugin.name}")
