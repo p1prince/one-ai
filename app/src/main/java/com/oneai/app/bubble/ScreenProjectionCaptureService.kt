@@ -15,6 +15,8 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import java.io.File
@@ -27,6 +29,14 @@ class ScreenProjectionCaptureService : Service() {
     private var reader: ImageReader? = null
     private var display: VirtualDisplay? = null
     private var delivered = false
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val captureTimeout = Runnable {
+        if (!delivered) {
+            BubbleCaptureFeedback.send(this, "Screen capture timed out", "Android did not provide a screen frame in time. Please try again.")
+            releaseCapture()
+            stopSelf()
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra(ScreenCaptureConsentActivity.EXTRA_RESULT_CODE, 0) ?: 0
@@ -110,6 +120,7 @@ class ScreenProjectionCaptureService : Service() {
                 FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 bitmap.recycle()
                 delivered = true
+                timeoutHandler.removeCallbacks(captureTimeout)
                 val selector = Intent(this, ScreenRegionSelectionActivity::class.java).apply {
                     putExtra(ScreenRegionSelectionActivity.EXTRA_SCREEN_PATH, file.absolutePath)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -130,16 +141,18 @@ class ScreenProjectionCaptureService : Service() {
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader.surface, null, null
         )
+        timeoutHandler.postDelayed(captureTimeout, 5_000L)
     }
 
     private fun releaseCapture() {
+        timeoutHandler.removeCallbacks(captureTimeout)
         runCatching { display?.release() }; display = null
         runCatching { reader?.setOnImageAvailableListener(null, null); reader?.close() }; reader = null
         runCatching { projection?.stop() }; projection = null
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
     }
 
-    override fun onDestroy() { releaseCapture(); super.onDestroy() }
+    override fun onDestroy() { timeoutHandler.removeCallbacksAndMessages(null); releaseCapture(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object { private const val CHANNEL = "one_ai_capture"; private const val NOTIFICATION_ID = 7105 }
