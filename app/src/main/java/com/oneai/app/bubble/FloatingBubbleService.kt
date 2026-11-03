@@ -131,8 +131,12 @@ class FloatingBubbleService : Service() {
                 addButton(box, "Run: ${command.title}") {
                     val output = addLabel(box, "Running ${command.title}…", 12f)
                     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                        val result = runCatching { CommandRouter(OneAiStore(this@FloatingBubbleService), AiOrchestrator(AiProviderClient(OneAiStore(this@FloatingBubbleService), SecretVault(this@FloatingBubbleService)), OneAiStore(this@FloatingBubbleService))).run(command.id).content }
-                            .getOrElse { "Error: ${it.message}" }
+                        val result = runCatching {
+                            val store = OneAiStore(this@FloatingBubbleService)
+                            val provider = AiProviderClient(store, SecretVault(this@FloatingBubbleService))
+                            val router = CommandRouter(store, AiOrchestrator(provider, store))
+                            router.run(command.id).content
+                        }.getOrElse { "Error: ${it.message}" }
                         Handler(Looper.getMainLooper()).post { output.text = result }
                     }
                 }
