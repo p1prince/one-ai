@@ -25,12 +25,16 @@ object CapabilityPolicy {
     )
     private val approvalRequired = setOf(
         "screen_capture", "microphone", "device_actions", "accessibility",
-        "automation", "files"
+        "automation", "files", "internet"
     )
 
     fun evaluate(request: ActionRequest, pluginEnabled: Boolean, declaredCapabilities: Set<String>): ActionAuthorization {
         if (!pluginEnabled) return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Plugin is disabled")
-        if (request.pluginId.isBlank() || request.actionId.isBlank() || request.description.isBlank()) {
+        if (request.pluginId.isBlank() || request.pluginId.length > 100 ||
+            request.actionId.isBlank() || request.actionId.length > 100 ||
+            request.description.isBlank() || request.description.length > 500 ||
+            request.pluginId != request.pluginId.trim() || request.actionId != request.actionId.trim() ||
+            request.description != request.description.trim()) {
             return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Action details are incomplete")
         }
         if (request.capability !in known) {
