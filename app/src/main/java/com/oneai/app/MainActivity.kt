@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
         setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandRouter.run(id).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } }
         ) }
     }
     private fun toggleBubble(enabled:Boolean) {
@@ -73,7 +74,8 @@ private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), De
 
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
-                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit) {
+                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit,
+                     onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
     val refreshNow={ refresh++ }
@@ -91,7 +93,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                 Page.Home -> HomePage(Modifier.padding(pad),store,{page=Page.Plugins},{page=Page.Commands},chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
-                Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onAsk,{ id,done -> lifecycleScope.launch { runCatching { commandRouter.run(id).content }.onSuccess(done).onFailure { done("Error: ${it.message}") } } })
+                Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand)
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
                 Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,refreshNow)
             }
@@ -147,7 +149,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     }
 }
 
-@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,router:CommandRouter,refresh:()->Unit,onAsk:(String,(String)->Unit)->Unit,onRun:(String,(String)->Unit)->Unit) {
+@Composable private fun CommandsPage(modifier:Modifier,store:OneAiStore,router:CommandRouter,refresh:()->Unit,onRun:(String,(String)->Unit)->Unit) {
     var title by remember{mutableStateOf("")};var prompt by remember{mutableStateOf("")};var msg by remember{mutableStateOf("")};var result by remember{mutableStateOf("")};var running by remember{mutableStateOf(false)}
     val commands=store.commands()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
