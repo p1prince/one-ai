@@ -10,10 +10,10 @@ Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 Novemb
 
 | # | Stage | Status | Notes |
 |---:|---|---|---|
-| 1 | Design recovery and requirements freeze | 🟡 Partial | Decisions recovered; exact mockup/dimensions/typography/colour codes unrecovered. Do not invent. |
+| 1 | Design recovery and requirements freeze | 🟢 Spec written; owner confirmation of D2 pending | Visual values recovered from `b2d025a` and confirmed by owner (`docs/STAGE_1_SPEC.md`). Bubble visual design not recovered. |
 | 2 | Existing repository audit | 🔵 In progress | Draft audit and correction plan in `docs/STAGE_2_AUDIT.md`; awaiting owner approval. Exit needs file-by-file audit, dependency map, approved plan. |
 | 3 | Core application architecture | ⚪ Not started (code exists, unverified) | Core→plugin coupling to fix (F11). |
-| 4 | Main interface and navigation | ⚪ Not started (code exists, unverified) | Six sections vs approved five (F1); decision O1 open. |
+| 4 | Main interface and navigation | ⚪ Not started (code exists, unverified) | Remove Commands tab; Command Manager becomes a Home module (owner decision, 4 Nov). See Stage 1 spec D1–D7. |
 | 5 | AI engine and orchestration | ⚪ Not started (code exists, unverified) | Provider-neutral engine appears reusable. |
 | 6 | Core command framework | ⚪ Not started | Existing router is a saved-prompt runner; no extension registration (F8). |
 | 7 | Floating Bubble core | ⚪ Not started (code exists, unverified) | Capability UI inside the Bubble service to separate (F4). |

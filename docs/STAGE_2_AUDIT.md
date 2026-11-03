@@ -25,7 +25,7 @@ Audited: repository `p1prince/one-ai`, branch `foundation/batch-03-ai-engine`, c
 
 | # | Finding | Plan reference | Severity |
 |---|---|---|---|
-| F1 | Navigation has **six** sections (Home, Plugins, Develop, **Commands**, Activity, Settings). The plan fixes five. | §2, Stage 4 | High (approved-design deviation) |
+| F1 | Navigation has **six** sections (Home, Plugins, Develop, **Commands**, Activity, Settings). The plan fixes five. **Resolved by decision D2:** Command Manager becomes a Home module; fix scheduled in Stage 4. | §2, Stage 4 | High (approved-design deviation) |
 | F2 | Seven capability plugins are compiled into the core and listed in a hard-coded catalogue in `PluginManager`. Installation is from in-code templates, not from an external package. | §5, Stage 8/9, rule 3 | High |
 | F3 | Capability code lives in core packages: `ai/BraveSearchProvider`, `ai/OpenAiCompatibleVisionProvider`, `ai/Web*`, `bubble/Screen*`, `bubble/VoiceCaptureActivity`, `plugins/*Adapter`. | §5 | High |
 | F4 | `FloatingBubbleService` (843 lines) contains capability-specific flows (search query field, voice, screen capture/upload approvals) rather than only a generic plugin area. | Stage 7 | High |
