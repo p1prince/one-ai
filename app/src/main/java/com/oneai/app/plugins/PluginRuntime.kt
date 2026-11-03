@@ -139,7 +139,7 @@ class PluginRuntime(
         return runCatching {
             val current = findInstalledPlugin(pluginId)
             val stillRegistered = synchronized(this) { adapters[pluginId] === adapter }
-            check(current == installed && current.enabled && stillRegistered) {
+            check(current != null && current == installed && current.enabled && stillRegistered) {
                 "Plugin changed before approval could be issued"
             }
             actionGateway.confirmUserApproval(action)
