@@ -41,7 +41,7 @@ class PluginActionGatewayTest {
     @Test fun undeclaredCapabilityIsRejectedAndAudited() {
         val events = mutableListOf<String>()
         val limited = plugin().copy(capabilities = listOf("commands"))
-        val gateway = PluginActionGateway({ limited }, ActionAuditLogger(events::add))
+        val gateway = PluginActionGateway({ limited }, ActionAuditLogger { event -> events.add(event); Unit })
         assertTrue(gateway.check(sensitiveRequest) is ActionGateResult.Rejected)
         assertTrue(events.any { it.contains("did not declare") })
     }
