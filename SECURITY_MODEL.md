@@ -36,9 +36,14 @@ The action gateway records policy decisions and approval events. PluginRuntime n
 
 Stage 8 now contains a trusted Web Research adapter backed by the Brave Search API and a Screen Intelligence adapter backed by an OpenAI-compatible HTTPS vision provider. Both use the central plugin runtime and require explicit action approval for internet transmission. Web Research stores its API credential in a separate Android Keystore-encrypted slot; it does not overwrite the primary AI provider credential. These integrations are implemented in source but remain subject to CI and end-to-end device verification.
 
-There is no general device-action executor, global permission manager, or operational App Control or Device Control adapter yet. Voice Interface is implemented in source and awaits CI and physical-device validation. Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. Real-device testing of MediaProjection, the complete capture-to-analysis path, and Bubble web search remains scheduled for Stage 11. Other plugin catalogue entries are not operational until their adapters are implemented.
+App Control is implemented as an explicitly approved launcher-only integration and passed CI on runs #388–#389. Device Control is being implemented as an explicitly approved hand-off to a fixed allowlist of Android Settings screens; it does not silently change restricted settings. Voice Interface passed CI on runs #366–#369. Physical-device checks for MediaProjection, capture-to-analysis, web search credentials, voice services, app launch and Settings hand-off remain scheduled for Stage 11. Accessibility still requires a guided user-enabled Settings hand-off. Other catalogue entries remain inert until their adapters are implemented.
 
 
 ## App launch boundary
 
 The App Control adapter exposes only an explicit launch action for launcher-visible packages. It uses Android's package-visibility query for launcher activities and does not request broad package visibility. Each launch requires a fresh approval bound to the selected app label and package name. The adapter resolves the package's launcher intent and starts only that package's exported launcher activity. It does not read another app's private storage, sign in, invoke hidden components, or claim control over screens inside that app.
+
+
+## Device Settings boundary
+
+The Device Actions adapter accepts only five fixed action IDs that map internally to Android's Wi-Fi, Bluetooth, Sound, Display and Location Settings activities. The Floating Bubble requires a new exact-action, one-use approval before each Settings hand-off. No caller-supplied intent action, component, URI or extra is accepted. Android Settings owns all setting changes, and the user must make and confirm them there. The adapter does not attempt restricted Wi-Fi/Bluetooth toggles, secure-setting writes, device-admin operations or hidden APIs. A Settings destination may be unavailable or differ across Android versions and manufacturers; failures are reported rather than represented as successful changes.

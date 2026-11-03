@@ -29,6 +29,7 @@ object BubbleUiPolicy {
         if ("one.screen.intelligence" in enabledPluginIds) add("screen_intelligence")
         if ("one.voice.interface" in enabledPluginIds) add("voice_interface")
         if ("one.app.control" in enabledPluginIds) add("app_control")
+        if ("one.device.actions" in enabledPluginIds) add("device_control")
         if ("one.automation.engine" in enabledPluginIds) add("automation")
     }
 

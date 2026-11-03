@@ -74,6 +74,7 @@ class PluginManager(private val store: OneAiStore) {
         "one.screen.intelligence" -> "screen_intelligence"
         "one.voice.interface" -> "voice_interface"
         "one.app.control" -> "app_control"
+        "one.device.actions" -> "device_control"
         "one.automation.engine" -> "automation"
         else -> null
     }

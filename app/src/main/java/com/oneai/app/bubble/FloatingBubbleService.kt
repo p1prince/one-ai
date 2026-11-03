@@ -44,6 +44,9 @@ import com.oneai.app.plugins.VoiceTextPolicy
 import com.oneai.app.plugins.AppControlAdapter
 import com.oneai.app.plugins.AndroidAppLauncher
 import com.oneai.app.plugins.InstalledAppCatalog
+import com.oneai.app.plugins.DeviceControlAdapter
+import com.oneai.app.plugins.AndroidDeviceSettingsLauncher
+import com.oneai.app.plugins.DeviceControlPolicy
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -223,6 +226,11 @@ class FloatingBubbleService : Service() {
             apps.forEach { target ->
                 addButton(box, target.label) { requestAppLaunch(target.packageName, target.label) }
             }
+        } else if (service == "device_control") {
+            addLabel(box, "Choose an Android settings screen. ONE AI asks before opening it; Android remains in control of the actual setting and any system confirmation.")
+            DeviceControlPolicy.actions().forEach { action ->
+                addButton(box, action.label) { requestDeviceSettings(action.actionId, action.label) }
+            }
         } else if (service == "voice_interface") {
             addLabel(box, "Speak one command and hear ONE AI's response. ONE AI asks for microphone permission only after you approve this voice session.")
             addButton(box, "Start voice command") { requestVoiceInteraction() }
@@ -301,6 +309,70 @@ class FloatingBubbleService : Service() {
                     is PluginInvocationResult.Rejected -> showHandoffResult("Voice session blocked", decision.reason)
                     is PluginInvocationResult.Failed -> showHandoffResult("Voice session failed", decision.message)
                     is PluginInvocationResult.Completed -> showHandoffResult("Voice assistant", decision.output.content)
+                }
+            }
+        }
+    }
+
+    /** Opens only allowlisted Android Settings screens after an exact one-use approval. */
+    private fun requestDeviceSettings(actionId: String, label: String) {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = DeviceControlAdapter(AndroidDeviceSettingsLauncher(this))
+        if (DeviceControlAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("Device Control unavailable", it.message ?: "Could not register the trusted settings adapter.")
+                return
+            }
+        }
+        val action = DeviceControlPolicy.action(actionId) ?: run {
+            showHandoffResult("Unsupported device action", "ONE AI does not support that settings action.")
+            return
+        }
+        val input = PluginActionInput(
+            actionId = action.actionId,
+            capability = "device_actions",
+            description = "Open Android " + action.label + " settings"
+        )
+        serviceScope.launch {
+            val decision = runtime.invoke(DeviceControlAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "OPEN " + label.uppercase() + " SETTINGS?", 16f)
+                        addLabel(box, "ONE AI will open the corresponding Android Settings screen. You will make and confirm any changes there. ONE AI will not silently toggle restricted settings.")
+                        addButton(box, "Cancel") { showService("device_control") }
+                        addButton(box, "Allow once and open") {
+                            val ticket = runtime.approveSensitiveAction(DeviceControlAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("Device action blocked", "ONE AI could not verify approval for this settings action.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(DeviceControlAdapter.PLUGIN_ID, input, ticket)
+                                if (!serviceJob.isActive) return@launch
+                                uiHandler.post {
+                                    if (!serviceJob.isActive) return@post
+                                    when (result) {
+                                        is PluginInvocationResult.Completed ->
+                                            if (result.output.title != "Settings opened") showHandoffResult(result.output.title, result.output.content)
+                                        is PluginInvocationResult.Rejected -> showHandoffResult("Device action blocked", result.reason)
+                                        is PluginInvocationResult.Failed -> showHandoffResult("Device action failed", result.message)
+                                        is PluginInvocationResult.AwaitingApproval -> showHandoffResult("Approval expired", "A fresh approval is required.")
+                                    }
+                                }
+                            }
+                        }
+                        attachPanel(box)
+                    }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("Device action blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("Device action failed", decision.message)
+                    is PluginInvocationResult.Completed ->
+                        if (decision.output.title != "Settings opened") showHandoffResult(decision.output.title, decision.output.content)
                 }
             }
         }

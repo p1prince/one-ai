@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 8 — real integrations.** Screen Intelligence, Web Research and Voice Interface are implemented in source. Voice Interface passed full validation runs #366–#369, including both latest runs #368 and #369 on commit 50b00c9. App Control is now being added as a user-approved Android app launcher. No APK has been built.
+**Current focus: Stage 8 — real integrations.** Screen Intelligence and Web Research are implemented in source; Voice Interface passed validation runs #366–#369; App Control passed validation runs #388–#389 on commit 1c7c315. Device Control is now being added as a user-approved hand-off to supported Android Settings screens. No APK has been built.
 
 ## Current status
 
@@ -15,7 +15,7 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 | 5 | Plugin architecture and developer SDK | 🟠 Implementation frozen; verification pending | Versioned manifest, capability/dependency validation, lifecycle, trusted adapter registry, security-gated invocation and declarative SDK |
 | 6 | Security, permissions and action approvals | 🟠 Implementation frozen; verification pending | Capability policy, exact-action approval, just-in-time microphone permission, bounded execution audit and regression tests |
 | 7 | Floating Bubble and independent execution | 🟡 Source and automated policy tests implemented; capture-cleanup and artifact/image-policy CI passed; physical-device test reserved for Stage 11 | Independent overlay, command execution, preferences, bounded result handoff, explicit ONE AI approval, Android MediaProjection consent, one-frame capture, external region selector and private one-time artifact |
-| 8 | Web, screen, voice, app and device integrations | 🔵 IN PROGRESS — Screen Intelligence and Web Research CI verified; Voice Interface CI verified (#366–#369); App Control implementation added, awaiting CI; Device Control remains | Real permissioned integrations; no placeholder presented as working functionality |
+| 8 | Web, screen, voice, app and device integrations | 🔵 IN PROGRESS — Screen Intelligence and Web Research CI verified; Voice Interface CI verified (#366–#369); App Control CI verified (#388–#389); Device Control implementation added, awaiting CI | Real permissioned integrations; no placeholder presented as working functionality |
 | 9 | AutoDroid integration boundary | ⏳ UP NEXT | Review separate AutoDroid project and define adapter; keep its repository independent |
 | 10 | Settings, activity history and user controls | ⏳ UP NEXT | Unified configuration, clear status, logs and recovery controls |
 | 11 | Full integration review and testing | ⏳ UP NEXT | Source review, automated tests, device testing, build validation and documented limitations |
@@ -49,16 +49,22 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Voice capture is optional and remains disabled until the user installs/enables the plugin and enables its Bubble service.
 - Validation runs #366–#369 passed, including latest commit 50b00c9 (#368 and #369). Physical-device microphone, recognizer and TextToSpeech validation remains for Stage 11.
 
-### App Control — implementation added; CI pending
+### App Control — implemented in source; CI verified
 - Adds an optional `one.app.control` plugin with the `app_launch` capability and Bubble service.
 - Lists launcher-visible apps through a narrow Android package-visibility query; does not request `QUERY_ALL_PACKAGES`.
 - Each selected app launch routes through the trusted `PluginRuntime` and requires an exact-action, one-use approval before starting that app's exported launcher activity.
 - Does not sign in, inspect private app data, automate in-app screens, or bypass the target app's security.
-- Focused adapter and package-name policy tests added. CI must pass before this integration is marked verified; real-device validation remains for Stage 11.
+- Focused adapter and package-name policy tests added. Validation runs #388–#389 passed on commit 1c7c315. Real-device launch/catalogue validation remains for Stage 11.
+
+### Device Control — implementation added; CI pending
+- Adds the optional `one.device.actions` trusted adapter and `device_control` Bubble service.
+- Offers only five allowlisted Android Settings destinations: Wi-Fi, Bluetooth, Sound & vibration, Display and Location.
+- Every action requires a fresh exact-action, one-use approval before ONE AI opens the corresponding Android Settings screen.
+- Android remains responsible for changing settings, showing system confirmations and enforcing OS restrictions. The adapter does not silently toggle restricted settings or execute arbitrary intents.
+- Focused adapter and allowlist policy tests added. CI must pass before this integration is marked verified; physical-device checks remain for Stage 11.
 
 ### Still required in Stage 8
-- Confirm App Control passes CI; fix genuine failures only.
-- Implement Device Control using supported Android settings intents/APIs and clear OS limitations.
+- Confirm Device Control passes CI; fix genuine failures only.
 - Do not treat source compilation as proof of provider compatibility or device behavior.
 
 ## Important validation notes

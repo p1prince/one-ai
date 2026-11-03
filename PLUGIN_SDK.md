@@ -43,6 +43,8 @@ The example is a schema illustration only. A descriptor does not itself implemen
 - `accessibility`
 - `automation`
 - `files`
+- `app_launch`
+- `device_actions`
 
 Declaring a capability does not grant Android permission or make the integration operational. A future integration must supply a reviewed adapter, explicit runtime permission flow, and capability-specific policy before the capability can perform actions.
 
@@ -100,3 +102,12 @@ The optional Voice Interface plugin uses a trusted in-app adapter registered aga
 ## App Control integration (Stage 8)
 
 The optional App Control plugin uses the `app_launch` capability to enumerate launcher-visible applications and open a user-selected app through its exported Android launcher activity. The app catalog uses a launcher-intent `<queries>` declaration rather than broad `QUERY_ALL_PACKAGES` visibility. Every launch is routed through `PluginRuntime` and requires an exact-action, one-use approval naming the selected app. This integration does not sign in, inspect private app data, automate screens, or bypass another app's authentication. In-app automation remains a separate, permission-sensitive integration.
+
+
+## App Control integration (Stage 8)
+
+The optional App Control adapter uses the `app_launch` capability to list launcher-visible applications and open a user-selected app through its exported Android launcher activity. Package visibility is limited to launcher activities; the app does not request broad `QUERY_ALL_PACKAGES` access. Each launch requires an exact-action, one-use approval. This does not sign in, inspect private app data, automate in-app screens or bypass another app's security.
+
+## Device Control integration (Stage 8)
+
+The optional Device Actions adapter uses the `device_actions` capability to open a fixed allowlist of Android Settings destinations: Wi-Fi, Bluetooth, Sound & vibration, Display and Location. Each action requires an exact-action, one-use approval before an Android Settings intent is launched. Android owns the actual setting controls and any confirmation. The adapter does not silently toggle restricted settings, change secure settings or accept arbitrary intent actions. Availability and exact Settings screens can vary by Android version and device manufacturer.
