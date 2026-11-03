@@ -3,15 +3,22 @@ package com.oneai.app.commands
 import com.oneai.app.ai.AiCompletion
 import com.oneai.app.ai.AiOrchestrator
 import com.oneai.app.core.CommandRecord
-import com.oneai.app.core.OneAiStore
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+
+interface CommandRepository {
+    fun commands(): List<CommandRecord>
+    fun saveCommand(command: CommandRecord)
+    fun removeCommand(id: String)
+    fun log(message: String)
+}
 
 /**
  * Validates and dispatches saved commands through the shared AI runtime.
  * It never interprets command text as shell code or executable Kotlin.
  */
 class CommandRouter(
-    private val store: OneAiStore,
+    private val store: CommandRepository,
     private val orchestrator: AiOrchestrator
 ) {
     suspend fun run(commandId: String): AiCompletion {
@@ -22,6 +29,8 @@ class CommandRouter(
             orchestrator.respond(command.prompt).also {
                 store.log("Command completed: ${command.title}")
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             store.log("Command failed: ${command.title}")
             throw error
