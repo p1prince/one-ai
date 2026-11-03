@@ -19,7 +19,7 @@ class PluginActionGatewayTest {
 
     @Test fun sensitiveActionWaitsForApprovalThenPermitsExactlyOnce() {
         val events = mutableListOf<String>()
-        val gateway = PluginActionGateway({ plugin() }, ActionAuditLogger(events::add))
+        val gateway = PluginActionGateway({ plugin() }, ActionAuditLogger { event -> events.add(event); Unit })
         assertTrue(gateway.check(sensitiveRequest) is ActionGateResult.AwaitingUserApproval)
         val ticket = gateway.confirmUserApproval(sensitiveRequest)
         assertTrue(gateway.check(sensitiveRequest, ticket) is ActionGateResult.Permitted)
