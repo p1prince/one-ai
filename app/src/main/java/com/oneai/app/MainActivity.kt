@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(ai,store); commandRouter=CommandRouter(store,orchestrator)
-        setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
+        setContent { OneAiApp(store,plugins,vault,ai,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandRouter.run(id).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } }
@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
 private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), Develop("Develop"), Commands("Commands"), Activity("Activity"), Settings("Settings") }
 
 @Composable
-private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
