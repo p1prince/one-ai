@@ -14,7 +14,7 @@ This is a baseline classification, not a substitute for action-specific review. 
 
 The foundation approval gate issues a process-local ticket only after the caller has obtained user approval. Each ticket is bound to one plugin ID, action ID, capability, and exact user-visible action description; it expires quickly, can be revoked, and is consumed on the first attempt (including a mismatched attempt). Tickets are not persisted and cannot be reused as standing permission grants. Disabling or removing a plugin revokes all pending tickets; a process restart naturally invalidates every ticket.
 
-The reusable `PluginActionButton` is the user-facing action entry point for Compose-based trusted adapters. The Floating Bubble also implements an equivalent explicit approval path for Screen Intelligence. Screen capture and image upload are separate sensitive actions: the first approval permits one capture session; a second approval is required before the selected image is transmitted to the configured AI provider. The runtime rechecks that the plugin remains installed, enabled, and registered before issuing a one-use ticket.
+The reusable `PluginActionButton` is the user-facing action entry point for Compose-based trusted adapters. The Floating Bubble implements equivalent explicit approval paths for Screen Intelligence and Web Research. Screen capture and image upload are separate sensitive actions: the first approval permits one capture session; a second approval is required before the selected image is transmitted to the configured AI provider. Web Research requires a separate exact-action approval before a query is sent to Brave Search. The runtime rechecks that the plugin remains installed, enabled, and registered before issuing a one-use ticket.
 
 ## Android permission boundaries
 
@@ -32,6 +32,8 @@ A ONE AI approval ticket never bypasses Android permission checks, system dialog
 
 The action gateway records policy decisions and approval events. PluginRuntime now also records bounded completion, failure, and cancellation outcomes through the same audit logger; it deliberately excludes plugin output, request values, and exception text. Feature-specific adapters must still avoid recording secrets or unnecessary captured content.
 
-## Not implemented yet
+## Integration status and remaining limitations
 
-There is no general device-action executor, global permission manager, or real web/voice integration yet. Stage 8 now contains the first Screen Intelligence image interpretation adapter and an OpenAI-compatible HTTPS vision provider; this path is under CI and end-to-end device verification. Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. Real-device testing of MediaProjection and the full capture-to-analysis path remains scheduled for Stage 11. Other plugin catalogue entries are not operational until their adapters are implemented.
+Stage 8 now contains a trusted Web Research adapter backed by the Brave Search API and a Screen Intelligence adapter backed by an OpenAI-compatible HTTPS vision provider. Both use the central plugin runtime and require explicit action approval for internet transmission. Web Research stores its API credential in a separate Android Keystore-encrypted slot; it does not overwrite the primary AI provider credential. These integrations are implemented in source but remain subject to CI and end-to-end device verification.
+
+There is no general device-action executor, global permission manager, or operational Voice, App Control, or Device Control adapter yet. Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. Real-device testing of MediaProjection, the complete capture-to-analysis path, and Bubble web search remains scheduled for Stage 11. Other plugin catalogue entries are not operational until their adapters are implemented.
