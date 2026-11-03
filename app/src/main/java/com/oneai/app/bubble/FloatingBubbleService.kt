@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
@@ -34,6 +35,8 @@ class FloatingBubbleService : Service() {
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var panel: LinearLayout? = null
     private val uiHandler = Handler(Looper.getMainLooper())
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -139,7 +142,7 @@ class FloatingBubbleService : Service() {
             commands.forEach { command ->
                 addButton(box, "Run: ${command.title}") {
                     val output = addLabel(box, "Running ${command.title}…", 12f)
-                    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    serviceScope.launch {
                         val result = runCatching {
                             val store = OneAiStore(this@FloatingBubbleService)
                             val provider = AiProviderClient(store, SecretVault(this@FloatingBubbleService))
@@ -198,7 +201,7 @@ class FloatingBubbleService : Service() {
     private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
-    override fun onDestroy() { uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
+    override fun onDestroy() { serviceJob.cancel(); uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { const val CHANNEL="one_ai_bubble"; const val NOTIFICATION_ID=7104 }
 }
