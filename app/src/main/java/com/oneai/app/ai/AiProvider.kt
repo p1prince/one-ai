@@ -1,5 +1,10 @@
 package com.oneai.app.ai
 
+/** Minimal activity sink so the orchestration layer is testable without Android storage. */
+fun interface AiActivityLogger {
+    fun log(message: String)
+}
+
 /** Provider-neutral message passed between ONE AI and an AI service. */
 data class AiMessage(val role: String, val content: String)
 
