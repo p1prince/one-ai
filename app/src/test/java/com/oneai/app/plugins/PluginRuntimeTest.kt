@@ -79,6 +79,30 @@ class PluginRuntimeTest {
         assertEquals(1, adapter.calls)
     }
 
+    @Test fun executionOutcomesAreAuditedWithoutRecordingPluginPayloads() = runBlocking {
+        val installed = plugin()
+        val events = mutableListOf<String>()
+        val gateway = PluginActionGateway({ installed }, ActionAuditLogger { events += it })
+        val successRuntime = PluginRuntime({ installed }, gateway)
+        assertTrue(successRuntime.register(TestAdapter(manifest) {
+            PluginActionOutput("Safe title", "safe content")
+        }).isSuccess)
+        assertTrue(successRuntime.invoke(manifest.id,
+            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Completed)
+        assertTrue(events.any { it.contains("Plugin action completed: ${manifest.id}/prepare") })
+        assertTrue(events.none { it.contains("safe content") })
+
+        val failedRuntime = PluginRuntime({ installed },
+            PluginActionGateway({ installed }, ActionAuditLogger { events += it }))
+        assertTrue(failedRuntime.register(TestAdapter(manifest) {
+            throw IllegalStateException("secret provider response")
+        }).isSuccess)
+        assertTrue(failedRuntime.invoke(manifest.id,
+            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Failed)
+        assertTrue(events.any { it.contains("Plugin action failed: ${manifest.id}/prepare") })
+        assertTrue(events.none { it.contains("secret provider response") })
+    }
+
     @Test fun sensitiveActionCannotRunUntilOneTimeApprovalIsProvided() = runBlocking {
         val installed = plugin()
         val adapter = TestAdapter(manifest) { PluginActionOutput("Device", "Changed") }
