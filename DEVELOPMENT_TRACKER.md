@@ -2,9 +2,9 @@
 
 This is the shared progress record for the foundation build. A batch is marked complete only after implementation and review.
 
-**Current focus: Batch 5 — Plugin architecture and developer SDK.**
+**Current focus: Batch 6 — Security, permissions and action approvals.**
 
-Batch 3 and Batch 4 implementation is in place: provider-neutral AI contracts, HTTPS adapter, shared orchestration, cancellation handling, validated disabled-by-default commands, lifecycle controls, shared main/bubble execution routing and unit tests. Initial CI validation found Kotlin compile errors; the callback and JSON array issues were corrected, but the latest branch head still needs a fresh validation run. Provider endpoints reject embedded credentials/fragments and redirects are disabled. The bubble command path reuses one store instance per execution. Batch 5 now adds a versioned declarative plugin manifest, capability and dependency validation, dependency-aware enable/disable/remove rules, backwards-compatible manifest metadata persistence, Plugin Centre error feedback, validator tests and SDK documentation. No executable plugin code is dynamically loaded.
+Batch 3 and Batch 4 implementation is in place: provider-neutral AI contracts, HTTPS adapter, shared orchestration, cancellation handling, validated disabled-by-default commands, lifecycle controls, shared main/bubble execution routing and unit tests. Initial CI validation found Kotlin compile errors; the callback and JSON array issues were corrected, but the latest branch head still needs a fresh validation run. Provider endpoints reject embedded credentials/fragments and redirects are disabled. The bubble command path reuses one store instance per execution. Batch 5 adds a versioned declarative plugin manifest, capability and dependency validation, dependency-aware enable/disable/remove rules, backwards-compatible manifest metadata persistence, Plugin Centre error feedback, validator tests and SDK documentation; review and fresh validation remain pending. Batch 6 has started with a capability risk policy, Android permission guidance, process-local one-use approval tickets bound to exact actions, expiry/revocation, and unit tests. These are security contracts only: no action adapter or Android permission dialog is yet wired to them.
 
 | # | Batch | Status | Completion criteria |
 |---:|---|---|---|
@@ -13,7 +13,7 @@ Batch 3 and Batch 4 implementation is in place: provider-neutral AI contracts, H
 | 3 | AI provider engine and orchestration | 🟡 IMPLEMENTED — validation pending | Provider-neutral contract, secure request handling, normalized responses/errors, shared orchestration entry point, provider configuration and tests |
 | 4 | Command system and reusable commands | 🟡 IMPLEMENTED — validation pending | Validated command model, disabled-by-default creation, enable/disable/remove lifecycle, shared AI execution routing, results, audit trail and unit tests |
 | 5 | Plugin architecture and developer SDK | 🔵 IN PROGRESS | Versioned manifest, capability declarations, dependency validation, lifecycle and safe declarative SDK |
-| 6 | Security, permissions and action approvals | ⏳ UP NEXT | Capability policy, just-in-time consent, sensitive-action confirmation, secure storage and audit |
+| 6 | Security, permissions and action approvals | 🔵 IN PROGRESS | Capability policy, just-in-time consent, sensitive-action confirmation, secure storage and audit |
 | 7 | Floating Bubble and independent execution | ⏳ UP NEXT | Shared runtime, independent bubble navigation, reliable position/settings, capture hand-off and service lifecycle |
 | 8 | Web, screen, voice, app and device integrations | ⏳ UP NEXT | Real permissioned integrations; no placeholder presented as a working capability |
 | 9 | AutoDroid integration boundary | ⏳ UP NEXT | Review separate AutoDroid project and define adapter; keep its repository independent |
