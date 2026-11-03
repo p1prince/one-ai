@@ -20,10 +20,11 @@ ONE AI is a modular Android AI assistant platform built around a lightweight she
 - Local activity log and persistent settings.
 - Plugin descriptors declare capabilities. The shell does not dynamically load untrusted executable code.
 - GitHub Actions APK workflow is manual-only; pushes do not create APK builds.
+- Optional AutoDroid integration opens the separately installed automation app only after a fresh ONE AI approval; macro selection, permissions and execution remain inside AutoDroid.
 
 ## Important integration boundaries
 
-Android restricts device control, background work, screen capture, accessibility and cross-app actions. Each such capability must use the relevant Android API, user consent and runtime permission. The catalogue currently provides integration slots; it does not claim that every external capability is already implemented. AutoDroid remains a separate project and is not yet bundled as a plugin.
+Android restricts device control, background work, screen capture, accessibility and cross-app actions. Each such capability must use the relevant Android API, user consent and runtime permission. The catalogue does not claim that every external capability is implemented. AutoDroid remains a separate project; ONE AI provides an explicitly approved launcher hand-off only. Macro data is not shared and macros are not started remotely.
 
 ## Build
 

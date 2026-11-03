@@ -47,3 +47,12 @@ The App Control adapter exposes only an explicit launch action for launcher-visi
 ## Device Settings boundary
 
 The Device Actions adapter accepts only five fixed action IDs that map internally to Android's Wi-Fi, Bluetooth, Sound, Display and Location Settings activities. The Floating Bubble requires a new exact-action, one-use approval before each Settings hand-off. No caller-supplied intent action, component, URI or extra is accepted. Android Settings owns all setting changes, and the user must make and confirm them there. The adapter does not attempt restricted Wi-Fi/Bluetooth toggles, secure-setting writes, device-admin operations or hidden APIs. A Settings destination may be unavailable or differ across Android versions and manufacturers; failures are reported rather than represented as successful changes.
+
+
+## AutoDroid integration boundary (Stage 9)
+
+AutoDroid remains a separately installed and independently maintained Android application. ONE AI's trusted adapter is limited to opening the fixed package com.aditsyal.autodroid through its launcher activity after a fresh, exact-action, one-use automation approval. Package visibility is limited to that named package; no broad package enumeration is requested.
+
+The current AutoDroid repository exposes its launcher activity but does not provide a documented, authenticated cross-app macro execution API. Its internal automation services and receivers are not a supported external control surface. Therefore ONE AI does not read AutoDroid's database, pass macro IDs or action configurations, invoke internal components, or claim to run macros. The user selects and starts macros inside AutoDroid, where AutoDroid's own permission prompts and controls remain authoritative.
+
+Any future remote macro API must be separately reviewed and versioned, authenticate the calling app, validate a narrow request schema, require a user-visible confirmation in AutoDroid, preserve AutoDroid's own Android permission checks, and return bounded result codes. An exported unprotected service, arbitrary intent forwarding, shared database access, or bypass of AutoDroid's UI/consent is not an acceptable integration.

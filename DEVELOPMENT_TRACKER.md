@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 8 — real integrations.** Screen Intelligence and Web Research are implemented in source; Voice Interface passed validation runs #366–#369; App Control passed validation runs #388–#389 on commit 1c7c315. Device Control is now being added as a user-approved hand-off to supported Android Settings screens. No APK has been built.
+**Current focus: Stage 9 — AutoDroid integration boundary.** Stage 8 integrations passed their required CI checks, including Device Control runs #390–#391 on commit 282bde7. AutoDroid remains a separate project; ONE AI is adding a trusted, explicitly approved launcher hand-off without remote macro execution. No APK has been built.
 
 ## Current status
 
@@ -15,8 +15,8 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 | 5 | Plugin architecture and developer SDK | 🟠 Implementation frozen; verification pending | Versioned manifest, capability/dependency validation, lifecycle, trusted adapter registry, security-gated invocation and declarative SDK |
 | 6 | Security, permissions and action approvals | 🟠 Implementation frozen; verification pending | Capability policy, exact-action approval, just-in-time microphone permission, bounded execution audit and regression tests |
 | 7 | Floating Bubble and independent execution | 🟡 Source and automated policy tests implemented; capture-cleanup and artifact/image-policy CI passed; physical-device test reserved for Stage 11 | Independent overlay, command execution, preferences, bounded result handoff, explicit ONE AI approval, Android MediaProjection consent, one-frame capture, external region selector and private one-time artifact |
-| 8 | Web, screen, voice, app and device integrations | 🔵 IN PROGRESS — Screen Intelligence and Web Research CI verified; Voice Interface CI verified (#366–#369); App Control CI verified (#388–#389); Device Control implementation added, awaiting CI | Real permissioned integrations; no placeholder presented as working functionality |
-| 9 | AutoDroid integration boundary | ⏳ UP NEXT | Review separate AutoDroid project and define adapter; keep its repository independent |
+| 8 | Web, screen, voice, app and device integrations | ✅ IMPLEMENTED AND CI VERIFIED — Screen Intelligence and Web Research; Voice Interface (#366–#369); App Control (#388–#389); Device Control (#390–#391 on 282bde7) | Real permissioned integrations; physical-device verification is reserved for Stage 11 |
+| 9 | AutoDroid integration boundary | 🔵 IN PROGRESS — separate project reviewed; trusted launcher-only adapter and approval path being implemented in ONE AI; AutoDroid repository remains independent | Review the separate project, define a trusted adapter, preserve permission/consent boundaries, and keep its repository independent |
 | 10 | Settings, activity history and user controls | ⏳ UP NEXT | Unified configuration, clear status, logs and recovery controls |
 | 11 | Full integration review and testing | ⏳ UP NEXT | Source review, automated tests, device testing, build validation and documented limitations |
 | 12 | First foundation release / APK | 🔒 BLOCKED — do not build yet | Only after Stages 1–11 are complete and the user authorizes the release build |
@@ -56,16 +56,20 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Does not sign in, inspect private app data, automate in-app screens, or bypass the target app's security.
 - Focused adapter and package-name policy tests added. Validation runs #388–#389 passed on commit 1c7c315. Real-device launch/catalogue validation remains for Stage 11.
 
-### Device Control — implementation added; CI pending
-- Adds the optional `one.device.actions` trusted adapter and `device_control` Bubble service.
+### Device Control — implemented in source; CI verified
+- Adds the optional one.device.actions trusted adapter and device_control Bubble service.
 - Offers only five allowlisted Android Settings destinations: Wi-Fi, Bluetooth, Sound & vibration, Display and Location.
 - Every action requires a fresh exact-action, one-use approval before ONE AI opens the corresponding Android Settings screen.
 - Android remains responsible for changing settings, showing system confirmations and enforcing OS restrictions. The adapter does not silently toggle restricted settings or execute arbitrary intents.
-- Focused adapter and allowlist policy tests added. CI must pass before this integration is marked verified; physical-device checks remain for Stage 11.
+- Focused adapter and allowlist policy tests added. Validation runs #390 and #391 both passed on commit 282bde7. Physical-device checks remain for Stage 11.
 
-### Still required in Stage 8
-- Confirm Device Control passes CI; fix genuine failures only.
-- Do not treat source compilation as proof of provider compatibility or device behavior.
+## Stage 9 — AutoDroid integration boundary
+- AutoDroid was reviewed as a separate Kotlin/Android automation application using its own Room database, repository and macro execution use cases.
+- Its current manifest exposes only the launcher activity as a normal external entry point; its automation services and internal receivers are not a documented cross-app API.
+- ONE AI adds a trusted one.automation.engine adapter that opens only the fixed AutoDroid package after an exact-action, one-use approval.
+- Macro selection and execution remain inside AutoDroid. No macro IDs, action configurations, database content or arbitrary intents cross the boundary.
+- The user must install and enable the Automation Engine plugin and enable its Bubble service. If AutoDroid is absent, ONE AI reports that it is unavailable.
+- A remote macro-execution API is out of scope until a versioned, authenticated, user-confirmed contract is designed and tested.
 
 ## Important validation notes
 
@@ -75,7 +79,7 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Screen Intelligence and Web Research are not considered release-verified until their end-to-end paths are tested. A successful compile alone does not prove provider compatibility or device behavior.
 - Web Research uses a third-party Brave Search API; users must provide their own API key and explicitly approve each outbound query.
 - No APK has been built. The draft PR remains unmerged.
-- The Web Research implementation passed #364/#365. Voice Interface passed #366–#369, including #368/#369 on 50b00c9. App Control is newer and must pass its own CI before being marked verified.
+- The Web Research implementation passed #364/#365. Voice Interface passed #366–#369, including #368/#369 on 50b00c9. Device Control passed validation runs #390–#391 on commit 282bde7. Physical-device checks for Settings hand-off remain reserved for Stage 11.
 
 ## Working rules
 

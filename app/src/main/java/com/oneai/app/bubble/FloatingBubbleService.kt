@@ -47,6 +47,9 @@ import com.oneai.app.plugins.InstalledAppCatalog
 import com.oneai.app.plugins.DeviceControlAdapter
 import com.oneai.app.plugins.AndroidDeviceSettingsLauncher
 import com.oneai.app.plugins.DeviceControlPolicy
+import com.oneai.app.plugins.AutoDroidAdapter
+import com.oneai.app.plugins.AutoDroidIntegrationPolicy
+import com.oneai.app.plugins.AndroidAutoDroidLauncher
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -231,6 +234,9 @@ class FloatingBubbleService : Service() {
             DeviceControlPolicy.actions().forEach { action ->
                 addButton(box, action.label) { requestDeviceSettings(action.actionId, action.label) }
             }
+        } else if (service == "automation") {
+            addLabel(box, "Open the separate AutoDroid app after ONE AI approval. Choose and run macros inside AutoDroid; this hand-off does not execute a macro or transfer macro data.")
+            addButton(box, "Open AutoDroid") { requestAutoDroid() }
         } else if (service == "voice_interface") {
             addLabel(box, "Speak one command and hear ONE AI's response. ONE AI asks for microphone permission only after you approve this voice session.")
             addButton(box, "Start voice command") { requestVoiceInteraction() }
@@ -373,6 +379,66 @@ class FloatingBubbleService : Service() {
                     is PluginInvocationResult.Failed -> showHandoffResult("Device action failed", decision.message)
                     is PluginInvocationResult.Completed ->
                         if (decision.output.title != "Settings opened") showHandoffResult(decision.output.title, decision.output.content)
+                }
+            }
+        }
+    }
+
+    /** Opens the separate AutoDroid app only after an exact, one-use ONE AI approval. */
+    private fun requestAutoDroid() {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = AutoDroidAdapter(AndroidAutoDroidLauncher(this))
+        if (AutoDroidAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("AutoDroid unavailable", it.message ?: "Could not register the trusted AutoDroid adapter.")
+                return
+            }
+        }
+        val input = PluginActionInput(
+            actionId = AutoDroidIntegrationPolicy.OPEN_ACTION,
+            capability = "automation",
+            description = "Open AutoDroid automation workspace"
+        )
+        serviceScope.launch {
+            val decision = runtime.invoke(AutoDroidAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "OPEN AUTODROID?", 16f)
+                        addLabel(box, "ONE AI will open AutoDroid. You choose and run macros inside AutoDroid, where its own permissions and controls apply. This action does not start a macro or transfer macro data.")
+                        addButton(box, "Cancel") { showService("automation") }
+                        addButton(box, "Allow once and open") {
+                            val ticket = runtime.approveSensitiveAction(AutoDroidAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("AutoDroid launch blocked", "ONE AI could not verify approval for this hand-off.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(AutoDroidAdapter.PLUGIN_ID, input, ticket)
+                                val message = when (result) {
+                                    is PluginInvocationResult.Completed -> result.output.content
+                                    is PluginInvocationResult.Rejected -> result.reason
+                                    is PluginInvocationResult.Failed -> result.message
+                                    is PluginInvocationResult.AwaitingApproval -> "A fresh one-time approval is required."
+                                }
+                                if (serviceJob.isActive) uiHandler.post {
+                                    if (serviceJob.isActive) showHandoffResult(
+                                        if (result is PluginInvocationResult.Completed && result.output.title == "AutoDroid opened") "AutoDroid opened" else "AutoDroid hand-off result",
+                                        message
+                                    )
+                                }
+                            }
+                        }
+                        attachPanel(box)
+                    }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("AutoDroid launch blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("AutoDroid launch failed", decision.message)
+                    is PluginInvocationResult.Completed -> showHandoffResult(decision.output.title, decision.output.content)
                 }
             }
         }
