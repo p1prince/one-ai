@@ -326,40 +326,47 @@ class FloatingBubbleService : Service() {
             description = "Send the selected screen region to the configured AI provider for analysis",
             values = mapOf("image_path" to imagePath)
         )
-        when (val decision = kotlinx.coroutines.runBlocking { runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input) }) {
-            is PluginInvocationResult.AwaitingApproval -> {
-                val box = basePanel()
-                addLabel(box, "SEND SELECTED IMAGE FOR ANALYSIS?", 16f)
-                addLabel(box, "This sends the selected screen region to your configured AI provider over HTTPS. Continue only if the image contains no information you want to keep private.")
-                addButton(box, "Cancel") { showPanel() }
-                addButton(box, "Allow once and analyze") {
-                    val ticket = runtime.approveSensitiveAction(ScreenIntelligenceAdapter.PLUGIN_ID, input)
-                        .getOrElse {
-                            showHandoffResult("Analysis blocked", "ONE AI could not verify approval for this image.")
-                            return@addButton
+        serviceScope.launch {
+            val decision = runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "SEND SELECTED IMAGE FOR ANALYSIS?", 16f)
+                        addLabel(box, "This sends the selected screen region to your configured AI provider over HTTPS. Continue only if the image contains no information you want to keep private.")
+                        addButton(box, "Cancel") { showPanel() }
+                        addButton(box, "Allow once and analyze") {
+                            val ticket = runtime.approveSensitiveAction(ScreenIntelligenceAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("Analysis blocked", "ONE AI could not verify approval for this image.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input, ticket)
+                                val message = when (result) {
+                                    is PluginInvocationResult.Completed -> result.output.content
+                                    is PluginInvocationResult.Rejected -> result.reason
+                                    is PluginInvocationResult.Failed -> result.message
+                                    is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
+                                }
+                                if (serviceJob.isActive) uiHandler.post {
+                                    if (serviceJob.isActive) showHandoffResult(
+                                        if (result is PluginInvocationResult.Completed) "Screen analysis complete" else "Screen analysis unavailable",
+                                        message
+                                    )
+                                }
+                            }
                         }
-                    hidePanel()
-                    serviceScope.launch {
-                        val result = runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input, ticket)
-                        val message = when (result) {
-                            is PluginInvocationResult.Completed -> result.output.content
-                            is PluginInvocationResult.Rejected -> result.reason
-                            is PluginInvocationResult.Failed -> result.message
-                            is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
-                        }
-                        if (serviceJob.isActive) uiHandler.post {
-                            if (serviceJob.isActive) showHandoffResult(
-                                if (result is PluginInvocationResult.Completed) "Screen analysis complete" else "Screen analysis unavailable",
-                                message
-                            )
-                        }
+                        attachPanel(box)
                     }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("Analysis blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("Analysis failed", decision.message)
+                    is PluginInvocationResult.Completed -> showHandoffResult("Screen analysis complete", decision.output.content)
                 }
-                attachPanel(box)
             }
-            is PluginInvocationResult.Rejected -> showHandoffResult("Analysis blocked", decision.reason)
-            is PluginInvocationResult.Failed -> showHandoffResult("Analysis failed", decision.message)
-            is PluginInvocationResult.Completed -> showHandoffResult("Screen analysis complete", decision.output.content)
         }
     }
 
