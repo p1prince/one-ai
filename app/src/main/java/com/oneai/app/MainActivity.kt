@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
@@ -202,14 +203,14 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             OutlinedTextField(provider,{provider=it},modifier=Modifier.fillMaxWidth(),label={Text("Provider label")})
             OutlinedTextField(endpoint,{endpoint=it},modifier=Modifier.fillMaxWidth(),label={Text("HTTPS chat-completions endpoint")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),singleLine=true)
             OutlinedTextField(model,{model=it},modifier=Modifier.fillMaxWidth(),label={Text("Model")},singleLine=true)
-            OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true)
+            OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
             Button(onClick={store.setAiProviderName(provider);store.setAiEndpoint(endpoint);store.setAiModel(model);if(apiKey.isNotBlank())vault.save(apiKey);apiKey="";status="Provider settings saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
             Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Your key stays on this device and is encrypted with Android Keystore.",color=Muted,fontSize=11.sp)
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox {
             Text("WEB RESEARCH",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            OutlinedTextField(braveSearchKey,{braveSearchKey=it},modifier=Modifier.fillMaxWidth(),label={Text("Brave Search API key (stored encrypted)")},singleLine=true)
+            OutlinedTextField(braveSearchKey,{braveSearchKey=it},modifier=Modifier.fillMaxWidth(),label={Text("Brave Search API key (stored encrypted)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
             Button(onClick={vault.saveNamed("brave_search",braveSearchKey);braveSearchKey="";status="Web Research credential saved.";refresh()},modifier=Modifier.fillMaxWidth()){Text("Save search credential")}
             Text("Web Research uses Brave Search over HTTPS. This credential is stored separately from your AI provider key. Search requests require a separate ONE AI approval.",color=Muted,fontSize=11.sp)
             if(status.isNotBlank())Text(status,color=Gold)
