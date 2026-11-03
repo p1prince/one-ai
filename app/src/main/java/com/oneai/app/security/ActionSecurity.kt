@@ -21,11 +21,11 @@ data class ActionAuthorization(
 object CapabilityPolicy {
     private val known = setOf(
         "commands", "internet", "screen_capture", "microphone", "audio",
-        "device_actions", "accessibility", "automation", "files"
+        "device_actions", "accessibility", "automation", "files", "app_launch"
     )
     private val approvalRequired = setOf(
         "screen_capture", "microphone", "device_actions", "accessibility",
-        "automation", "files", "internet"
+        "automation", "files", "internet", "app_launch"
     )
 
     fun evaluate(request: ActionRequest, pluginEnabled: Boolean, declaredCapabilities: Set<String>): ActionAuthorization {
@@ -57,6 +57,7 @@ object CapabilityPolicy {
         "microphone" -> "Request the Android RECORD_AUDIO runtime permission before microphone access."
         "audio" -> "Use the relevant Android audio APIs; request runtime permission only when required."
         "device_actions" -> "Use supported Android intents or APIs; some settings changes require the user to confirm in system UI."
+        "app_launch" -> "Launch only a user-selected installed app through its exported launcher activity; no sign-in or private app data access is implied."
         "accessibility" -> "Accessibility access must be enabled by the user in Android Settings."
         "automation" -> "Explain each automation capability and obtain approval before running actions."
         "files" -> "Use the Android Storage Access Framework or scoped media permissions as appropriate."
