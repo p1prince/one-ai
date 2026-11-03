@@ -90,11 +90,25 @@ class PluginRuntimeTest {
         assertTrue(runtime.invoke(manifest.id, input) is PluginInvocationResult.AwaitingApproval)
         assertEquals(0, adapter.calls)
 
-        val ticket = gateway.confirmUserApproval(
-            ActionRequest(manifest.id, input.actionId, input.capability, input.description)
-        )
+        val ticket = runtime.approveSensitiveAction(manifest.id, input).getOrThrow()
         assertTrue(runtime.invoke(manifest.id, input, ticket) is PluginInvocationResult.Completed)
         assertEquals(1, adapter.calls)
+    }
+
+    @Test fun approvalTicketCannotBeIssuedWithoutEnabledRegisteredAdapter() {
+        val installed = plugin()
+        val runtime = PluginRuntime({ installed },
+            PluginActionGateway({ installed }, ActionAuditLogger {}))
+        val input = PluginActionInput("wifi.toggle", "device_actions", "Turn Wi-Fi off")
+        assertTrue(runtime.approveSensitiveAction(manifest.id, input).isFailure)
+
+        val disabled = plugin(enabled = false)
+        val disabledRuntime = PluginRuntime({ disabled },
+            PluginActionGateway({ disabled }, ActionAuditLogger {}))
+        assertTrue(disabledRuntime.register(TestAdapter(manifest) {
+            PluginActionOutput("Device", "Changed")
+        }).isSuccess)
+        assertTrue(disabledRuntime.approveSensitiveAction(manifest.id, input).isFailure)
     }
 
     @Test fun disabledPluginAndUnknownAdapterAreRejected() = runBlocking {
