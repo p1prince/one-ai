@@ -6,7 +6,7 @@ A plugin manifest may declare a capability, but installation and enablement do n
 
 ## Risk policy
 
-The current policy blocks disabled plugins, malformed action requests, and unknown capabilities. Internet and command capabilities are classified as low risk by this initial policy. Screen capture, microphone, device actions, accessibility, automation, and file access are classified as sensitive and require just-in-time user approval.
+The current policy blocks disabled plugins, malformed action requests, and unknown capabilities. Command capabilities are classified as low risk. Plugin network access is sensitive because it can transmit user data outside the device and therefore requires just-in-time approval. Screen capture, microphone, device actions, accessibility, automation, and file access are classified as sensitive and require just-in-time user approval.
 
 This is a baseline classification, not a substitute for action-specific review. An adapter may impose stricter checks. No adapter may downgrade a sensitive action.
 
