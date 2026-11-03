@@ -58,7 +58,11 @@ class AiProviderClient(
 
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            val raw = stream?.use { AiResponseBodyReader.readUtf8(it, MAX_RESPONSE_BYTES) }
+                ?: if (stream == null) "" else throw AiProviderException(
+                    "RESPONSE_TOO_LARGE",
+                    "The AI provider response exceeded the 1 MiB safety limit."
+                )
             if (status !in 200..299) {
                 val detail = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }
                     .getOrNull()?.takeIf { it.isNotBlank() }
@@ -103,6 +107,7 @@ class AiProviderClient(
     companion object {
         private const val CONNECT_TIMEOUT_MS = 20_000
         private const val READ_TIMEOUT_MS = 60_000
+        private const val MAX_RESPONSE_BYTES = 1024 * 1024
         private val ALLOWED_ROLES = setOf("system", "user", "assistant")
     }
 }

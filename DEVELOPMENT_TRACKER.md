@@ -63,6 +63,11 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Android remains responsible for changing settings, showing system confirmations and enforcing OS restrictions. The adapter does not silently toggle restricted settings or execute arbitrary intents.
 - Focused adapter and allowlist policy tests added. Validation runs #390 and #391 both passed on commit 282bde7. Physical-device checks remain for Stage 11.
 
+## Stage 11 — Full integration review and testing (in progress)
+- Reviewed the AI provider request path and found an unbounded response-body read that could allocate excessive memory on oversized or hostile provider responses.
+- Reused the existing bounded UTF-8 response reader in `AiProviderClient`; provider success and error bodies now share a strict 1 MiB ceiling and oversized bodies return a clear `RESPONSE_TOO_LARGE` error. Existing reader tests cover in-limit and over-limit behavior.
+- Further cross-feature review and the resulting validation run are in progress. Physical-device tests still require installation and interaction on an Android device; no APK build is authorized in this stage.
+
 ## Stage 10 — Settings, activity history and user controls
 - Settings shows AI provider, Web Research credential and Floating Bubble readiness, plus enabled plugin and command counts.
 - Provider endpoint input is validated as HTTPS and rejects malformed URLs, embedded user-info and fragments before settings can be saved.
