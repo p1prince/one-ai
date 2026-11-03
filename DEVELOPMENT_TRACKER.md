@@ -40,6 +40,9 @@ Still required:
 - Validate the complete capture → select → approve upload → analysis → Bubble result path on a real Android device.
 - Implement the remaining Web, Voice, App and Device integrations during Stage 8. They are not complete yet.
 
+- Vision provider response bodies are now read with a strict 1 MiB ceiling; oversized provider responses fail with a bounded, user-safe error instead of being loaded without limit.
+- Added unit tests for bounded UTF-8 response reading, over-limit rejection and invalid size limits.
+
 ## Important validation notes
 
 - The capture service now deletes a partially written screenshot if frame preparation or selector launch fails. It catches ordinary exceptions rather than swallowing fatal JVM errors, and releases temporary bitmap resources.
