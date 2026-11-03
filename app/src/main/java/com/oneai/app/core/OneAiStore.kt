@@ -18,6 +18,7 @@ data class CommandRecord(val id: String, val title: String, val prompt: String, 
 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
+    private val actionGateway by lazy { PluginActionGateway({ id -> plugins().firstOrNull { it.id == id } }, this) }
 
     fun plugins(): List<PluginRecord> {
         val saved = readArray("plugins")
@@ -76,10 +77,7 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     override fun record(event: String) { log(event) }
 
-    fun pluginActionGateway(): PluginActionGateway = PluginActionGateway(
-        findPlugin = { id -> plugins().firstOrNull { it.id == id } },
-        audit = this
-    )
+    fun pluginActionGateway(): PluginActionGateway = actionGateway
 
     override fun log(message: String) {
         val logs = readArray("activity")
