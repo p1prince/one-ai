@@ -28,13 +28,16 @@ object CapabilityPolicy {
         "automation", "files"
     )
 
-    fun evaluate(request: ActionRequest, pluginEnabled: Boolean): ActionAuthorization {
+    fun evaluate(request: ActionRequest, pluginEnabled: Boolean, declaredCapabilities: Set<String>): ActionAuthorization {
         if (!pluginEnabled) return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Plugin is disabled")
         if (request.pluginId.isBlank() || request.actionId.isBlank() || request.description.isBlank()) {
             return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Action details are incomplete")
         }
         if (request.capability !in known) {
             return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Capability is not recognized")
+        }
+        if (request.capability !in declaredCapabilities) {
+            return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Plugin did not declare this capability")
         }
         val sensitive = request.capability in approvalRequired
         return ActionAuthorization(
