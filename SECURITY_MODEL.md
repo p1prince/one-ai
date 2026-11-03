@@ -37,3 +37,8 @@ The action gateway records policy decisions and approval events. PluginRuntime n
 Stage 8 now contains a trusted Web Research adapter backed by the Brave Search API and a Screen Intelligence adapter backed by an OpenAI-compatible HTTPS vision provider. Both use the central plugin runtime and require explicit action approval for internet transmission. Web Research stores its API credential in a separate Android Keystore-encrypted slot; it does not overwrite the primary AI provider credential. These integrations are implemented in source but remain subject to CI and end-to-end device verification.
 
 There is no general device-action executor, global permission manager, or operational App Control or Device Control adapter yet. Voice Interface is implemented in source and awaits CI and physical-device validation. Accessibility still needs a guided Settings hand-off; files and device settings need their appropriate dedicated Android flows. Real-device testing of MediaProjection, the complete capture-to-analysis path, and Bubble web search remains scheduled for Stage 11. Other plugin catalogue entries are not operational until their adapters are implemented.
+
+
+## App launch boundary
+
+The App Control adapter exposes only an explicit launch action for launcher-visible packages. It uses Android's package-visibility query for launcher activities and does not request broad package visibility. Each launch requires a fresh approval bound to the selected app label and package name. The adapter resolves the package's launcher intent and starts only that package's exported launcher activity. It does not read another app's private storage, sign in, invoke hidden components, or claim control over screens inside that app.
