@@ -30,7 +30,7 @@ A ONE AI approval ticket never bypasses Android permission checks, system dialog
 
 ## Audit
 
-Sensitive-action adapters must log request, approval/denial, execution result, and failure without recording secrets or unnecessary captured content. The audit logger contract is present; wiring it to all action paths remains future integration work.
+The action gateway records policy decisions and approval events. PluginRuntime now also records bounded completion, failure, and cancellation outcomes through the same audit logger; it deliberately excludes plugin output, request values, and exception text. Feature-specific adapters must still avoid recording secrets or unnecessary captured content.
 
 ## Not implemented yet
 
