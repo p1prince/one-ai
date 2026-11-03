@@ -26,6 +26,10 @@ import com.oneai.app.commands.CommandRouter
 import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.ActionRequest
 import com.oneai.app.security.SecretVault
+import com.oneai.app.plugins.ScreenIntelligenceAdapter
+import com.oneai.app.plugins.PluginActionInput
+import com.oneai.app.plugins.PluginInvocationResult
+import com.oneai.app.ai.OpenAiCompatibleVisionProvider
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -293,10 +297,70 @@ class FloatingBubbleService : Service() {
         addLabel(box, "ONE AI  •  RESULT", 16f)
         addLabel(box, result.title, 14f)
         addLabel(box, result.content, 13f)
-        if (safeImage != null) addLabel(box, "Selected image is stored privately and ready for the Screen Intelligence adapter.", 11f)
+        if (safeImage != null) {
+            addLabel(box, "The selected image stays private until you explicitly approve sending it to your configured AI provider.", 11f)
+            addButton(box, "Analyze selected region") { requestImageAnalysis(safeImage.absolutePath) }
+        }
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
+    }
+
+    /** A second, separate approval is required before the selected image is sent online. */
+    private fun requestImageAnalysis(imagePath: String) {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = ScreenIntelligenceAdapter(
+            this,
+            OpenAiCompatibleVisionProvider(store, SecretVault(this))
+        )
+        if (ScreenIntelligenceAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("Screen Intelligence unavailable", it.message ?: "Could not register the trusted adapter.")
+                return
+            }
+        }
+        val input = PluginActionInput(
+            actionId = ScreenIntelligenceAdapter.ANALYZE_ACTION,
+            capability = "internet",
+            description = "Send the selected screen region to the configured AI provider for analysis",
+            values = mapOf("image_path" to imagePath)
+        )
+        when (val decision = kotlinx.coroutines.runBlocking { runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input) }) {
+            is PluginInvocationResult.AwaitingApproval -> {
+                val box = basePanel()
+                addLabel(box, "SEND SELECTED IMAGE FOR ANALYSIS?", 16f)
+                addLabel(box, "This sends the selected screen region to your configured AI provider over HTTPS. Continue only if the image contains no information you want to keep private.")
+                addButton(box, "Cancel") { showPanel() }
+                addButton(box, "Allow once and analyze") {
+                    val ticket = runtime.approveSensitiveAction(ScreenIntelligenceAdapter.PLUGIN_ID, input)
+                        .getOrElse {
+                            showHandoffResult("Analysis blocked", "ONE AI could not verify approval for this image.")
+                            return@addButton
+                        }
+                    hidePanel()
+                    serviceScope.launch {
+                        val result = runtime.invoke(ScreenIntelligenceAdapter.PLUGIN_ID, input, ticket)
+                        val message = when (result) {
+                            is PluginInvocationResult.Completed -> result.output.content
+                            is PluginInvocationResult.Rejected -> result.reason
+                            is PluginInvocationResult.Failed -> result.message
+                            is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
+                        }
+                        if (serviceJob.isActive) uiHandler.post {
+                            if (serviceJob.isActive) showHandoffResult(
+                                if (result is PluginInvocationResult.Completed) "Screen analysis complete" else "Screen analysis unavailable",
+                                message
+                            )
+                        }
+                    }
+                }
+                attachPanel(box)
+            }
+            is PluginInvocationResult.Rejected -> showHandoffResult("Analysis blocked", decision.reason)
+            is PluginInvocationResult.Failed -> showHandoffResult("Analysis failed", decision.message)
+            is PluginInvocationResult.Completed -> showHandoffResult("Screen analysis complete", decision.output.content)
+        }
     }
 
     private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
