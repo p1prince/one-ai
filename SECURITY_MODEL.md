@@ -12,9 +12,9 @@ This is a baseline classification, not a substitute for action-specific review. 
 
 ## One-time approvals
 
-The foundation approval gate issues a process-local ticket only after the caller has obtained user approval. Each ticket is bound to one plugin ID, action ID, and capability; it expires quickly, can be revoked, and is consumed on the first attempt (including a mismatched attempt). Tickets are not persisted and cannot be reused as standing permission grants. A process restart naturally invalidates every ticket.
+The foundation approval gate issues a process-local ticket only after the caller has obtained user approval. Each ticket is bound to one plugin ID, action ID, capability, and exact user-visible action description; it expires quickly, can be revoked, and is consumed on the first attempt (including a mismatched attempt). Tickets are not persisted and cannot be reused as standing permission grants. A process restart naturally invalidates every ticket.
 
-The UI and action adapters must later display a clear action description and invoke the gate only after a real affirmative user action. This contract is not yet wired to a user-facing approval dialog or device-action executor.
+The UI and action adapters must display a clear action description and invoke the gate only after a real affirmative user action. This contract is not yet wired to a user-facing approval dialog or device-action executor.
 
 ## Android permission boundaries
 
