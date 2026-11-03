@@ -16,13 +16,16 @@ data class CommandRecord(val id: String, val title: String, val prompt: String, 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
 
-    fun plugins(): List<PluginRecord> = (0 until readArray("plugins").length()).mapNotNull { index ->
-        val it = readArray("plugins").optJSONObject(index) ?: return@mapNotNull null
+    fun plugins(): List<PluginRecord> {
+        val saved = readArray("plugins")
+        return (0 until saved.length()).mapNotNull { index ->
+        val it = saved.optJSONObject(index) ?: return@mapNotNull null
         runCatching {
             PluginRecord(it.getString("id"), it.getString("name"), it.optString("version", "1.0"),
                 it.optString("description", ""), it.getJSONArray("capabilities").toStringList(),
                 it.optBoolean("enabled", false), it.optBoolean("developerCreated", false))
         }.getOrNull()
+        }
     }
 
     fun savePlugin(plugin: PluginRecord) {
@@ -44,9 +47,12 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
         } })
     }
 
-    override fun commands(): List<CommandRecord> = (0 until readArray("commands").length()).mapNotNull { index ->
-        val it = readArray("commands").optJSONObject(index) ?: return@mapNotNull null
+    override fun commands(): List<CommandRecord> {
+        val saved = readArray("commands")
+        return (0 until saved.length()).mapNotNull { index ->
+        val it = saved.optJSONObject(index) ?: return@mapNotNull null
         runCatching { CommandRecord(it.getString("id"), it.getString("title"), it.getString("prompt"), it.optBoolean("enabled", true)) }.getOrNull()
+        }
     }
 
     override fun saveCommand(command: CommandRecord) {
