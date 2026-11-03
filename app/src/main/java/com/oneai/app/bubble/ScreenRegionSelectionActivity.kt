@@ -118,8 +118,15 @@ class ScreenRegionSelectionActivity : Activity() {
         finish()
     }
 
+    @Deprecated("Use system back navigation")
+    override fun onBackPressed() {
+        BubbleCaptureFeedback.send(this, "Selection cancelled", "No screen region was selected.")
+        finishAndRelease()
+    }
+
     override fun onDestroy() {
         if (::bitmap.isInitialized && !bitmap.isRecycled) bitmap.recycle()
+        if (::sourceFile.isInitialized) runCatching { sourceFile.delete() }
         super.onDestroy()
     }
 
