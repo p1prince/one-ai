@@ -11,7 +11,7 @@ data class PluginTemplate(
 class PluginManager(private val store: OneAiStore) {
     val catalogue = listOf(
         PluginTemplate("one.command.tools", "Command Tools", "Create and run user-defined command shortcuts.", listOf("commands")),
-        PluginTemplate("one.web.research", "Web Research", "A connector slot for approved web search providers.", listOf("internet", "research").filter { it != "research" }),
+        PluginTemplate("one.web.research", "Web Research", "A connector slot for approved web search providers.", listOf("internet")),
         PluginTemplate("one.screen.intelligence", "Screen Intelligence", "A permission-gated screen understanding integration.", listOf("screen_capture")),
         PluginTemplate("one.voice.interface", "Voice Interface", "A voice input and spoken response integration.", listOf("microphone", "audio")),
         PluginTemplate("one.device.actions", "Device Actions", "User-approved Android settings and device action integrations.", listOf("device_actions")),
