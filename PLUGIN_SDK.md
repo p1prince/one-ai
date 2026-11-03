@@ -71,4 +71,15 @@ Adapters are trusted integration code, not arbitrary third-party code loaded fro
 
 Trusted in-app feature modules can return a completed text result to the running Bubble service using the internal `BubbleResultHandoff` contract. Send an explicit intent to `FloatingBubbleService` with action `ACTION_SHOW_RESULT` and the `EXTRA_TITLE` / `EXTRA_CONTENT` fields. The service validates and bounds both fields, then renders the result inside its independent overlay; it does not redirect the user to `MainActivity`. Invalid, blank or oversized results are ignored. The service is not exported, so this is an in-app integration boundary, not an external-app API.
 
-This contract handles the return leg only. It does not perform screen capture, request MediaProjection consent, select a screen region, or interpret images. Those operations require the Screen Intelligence integration and Android's user-approved capture session; they remain unimplemented until that integration is delivered and tested. The Bubble must not display the captured screen itself: selection UI belongs outside the Bubble, and only the resulting approved output is handed back.
+## Screen capture and selected-image hand-off
+
+The Stage 7 capture framework now provides a user-initiated path from the Bubble:
+
+1. The Bubble displays an explicit ONE AI “Allow once” confirmation for the exact screen-capture action. The core action gateway issues and immediately consumes a short-lived, one-use approval ticket.
+2. A dedicated Activity launches Android's native MediaProjection consent prompt. Denial cancels capture.
+3. A non-exported foreground service starts a fresh MediaProjection session, captures one frame, then releases the virtual display, ImageReader and projection.
+4. A separate full-screen region selector displays the captured frame outside the Bubble. The user drags a rectangle; selection coordinates are mapped back to source pixels and cropped.
+5. The cropped image is stored in private app cache and published through ScreenCaptureArtifactStore. The artifact expires after ten minutes and consumeLatest(context) returns it once; callers should delete the returned file after processing.
+6. A bounded result message and private artifact reference are returned to the Bubble. The Bubble does not display the screenshot itself.
+
+This is capture and selection infrastructure, not image understanding. No Screen Intelligence AI adapter is registered yet, so the selected image is not automatically interpreted. Real-device testing is still required for Android-version-specific consent, foreground-service behavior, display geometry, and lifecycle cleanup.
