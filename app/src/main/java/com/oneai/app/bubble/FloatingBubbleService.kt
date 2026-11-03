@@ -27,7 +27,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancel
 
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
@@ -149,7 +148,11 @@ class FloatingBubbleService : Service() {
                             val router = CommandRouter(store, AiOrchestrator(provider, store))
                             router.run(command.id).content
                         }.getOrElse { "Error: ${it.message}" }
-                        Handler(Looper.getMainLooper()).post { output.text = result }
+                        if (serviceJob.isActive) {
+                            Handler(Looper.getMainLooper()).post {
+                                if (serviceJob.isActive) output.text = result
+                            }
+                        }
                     }
                 }
             }
