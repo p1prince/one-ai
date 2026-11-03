@@ -47,6 +47,7 @@ class PluginManager(private val store: OneAiStore) {
         }
         store.savePlugin(plugin.copy(enabled=enabled))
         if (!enabled) {
+            store.pluginRuntime().unregister(id)
             store.pluginActionGateway().revokePendingApprovals()
             serviceFor(plugin.id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         }
@@ -59,6 +60,7 @@ class PluginManager(private val store: OneAiStore) {
             ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
         val dependents = installed().filter { id in it.dependencies }
         if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Remove dependent plugins first: ${dependents.joinToString { it.name }}"))
+        store.pluginRuntime().unregister(id)
         store.pluginActionGateway().revokePendingApprovals()
         serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
