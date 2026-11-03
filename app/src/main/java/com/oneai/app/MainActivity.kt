@@ -50,7 +50,6 @@ class MainActivity : ComponentActivity() {
         setContent { OneAiApp(store,plugins,vault,ai,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { ai.ask(prompt) }.onSuccess { store.log("AI response received"); done(it) }.onFailure { done("Error: ${it.message}") } } },
-            onOpenOverlaySettings={ if (Build.VERSION.SDK_INT>=23) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
         ) }
     }
     private fun toggleBubble(enabled:Boolean) {
@@ -71,7 +70,7 @@ private enum class Page(val title:String) { Home("Home"), Plugins("Plugins"), De
 
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient,
-                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onOpenOverlaySettings:()->Unit) {
+                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
     val refreshNow={ refresh++ }
@@ -91,7 +90,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,refreshNow,onAsk)
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
-                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,onOpenOverlaySettings,refreshNow)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,refreshNow)
             }
         }
     }
@@ -161,16 +160,15 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     LazyColumn(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) { item { Header("Activity","Recent actions performed within ONE AI.") };if(entries.isEmpty())item{CardBox{Text("Nothing here yet.",color=White)}};items(entries){CardBox{Text(it,color=White,fontSize=13.sp)}} }
 }
 
-@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,onOverlaySettings:()->Unit,refresh:()->Unit) {
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
     var apiKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
-    val options=listOf("command_manager","web_research","screen_intelligence","voice_interface","automation")
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
         item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;if(it)onOverlaySettings();onBubbleToggle(it);bubble=store.bubbleEnabled()})}
+            ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
             val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
             val availableOptions = buildList {
