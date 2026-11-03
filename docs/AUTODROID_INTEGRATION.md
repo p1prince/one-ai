@@ -1,3 +1,5 @@
+> **Scope note (plan reconciliation):** AutoDroid is a **future plugin**, not core. The built-in `one.automation.engine` adapter described here is slated for extraction (see `docs/STAGE_2_AUDIT.md`). AutoDroid itself stays an independent project.
+
 # AutoDroid integration boundary
 
 ## Status
