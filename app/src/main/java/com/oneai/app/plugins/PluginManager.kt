@@ -14,6 +14,7 @@ class PluginManager(private val store: OneAiStore) {
         PluginTemplate("one.web.research", "Web Research", "A connector slot for approved web search providers.", listOf("internet")),
         PluginTemplate("one.screen.intelligence", "Screen Intelligence", "A permission-gated screen understanding integration.", listOf("screen_capture", "internet")),
         PluginTemplate("one.voice.interface", "Voice Interface", "A voice input and spoken response integration.", listOf("microphone", "audio")),
+        PluginTemplate("one.app.control", "App Control", "Find and launch installed Android apps with explicit approval.", listOf("app_launch")),
         PluginTemplate("one.device.actions", "Device Actions", "User-approved Android settings and device action integrations.", listOf("device_actions")),
         PluginTemplate("one.automation.engine", "Automation Engine", "A safe integration point for automation engines such as AutoDroid.", listOf("accessibility", "automation"))
     )
@@ -72,6 +73,7 @@ class PluginManager(private val store: OneAiStore) {
         "one.web.research" -> "web_research"
         "one.screen.intelligence" -> "screen_intelligence"
         "one.voice.interface" -> "voice_interface"
+        "one.app.control" -> "app_control"
         "one.automation.engine" -> "automation"
         else -> null
     }
