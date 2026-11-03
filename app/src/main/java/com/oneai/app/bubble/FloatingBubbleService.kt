@@ -15,6 +15,8 @@ import android.widget.ScrollView
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.EditText
+import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.graphics.Color
@@ -30,6 +32,8 @@ import com.oneai.app.plugins.ScreenIntelligenceAdapter
 import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginInvocationResult
 import com.oneai.app.ai.OpenAiCompatibleVisionProvider
+import com.oneai.app.ai.BraveSearchProvider
+import com.oneai.app.plugins.WebResearchAdapter
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -183,11 +187,23 @@ class FloatingBubbleService : Service() {
             addButton(box, "Capture screen region") {
                 requestScreenCaptureApproval()
             }
+        } else if (service == "web_research") {
+            addLabel(box, "Search the web using your separately encrypted Brave Search credential. Each search requires your approval.")
+            val query = EditText(this).apply {
+                hint = "What would you like to search for?"
+                setTextColor(Color.WHITE)
+                setHintTextColor(Color.LTGRAY)
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                minLines = 2
+            }
+            box.addView(query, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+            addButton(box, "Search the web") { requestWebSearch(query.text.toString()) }
         } else {
             val message = when (service) {
-                "web_research" -> "Web Research is currently a plugin slot only. Search execution and provider connection are not implemented yet."
-                "voice_interface" -> "Voice Interface is currently a plugin slot only. Voice capture, playback and runtime permission flows are not implemented yet."
-                "automation" -> "Automation is currently an integration slot only. No device workflow executor is connected yet."
+                "voice_interface" -> "Voice Interface is not connected yet. Voice capture, playback and runtime permission flows are still in development."
+                "automation" -> "Automation is not connected yet. No device workflow executor is connected."
                 else -> "This service is enabled, but no compatible provider is connected yet."
             }
             addLabel(box, message)
@@ -195,6 +211,68 @@ class FloatingBubbleService : Service() {
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
+    }
+
+    /** Web requests are routed through the plugin runtime and require an exact one-use approval. */
+    private fun requestWebSearch(query: String) {
+        val store = OneAiStore(this)
+        val runtime = store.pluginRuntime()
+        val adapter = WebResearchAdapter(BraveSearchProvider(SecretVault(this)))
+        if (WebResearchAdapter.PLUGIN_ID !in runtime.registeredPluginIds()) {
+            runtime.register(adapter).onFailure {
+                showHandoffResult("Web Research unavailable", it.message ?: "Could not register the trusted search adapter.")
+                return
+            }
+        }
+        val input = PluginActionInput(
+            actionId = WebResearchAdapter.SEARCH_ACTION,
+            capability = "internet",
+            description = "Search the web for the query entered in the ONE AI Bubble",
+            values = mapOf("query" to query)
+        )
+        serviceScope.launch {
+            val decision = runtime.invoke(WebResearchAdapter.PLUGIN_ID, input)
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive) return@post
+                when (decision) {
+                    is PluginInvocationResult.AwaitingApproval -> {
+                        val box = basePanel()
+                        addLabel(box, "ALLOW THIS WEB SEARCH ONCE?", 16f)
+                        addLabel(box, "ONE AI will send this query to Brave Search over HTTPS. Search terms may be processed by that provider. Review the query before approving.")
+                        addLabel(box, query.trim().take(300), 12f)
+                        addButton(box, "Cancel") { showPanel() }
+                        addButton(box, "Allow once and search") {
+                            val ticket = runtime.approveSensitiveAction(WebResearchAdapter.PLUGIN_ID, input)
+                                .getOrElse {
+                                    showHandoffResult("Search blocked", "ONE AI could not verify approval for this search.")
+                                    return@addButton
+                                }
+                            hidePanel()
+                            serviceScope.launch {
+                                val result = runtime.invoke(WebResearchAdapter.PLUGIN_ID, input, ticket)
+                                val message = when (result) {
+                                    is PluginInvocationResult.Completed -> result.output.content
+                                    is PluginInvocationResult.Rejected -> result.reason
+                                    is PluginInvocationResult.Failed -> result.message
+                                    is PluginInvocationResult.AwaitingApproval -> "A new approval is required."
+                                }
+                                if (serviceJob.isActive) uiHandler.post {
+                                    if (serviceJob.isActive) showHandoffResult(
+                                        if (result is PluginInvocationResult.Completed) "Web search results" else "Web search unavailable",
+                                        message
+                                    )
+                                }
+                            }
+                        }
+                        attachPanel(box)
+                    }
+                    is PluginInvocationResult.Rejected -> showHandoffResult("Search blocked", decision.reason)
+                    is PluginInvocationResult.Failed -> showHandoffResult("Search failed", decision.message)
+                    is PluginInvocationResult.Completed -> showHandoffResult("Web search results", decision.output.content)
+                }
+            }
+        }
     }
 
     /** ONE AI approval is consumed before Android's separate MediaProjection consent prompt. */
