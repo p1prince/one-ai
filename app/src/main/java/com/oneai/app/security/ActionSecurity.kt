@@ -74,6 +74,7 @@ class OneTimeApprovalGate(
         val pluginId: String,
         val actionId: String,
         val capability: String,
+        val description: String,
         val expiresAt: Long
     )
 
@@ -84,7 +85,7 @@ class OneTimeApprovalGate(
         require(request.pluginId.isNotBlank() && request.actionId.isNotBlank() && request.capability.isNotBlank())
         require(lifetimeMillis in 1L..300_000L) { "Approval lifetime must be between 1 ms and 5 minutes" }
         val token = UUID.randomUUID().toString()
-        tickets[token] = Ticket(request.pluginId, request.actionId, request.capability, nowMillis() + lifetimeMillis)
+        tickets[token] = Ticket(request.pluginId, request.actionId, request.capability, request.description, nowMillis() + lifetimeMillis)
         return token
     }
 
@@ -94,7 +95,8 @@ class OneTimeApprovalGate(
         return ticket.expiresAt >= nowMillis() &&
             ticket.pluginId == request.pluginId &&
             ticket.actionId == request.actionId &&
-            ticket.capability == request.capability
+            ticket.capability == request.capability &&
+            ticket.description == request.description
     }
 
     @Synchronized
