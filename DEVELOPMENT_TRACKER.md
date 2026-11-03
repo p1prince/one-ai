@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 9 — AutoDroid integration boundary.** Stage 8 integrations passed their required CI checks, including Device Control runs #390–#391 on commit 282bde7. AutoDroid remains a separate project; ONE AI is adding a trusted, explicitly approved launcher hand-off without remote macro execution. No APK has been built.
+**Current focus: Stage 10 — settings, activity history and user controls.** Stage 8 passed Device Control CI runs #390–#391 on 282bde7. Stage 9's separate-project review, trusted AutoDroid launcher adapter and approval path passed CI run #394 on 7d5ad3b. AutoDroid remains independent; remote macro execution is not exposed. No APK has been built.
 
 ## Current status
 
@@ -16,8 +16,8 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 | 6 | Security, permissions and action approvals | 🟠 Implementation frozen; verification pending | Capability policy, exact-action approval, just-in-time microphone permission, bounded execution audit and regression tests |
 | 7 | Floating Bubble and independent execution | 🟡 Source and automated policy tests implemented; capture-cleanup and artifact/image-policy CI passed; physical-device test reserved for Stage 11 | Independent overlay, command execution, preferences, bounded result handoff, explicit ONE AI approval, Android MediaProjection consent, one-frame capture, external region selector and private one-time artifact |
 | 8 | Web, screen, voice, app and device integrations | ✅ IMPLEMENTED AND CI VERIFIED — Screen Intelligence and Web Research; Voice Interface (#366–#369); App Control (#388–#389); Device Control (#390–#391 on 282bde7) | Real permissioned integrations; physical-device verification is reserved for Stage 11 |
-| 9 | AutoDroid integration boundary | 🔵 IN PROGRESS — separate project reviewed; trusted launcher-only adapter and approval path being implemented in ONE AI; AutoDroid repository remains independent | Review the separate project, define a trusted adapter, preserve permission/consent boundaries, and keep its repository independent |
-| 10 | Settings, activity history and user controls | ⏳ UP NEXT | Unified configuration, clear status, logs and recovery controls |
+| 9 | AutoDroid integration boundary | ✅ IMPLEMENTED AND CI VERIFIED (#394 on 7d5ad3b) — trusted, one-use-approved launcher hand-off; AutoDroid repository remains independent; physical launch test reserved for Stage 11 | Review the separate project, define a trusted adapter, preserve permission/consent boundaries, and keep its repository independent |
+| 10 | Settings, activity history and user controls | 🔵 IN PROGRESS | Unified configuration, clear status, logs and recovery controls |
 | 11 | Full integration review and testing | ⏳ UP NEXT | Source review, automated tests, device testing, build validation and documented limitations |
 | 12 | First foundation release / APK | 🔒 BLOCKED — do not build yet | Only after Stages 1–11 are complete and the user authorizes the release build |
 
@@ -70,6 +70,9 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Macro selection and execution remain inside AutoDroid. No macro IDs, action configurations, database content or arbitrary intents cross the boundary.
 - The user must install and enable the Automation Engine plugin and enable its Bubble service. If AutoDroid is absent, ONE AI reports that it is unavailable.
 - A remote macro-execution API is out of scope until a versioned, authenticated, user-confirmed contract is designed and tested.
+
+- Validation run #394 passed on commit 7d5ad3b. The validation job completed compilation and unit tests without building an APK.
+- Stage 9 is complete at the defined launcher-boundary scope. Physical install/launch verification remains reserved for Stage 11.
 
 ## Important validation notes
 
