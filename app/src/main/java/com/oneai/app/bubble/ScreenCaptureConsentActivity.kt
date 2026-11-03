@@ -22,7 +22,11 @@ class ScreenCaptureConsentActivity : ComponentActivity() {
                 putExtra(EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(EXTRA_RESULT_DATA, result.data)
             }
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(service) else startService(service)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 26) startForegroundService(service) else startService(service)
+            }.onFailure {
+                BubbleCaptureFeedback.send(this, "Screen capture unavailable", "Android could not start the capture service.")
+            }
         } else {
             BubbleCaptureFeedback.send(this, "Screen capture cancelled", "Android screen-capture permission was not granted. Nothing was captured.")
         }
