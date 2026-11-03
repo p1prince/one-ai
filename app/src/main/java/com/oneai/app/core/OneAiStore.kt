@@ -5,6 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.oneai.app.ai.AiActivityLogger
 import com.oneai.app.commands.CommandRepository
+import com.oneai.app.security.ActionAuditLogger
+import com.oneai.app.security.PluginActionGateway
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
@@ -14,7 +16,7 @@ data class PluginRecord(
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
 
-class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
 
     fun plugins(): List<PluginRecord> {
@@ -71,6 +73,13 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
             put(JSONObject().put("id", it.id).put("title", it.title).put("prompt", it.prompt).put("enabled", it.enabled))
         } })
     }
+
+    override fun record(event: String) { log(event) }
+
+    fun pluginActionGateway(): PluginActionGateway = PluginActionGateway(
+        findPlugin = { id -> plugins().firstOrNull { it.id == id } },
+        audit = this
+    )
 
     override fun log(message: String) {
         val logs = readArray("activity")
