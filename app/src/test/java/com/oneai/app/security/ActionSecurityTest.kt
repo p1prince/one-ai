@@ -12,6 +12,13 @@ class ActionSecurityTest {
         assertFalse(CapabilityPolicy.evaluate(request("run_shell"), true, setOf("run_shell")).allowed)
     }
 
+    @Test fun malformedActionDetailsAreBlocked() {
+        val valid = request(capability = "commands")
+        assertFalse(CapabilityPolicy.evaluate(valid.copy(description = "  "), true, setOf("commands")).allowed)
+        assertFalse(CapabilityPolicy.evaluate(valid.copy(actionId = "x".repeat(101)), true, setOf("commands")).allowed)
+        assertFalse(CapabilityPolicy.evaluate(valid.copy(description = "x".repeat(501)), true, setOf("commands")).allowed)
+    }
+
     @Test fun pluginCannotUseAnUndeclaredCapability() {
         val result = CapabilityPolicy.evaluate(request(), true, setOf("commands"))
         assertFalse(result.allowed)
