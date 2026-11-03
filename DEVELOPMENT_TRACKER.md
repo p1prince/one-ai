@@ -2,7 +2,7 @@
 
 This is the fixed 12-stage completion tracker. No additional stages will be added.
 
-**Current focus: Stage 8 — real integrations.** Screen Intelligence and the first real Web Research connector are implemented in source. The latest confirmed CI runs #338–#339 passed on the prior code head; the Web Research implementation and its integration checks are running on the current branch. No APK has been built.
+**Current focus: Stage 8 — real integrations.** Screen Intelligence and the first real Web Research connector are implemented in source. The latest confirmed full validation runs #338–#339 passed on the prior code head. Web Research source, UI, security and policy tests are now committed; current branch validation is queued/running. No APK has been built.
 
 ## Current status
 
@@ -37,9 +37,9 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Separate `brave_search` credential slot encrypted with Android Keystore; it does not overwrite the primary AI provider key.
 - Response body bounded to 1 MiB; results limited and result URLs restricted to HTTP/HTTPS without embedded credentials or fragments.
 - Floating Bubble provides a query field and routes searches through `PluginRuntime`.
-- Every search requires an exact-action, one-use `internet` approval before the query is transmitted to Brave Search.
+- Every search requires an exact-action, one-use `internet` approval before the query is transmitted to Brave Search; the approved action description includes the normalized query itself.
 - User must install and enable Web Research, enable its Bubble service, and configure a Brave Search API key in Settings.
-- Unit tests cover query validation, result URL validation and result formatting. Current branch CI is still running; do not mark the connector verified until it passes.
+- Unit tests cover query validation, result URL validation and result formatting. API-key entry is masked in Settings. Current branch CI is still running; do not mark the connector verified until it passes.
 
 ### Still required in Stage 8
 - Confirm the latest Web Research code and documentation commits pass CI; fix any genuine failures.
@@ -54,6 +54,7 @@ This is the fixed 12-stage completion tracker. No additional stages will be adde
 - Screen Intelligence and Web Research are not considered release-verified until their end-to-end paths are tested. A successful compile alone does not prove provider compatibility or device behavior.
 - Web Research uses a third-party Brave Search API; users must provide their own API key and explicitly approve each outbound query.
 - No APK has been built. The draft PR remains unmerged.
+- The most recent successful full validation before the Web Research changes is #338/#339. The current Web Research code and its later security/UI refinements are awaiting the latest branch CI result.
 
 ## Working rules
 
