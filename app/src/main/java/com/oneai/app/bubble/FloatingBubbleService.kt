@@ -19,6 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.commands.CommandRouter
 import com.oneai.app.security.SecretVault
 import android.os.Handler
 import android.os.Looper
@@ -130,7 +131,7 @@ class FloatingBubbleService : Service() {
                 addButton(box, "Run: ${command.title}") {
                     val output = addLabel(box, "Running ${command.title}…", 12f)
                     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                        val result = runCatching { AiOrchestrator(AiProviderClient(OneAiStore(this@FloatingBubbleService), SecretVault(this@FloatingBubbleService)), OneAiStore(this@FloatingBubbleService)).respond(command.prompt).content }
+                        val result = runCatching { CommandRouter(OneAiStore(this@FloatingBubbleService), AiOrchestrator(AiProviderClient(OneAiStore(this@FloatingBubbleService), SecretVault(this@FloatingBubbleService)), OneAiStore(this@FloatingBubbleService))).run(command.id).content }
                             .getOrElse { "Error: ${it.message}" }
                         Handler(Looper.getMainLooper()).post { output.text = result }
                     }
