@@ -11,7 +11,7 @@ data class PluginRecord(
     val capabilities: List<String>, val enabled: Boolean, val developerCreated: Boolean = false
 )
 
-data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = true)
+data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository {
     private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
