@@ -29,7 +29,9 @@ import kotlinx.coroutines.launch
 class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private var bubble: TextView? = null
+    private var bubbleParams: WindowManager.LayoutParams? = null
     private var panel: LinearLayout? = null
+    private val uiHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
@@ -57,8 +59,11 @@ class FloatingBubbleService : Service() {
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.rgb(214,174,88)) }
             setOnClickListener { if (panel == null) showPanel() else hidePanel() }
         }
-        val params = WindowManager.LayoutParams(58, 58, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
-            gravity = Gravity.TOP or Gravity.START; x = 24; y = 220
+        val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
+        val size = prefs.getInt("bubble_size", 58)
+        val params = WindowManager.LayoutParams(size, size, overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = prefs.getInt("bubble_x", 24); y = prefs.getInt("bubble_y", 220)
         }
         view.setOnTouchListener(object : android.view.View.OnTouchListener {
             var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
@@ -66,12 +71,16 @@ class FloatingBubbleService : Service() {
                 when (e.action) {
                     MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false; return true }
                     MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; params.x=ox+dx; params.y=oy+dy; windowManager.updateViewLayout(view,params); return true }
-                    MotionEvent.ACTION_UP -> { if (!moved) v.performClick(); return true }
+                    MotionEvent.ACTION_UP -> {
+                        getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE).edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
+                        if (!moved) v.performClick()
+                        return true
+                    }
                 }
                 return false
             }
         })
-        windowManager.addView(view, params); bubble = view
+        windowManager.addView(view, params); bubble = view; bubbleParams = params
     }
 
     private fun basePanel(): LinearLayout = LinearLayout(this).apply {
@@ -97,10 +106,13 @@ class FloatingBubbleService : Service() {
         if (enabled.isEmpty()) {
             addLabel(box, "No services enabled. Choose services in ONE AI Settings.")
         } else {
-            enabled.sorted().forEach { service ->
+            val order = store.bubbleServiceOrder().filter { it in enabled }
+            (order + enabled.filterNot { it in order }.sorted()).forEach { service ->
                 addButton(box, service.replace('_',' ').replaceFirstChar { it.uppercase() }) { showService(service) }
             }
         }
+        addButton(box, "Resize bubble") { resizeBubble() }
+        addButton(box, "Hide bubble for 1 minute") { hideBubbleTemporarily() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
     }
@@ -151,10 +163,27 @@ class FloatingBubbleService : Service() {
         windowManager.addView(box,params); panel=box
     }
 
+    private fun resizeBubble() {
+        val view = bubble ?: return
+        val params = bubbleParams ?: return
+        val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
+        val next = if (params.width <= 58) 76 else 48
+        params.width = next; params.height = next
+        prefs.edit().putInt("bubble_size", next).apply()
+        runCatching { windowManager.updateViewLayout(view, params) }
+    }
+
+    private fun hideBubbleTemporarily() {
+        hidePanel()
+        bubble?.let { runCatching { windowManager.removeView(it) } }
+        bubble = null; bubbleParams = null
+        uiHandler.postDelayed({ if (bubble == null) showBubble() }, 60_000L)
+    }
+
     private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
-    override fun onDestroy() { hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; super.onDestroy() }
+    override fun onDestroy() { uiHandler.removeCallbacksAndMessages(null); hidePanel(); bubble?.let { runCatching { windowManager.removeView(it) } }; bubble=null; bubbleParams=null; super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
     companion object { const val CHANNEL="one_ai_bubble"; const val NOTIFICATION_ID=7104 }
 }

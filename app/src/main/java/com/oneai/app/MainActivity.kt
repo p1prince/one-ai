@@ -178,7 +178,16 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
                 if ("one.voice.interface" in installedAndEnabled) add("voice_interface")
                 if ("one.automation.engine" in installedAndEnabled) add("automation")
             }
-            availableOptions.forEach { id -> Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)){Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f));Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})} }
+            val savedOrder = store.bubbleServiceOrder().filter { it in availableOptions }
+            val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
+            orderedOptions.forEachIndexed { index, id ->
+                Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)) {
+                    Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f))
+                    IconButton(onClick={ if(index>0){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index-1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index>0){Icon(Icons.Default.ArrowUpward,"Move up",tint=Gold)}
+                    IconButton(onClick={ if(index<orderedOptions.lastIndex){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index+1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index<orderedOptions.lastIndex){Icon(Icons.Default.ArrowDownward,"Move down",tint=Gold)}
+                    Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})
+                }
+            }
             if (availableOptions.size == 1) Text("Install and enable optional plugins in Plugin Centre to expose their bubble services here.",color=Muted,fontSize=11.sp)
         } }
         item { CardBox {

@@ -74,6 +74,8 @@ class OneAiStore(context: Context) {
     fun bubbleEnabled() = prefs.getBoolean("bubble_enabled", false)
     fun setBubbleServices(services: Set<String>) { prefs.edit().putStringSet("bubble_services", services).apply() }
     fun bubbleServices(): Set<String> = prefs.getStringSet("bubble_services", emptySet())?.toSet() ?: emptySet()
+    fun bubbleServiceOrder(): List<String> = prefs.getString("bubble_service_order", "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+    fun setBubbleServiceOrder(order: List<String>) { prefs.edit().putString("bubble_service_order", order.distinct().joinToString(",")).apply() }
 
     fun setAiEndpoint(value: String) { prefs.edit().putString("ai_endpoint", value.trim()).apply() }
     fun aiEndpoint() = prefs.getString("ai_endpoint", "https://api.openai.com/v1/chat/completions") ?: ""
