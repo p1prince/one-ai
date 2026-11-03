@@ -25,10 +25,11 @@ class ActionSecurityTest {
         assertEquals(ActionRisk.SENSITIVE, result.risk)
         val network = CapabilityPolicy.evaluate(request("internet"), true, setOf("internet"))
         assertTrue(network.requiresUserApproval)
+        assertEquals(ActionRisk.SENSITIVE, network.risk)
     }
 
     @Test fun lowRiskCapabilityDoesNotRequireAdditionalApproval() {
-        val result = CapabilityPolicy.evaluate(request("internet"), true, setOf("internet"))
+        val result = CapabilityPolicy.evaluate(request("commands"), true, setOf("commands"))
         assertTrue(result.allowed)
         assertFalse(result.requiresUserApproval)
         assertEquals(ActionRisk.LOW, result.risk)
