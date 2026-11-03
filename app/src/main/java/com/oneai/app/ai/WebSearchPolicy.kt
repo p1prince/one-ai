@@ -13,7 +13,7 @@ object WebSearchPolicy {
     fun safeResultUrl(value: String): String? = runCatching {
         val uri = URI(value.trim())
         val scheme = uri.scheme?.lowercase()
-        if (scheme !in setOf("http", "https") || uri.host.isNullOrBlank() ||
+        if (scheme == null || scheme !in setOf("http", "https") || uri.host.isNullOrBlank() ||
             uri.userInfo != null || uri.fragment != null) null else uri.toASCIIString().takeIf { it.length <= 2_000 }
     }.getOrNull()
 
