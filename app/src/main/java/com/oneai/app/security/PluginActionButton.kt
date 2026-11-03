@@ -41,6 +41,7 @@ fun PluginActionButton(
     var working by remember { mutableStateOf(false) }
     var awaitingApproval by remember { mutableStateOf(false) }
     var waitingForMicrophonePermission by remember { mutableStateOf(false) }
+    var pendingApprovalTicket by remember { mutableStateOf<String?>(null) }
 
     val execute: (String?) -> Unit = { ticket ->
         scope.launch {
@@ -61,8 +62,10 @@ fun PluginActionButton(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         waitingForMicrophonePermission = false
-        if (granted) {
-            execute(null)
+        val ticket = pendingApprovalTicket
+        pendingApprovalTicket = null
+        if (granted && ticket != null) {
+            execute(ticket)
         } else {
             onResult(PluginInvocationResult.Rejected(
                 "Microphone access was not granted. No plugin action was started."
@@ -72,15 +75,8 @@ fun PluginActionButton(
 
     Button(
         onClick = {
-            if (working) return@Button
-            if (input.capability == "microphone" &&
-                context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-            ) {
-                waitingForMicrophonePermission = true
-                microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-            } else {
-                execute(null)
-            }
+            if (working || waitingForMicrophonePermission) return@Button
+            execute(null)
         },
         enabled = !working && !waitingForMicrophonePermission,
         modifier = modifier
@@ -94,7 +90,17 @@ fun PluginActionButton(
             onApprove = {
                 val ticket = runtime.approveSensitiveAction(pluginId, input)
                 ticket.fold(
-                    onSuccess = { execute(it) },
+                    onSuccess = { ticket ->
+                        if (input.capability == "microphone" &&
+                            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            pendingApprovalTicket = ticket
+                            waitingForMicrophonePermission = true
+                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                        } else {
+                            execute(ticket)
+                        }
+                    },
                     onFailure = {
                         awaitingApproval = false
                         onResult(PluginInvocationResult.Rejected(
