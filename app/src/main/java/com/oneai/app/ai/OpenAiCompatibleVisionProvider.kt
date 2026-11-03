@@ -55,7 +55,12 @@ class OpenAiCompatibleVisionProvider(
                 connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
                 val status = connection.responseCode
                 val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                val raw = if (stream == null) "" else stream.use {
+                    AiResponseBodyReader.readUtf8(it, MAX_RESPONSE_BYTES)
+                        ?: throw AiProviderException(
+                            "RESPONSE_TOO_LARGE", "The AI provider response exceeded ONE AI's size limit."
+                        )
+                }
                 if (status !in 200..299) {
                     val detail = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }
                         .getOrNull()?.takeIf { it.isNotBlank() }
@@ -92,6 +97,7 @@ class OpenAiCompatibleVisionProvider(
 
     companion object {
         const val MAX_IMAGE_BYTES = 20 * 1024 * 1024
+        private const val MAX_RESPONSE_BYTES = 1024 * 1024
         private val SUPPORTED_MIME_TYPES = setOf("image/png", "image/jpeg", "image/webp")
     }
 }
