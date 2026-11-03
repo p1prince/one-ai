@@ -48,7 +48,7 @@ Declaring a capability does not grant Android permission or make the integration
 
 ## Validation and lifecycle
 
-The current validator normalizes IDs and names, checks the manifest version, validates semantic version syntax, enforces description and capability limits, rejects unknown capabilities, removes duplicate capability declarations, rejects duplicate/malformed/self dependencies, and returns a normalized manifest.
+The current validator normalizes IDs and names, checks the manifest version, validates semantic version syntax, enforces description and capability limits, requires at least one supported capability, rejects unknown capabilities, removes duplicate capability declarations, limits dependencies to 16, rejects duplicate/malformed/self dependencies, and returns a normalized manifest.
 
 Installation creates a disabled plugin record. Enabling a plugin requires all declared dependencies to be installed and enabled. Disabling a dependency is blocked while an enabled dependent exists; removing a dependency is blocked while any dependent remains installed. Errors are returned to the Plugin Centre rather than silently ignored.
 
