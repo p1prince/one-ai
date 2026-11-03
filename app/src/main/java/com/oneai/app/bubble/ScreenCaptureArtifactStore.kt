@@ -11,7 +11,6 @@ object ScreenCaptureArtifactStore {
     private const val PREFS = "one_ai_capture_artifacts"
     private const val KEY_PATH = "latest_selected_image"
     private const val KEY_CREATED = "latest_selected_created"
-    private const val MAX_AGE_MS = 10 * 60 * 1000L
 
     @Synchronized
     fun publish(context: Context, image: File): Boolean {
@@ -30,7 +29,7 @@ object ScreenCaptureArtifactStore {
         val path = prefs.getString(KEY_PATH, null)
         val created = prefs.getLong(KEY_CREATED, 0L)
         prefs.edit().remove(KEY_PATH).remove(KEY_CREATED).commit()
-        if (path == null || created <= 0L || System.currentTimeMillis() - created !in 0..MAX_AGE_MS) {
+        if (path == null || created <= 0L || !ScreenCaptureArtifactPolicy.isFresh(created, System.currentTimeMillis())) {
             path?.let { validatedFile(context, it)?.delete() }
             return null
         }
@@ -44,13 +43,9 @@ object ScreenCaptureArtifactStore {
         prefs.edit().remove(KEY_PATH).remove(KEY_CREATED).commit()
     }
 
-    private fun validatedFile(context: Context, path: String): File? = runCatching {
-        val root = File(context.cacheDir, "one-ai-selected").canonicalFile
-        val file = File(path).canonicalFile
-        file.takeIf {
-            it.isFile &&
-                it.canonicalPath.startsWith(root.canonicalPath + File.separator) &&
-                it.length() in 1..(20L * 1024L * 1024L)
-        }
-    }.getOrNull()
+    private fun validatedFile(context: Context, path: String): File? {
+        val root = File(context.cacheDir, "one-ai-selected")
+        val file = runCatching { File(path) }.getOrNull() ?: return null
+        return file.takeIf { ScreenCaptureArtifactPolicy.isValidFile(root, it) }
+    }
 }
