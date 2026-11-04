@@ -157,3 +157,7 @@ Actions:
 Availability follows two independent user settings. A service appears in the Bubble only when its plugin is installed and enabled **and** the user has enabled that service's Bubble access in Settings. The Bubble starts empty and never enables either setting itself. Disabling a plugin removes its Bubble service; disabling only Bubble access leaves the plugin enabled.
 
 Contributors are registered in `BubbleProviders.registry` from the application composition root (`OneAiApplication`), which runs on every process start, including when Android restarts the Bubble service. The six capability UIs that ship today are expressed through this contract in `com.oneai.app.builtin` as an interim step; they are slated to become separately installed plugins (Stages 8–9).
+
+## Independently installed plugins (manifest v2)
+
+Plugins built as separate signed APKs (decision D1) are documented in `docs/PLUGIN_DEVELOPER_GUIDE.md`, with a working reference plugin in `samples/echo-plugin`. Everything above describes manifest v1 and the in-app adapters, which stay readable for migration. A trusted external plugin is wrapped by `ExternalPluginAdapter` so it uses the same `PluginRuntime`, gateway, command registry and Bubble contract described in this file.
