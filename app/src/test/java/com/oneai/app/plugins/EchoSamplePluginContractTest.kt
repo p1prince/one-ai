@@ -17,7 +17,7 @@ class EchoSamplePluginContractTest {
     private val samplePackage = "com.oneai.sample.echo"
 
     private fun sampleFile(relative: String): File {
-        var dir: File? = File(System.getProperty("user.dir")).absoluteFile
+        var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {
             val candidate = File(dir, "samples/echo-plugin/$relative")
             if (candidate.isFile) return candidate
@@ -66,13 +66,19 @@ class EchoSamplePluginContractTest {
         assertEquals("3", view.resolveArgs(buttons.first { it.command == "wait" }, mapOf("text" to "hi"))["seconds"])
     }
 
-    @Test fun androidManifestUsesTheContractConstantsAndNoPermissionOnTheService() {
-        val text = sampleFile("src/main/AndroidManifest.xml").readText()
-        assertTrue("service action", text.contains("android:name=\"${PluginApi.SERVICE_ACTION}\""))
-        assertTrue("manifest meta-data", text.contains("android:name=\"${PluginApi.MANIFEST_META_DATA}\""))
-        assertTrue("service must be exported", text.contains("android:exported=\"true\""))
+    @Test fun androidManifestDeclaresAnExportedPermissionFreePluginService() {
+        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(sampleFile("src/main/AndroidManifest.xml"))
+        val services = document.getElementsByTagName("service")
+        assertEquals("exactly one service", 1, services.length)
+        val service = services.item(0) as Element
+        assertEquals("true", service.getAttribute("android:exported"))
         // The host refuses services that demand a permission, so the sample must not declare one.
-        assertTrue("service must not require a permission", !text.contains("android:permission"))
+        assertTrue("service must not require a permission", !service.hasAttribute("android:permission"))
+        val actions = service.getElementsByTagName("action")
+        assertEquals(listOf(PluginApi.SERVICE_ACTION), (0 until actions.length).map { (actions.item(it) as Element).getAttribute("android:name") })
+        val metaData = service.getElementsByTagName("meta-data").item(0) as Element
+        assertEquals(PluginApi.MANIFEST_META_DATA, metaData.getAttribute("android:name"))
+        assertEquals("@xml/one_ai_plugin", metaData.getAttribute("android:resource"))
     }
 
     @Test fun gradleFileDeclaresTheIdentityTheManifestTestAssumes() {
