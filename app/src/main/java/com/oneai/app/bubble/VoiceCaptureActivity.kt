@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.content.pm.PackageManager
+import com.oneai.app.builtin.VoiceCaptureBridge
 
 /** External-to-Bubble, one-shot Android speech recognition and microphone permission flow. */
 class VoiceCaptureActivity : Activity() {
@@ -62,13 +63,7 @@ class VoiceCaptureActivity : Activity() {
     }
 
     private fun deliverResult(success: Boolean, value: String) {
-        runCatching {
-            startService(Intent(this, FloatingBubbleService::class.java).apply {
-                action = FloatingBubbleService.ACTION_VOICE_CAPTURE_RESULT
-                putExtra(FloatingBubbleService.EXTRA_VOICE_SUCCESS, success)
-                putExtra(FloatingBubbleService.EXTRA_VOICE_TEXT, value)
-            })
-        }
+        VoiceCaptureBridge.complete(success, value)
         finish()
     }
 

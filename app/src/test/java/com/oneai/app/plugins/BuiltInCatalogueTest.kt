@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.builtin.BuiltInBubbleProviders
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,5 +31,9 @@ class BuiltInCatalogueTest {
     @Test fun appControlAndDeviceControlHaveBubbleBindingsSoSettingsCanEnableThem() {
         assertEquals("app_control", BuiltInCatalogue.bubbleBindings["one.app.control"])
         assertEquals("device_control", BuiltInCatalogue.bubbleBindings["one.device.actions"])
+    }
+
+    @Test fun interimBubbleProvidersStayInStepWithTheCatalogueBindings() {
+        assertEquals(BuiltInCatalogue.bubbleBindings, BuiltInBubbleProviders.bindings)
     }
 }

@@ -136,3 +136,24 @@ Arguments are limited to 32 entries (keys up to 80 characters, values up to 4,00
 A command of a disabled or uninstalled plugin is hidden from `list()` and cannot run. Disabling a plugin keeps its registration so re-enabling restores its commands. Removing a plugin calls `unregisterOwner`, which deletes its commands; `core` commands cannot be unregistered.
 
 Status: the registry and executor are implemented and unit-tested. Plugin-side registration from an externally installed plugin depends on the extension model in `docs/DECISIONS.md` (D1) and is part of Stage 8.
+
+## Floating Bubble contract (Stage 7)
+
+The Bubble is a core shell. It owns the overlay, dragging, size and position preferences, the core command service and one shared approval/result flow. It contains no capability-specific code (a unit test enforces this). Everything else is contributed through `BubbleServiceProvider`:
+
+- `serviceId` and `pluginId`: the Bubble service and the plugin that owns it. A plugin can have at most one Bubble service.
+- `title`: shown in the service list and panel header.
+- `view(host)`: returns a declarative `BubbleView` of `Label`, `TextInput` and `Button` elements. A button's handler receives the current text-input values and returns a `BubbleAction` (or null).
+- `ensureReady(runtime, host)`: prepares the plugin before an action, for example registering its adapter.
+- `followUp(imagePath, host)`: optional action offered when a result carries a private image.
+- `onHostStopped()`: release pending work when the Bubble stops.
+
+Actions:
+
+- `PluginCall`: runs a plugin action through the plugin runtime. The Bubble first invokes it without approval; if approval is required it shows the approval panel (`BubbleApproval`: title, message, optional review text, confirm label). Only the user's confirmation produces the one-use ticket for that exact action. Outcomes are titled by `BubbleOutcomes`.
+- `GatedHostAction`: an action the gateway gates but the contributor performs itself after approval.
+- `Message`: shows a message immediately, for example for input validation.
+
+Availability follows two independent user settings. A service appears in the Bubble only when its plugin is installed and enabled **and** the user has enabled that service's Bubble access in Settings. The Bubble starts empty and never enables either setting itself. Disabling a plugin removes its Bubble service; disabling only Bubble access leaves the plugin enabled.
+
+Contributors are registered in `BubbleProviders.registry` from the application composition root (`OneAiApplication`), which runs on every process start, including when Android restarts the Bubble service. The six capability UIs that ship today are expressed through this contract in `com.oneai.app.builtin` as an interim step; they are slated to become separately installed plugins (Stages 8–9).
