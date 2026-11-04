@@ -100,6 +100,12 @@ interface BubbleServiceProvider {
     /** Prepares the plugin runtime before an action (for example registering its adapter). */
     fun ensureReady(runtime: PluginRuntime, host: BubbleHost): Result<Unit> = Result.success(Unit)
 
+    /**
+     * Called when the Bubble service stops, with the process-wide runtime. A contributor that registered
+     * an adapter in [ensureReady] holding the Bubble's Context drops it here so that Context is not kept alive.
+     */
+    fun releaseReady(runtime: PluginRuntime) {}
+
     fun followUp(imagePath: String, host: BubbleHost): BubbleFollowUp? = null
 
     /** Called when the Bubble service stops, so contributors can release pending work. */

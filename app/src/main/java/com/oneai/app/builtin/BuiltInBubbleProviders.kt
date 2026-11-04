@@ -13,7 +13,6 @@ import com.oneai.app.bubble.BubbleFollowUp
 import com.oneai.app.bubble.BubbleHost
 import com.oneai.app.bubble.BubbleOutcomes
 import com.oneai.app.bubble.BubbleProviderRegistry
-import com.oneai.app.bubble.BubbleServiceProvider
 import com.oneai.app.bubble.BubbleView
 import com.oneai.app.bubble.ScreenCaptureConsentActivity
 import com.oneai.app.core.OneAiStore
@@ -27,7 +26,6 @@ import com.oneai.app.plugins.DeviceControlAdapter
 import com.oneai.app.plugins.DeviceControlPolicy
 import com.oneai.app.plugins.InstalledAppCatalog
 import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginAdapter
 import com.oneai.app.plugins.PluginRuntime
 import com.oneai.app.plugins.ScreenIntelligenceAdapter
 import com.oneai.app.plugins.VoiceInputProvider
@@ -61,10 +59,7 @@ object BuiltInBubbleProviders {
     }
 }
 
-private fun ensureRegistered(runtime: PluginRuntime, pluginId: String, adapter: () -> PluginAdapter): Result<Unit> =
-    if (pluginId in runtime.registeredPluginIds()) Result.success(Unit) else runtime.register(adapter())
-
-class WebResearchBubbleProvider : BubbleServiceProvider {
+class WebResearchBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = WebResearchAdapter.PLUGIN_ID
     override val title = "Web research"
@@ -96,7 +91,7 @@ class WebResearchBubbleProvider : BubbleServiceProvider {
     companion object { const val SERVICE_ID = "web_research" }
 }
 
-class ScreenIntelligenceBubbleProvider : BubbleServiceProvider {
+class ScreenIntelligenceBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = ScreenIntelligenceAdapter.PLUGIN_ID
     override val title = "Screen intelligence"
@@ -153,7 +148,7 @@ class ScreenIntelligenceBubbleProvider : BubbleServiceProvider {
     companion object { const val SERVICE_ID = "screen_intelligence" }
 }
 
-class VoiceBubbleProvider : BubbleServiceProvider {
+class VoiceBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = VoiceInterfaceAdapter.PLUGIN_ID
     override val title = "Voice interface"
@@ -194,7 +189,7 @@ class VoiceBubbleProvider : BubbleServiceProvider {
     companion object { const val SERVICE_ID = "voice_interface" }
 }
 
-class AppControlBubbleProvider : BubbleServiceProvider {
+class AppControlBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = AppControlAdapter.PLUGIN_ID
     override val title = "App control"
@@ -237,7 +232,7 @@ class AppControlBubbleProvider : BubbleServiceProvider {
     companion object { const val SERVICE_ID = "app_control" }
 }
 
-class DeviceControlBubbleProvider : BubbleServiceProvider {
+class DeviceControlBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = DeviceControlAdapter.PLUGIN_ID
     override val title = "Device control"
@@ -276,7 +271,7 @@ class DeviceControlBubbleProvider : BubbleServiceProvider {
     companion object { const val SERVICE_ID = "device_control" }
 }
 
-class AutoDroidBubbleProvider : BubbleServiceProvider {
+class AutoDroidBubbleProvider : BuiltInBubbleProvider() {
     override val serviceId = SERVICE_ID
     override val pluginId = AutoDroidAdapter.PLUGIN_ID
     override val title = "Automation"

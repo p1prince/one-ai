@@ -19,9 +19,30 @@ data class CommandRecord(val id: String, val title: String, val prompt: String, 
 data class ActivityEntry(val timestamp: Long, val message: String)
 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore {
-    private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
-    private val actionGateway by lazy { PluginActionGateway({ id -> plugins().firstOrNull { it.id == id } }, this) }
-    private val pluginRuntime by lazy { PluginRuntime({ id -> plugins().firstOrNull { it.id == id } }, actionGateway) }
+    // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
+    private val appContext: Context = context.applicationContext ?: context
+    private val prefs = appContext.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
+
+    /**
+     * One approval gateway and one plugin runtime per process. Every store instance (the app, the Bubble
+     * service, the built-in providers) must see the same registered adapters and the same one-use approvals;
+     * with one runtime per instance an external plugin registered at app start would be invisible to the
+     * Bubble, and disabling a plugin would not revoke approvals held by another instance's gateway.
+     * Plugin records and the audit log live in SharedPreferences, so any instance reads the same data.
+     */
+    private class SharedCore(val gateway: PluginActionGateway, val runtime: PluginRuntime)
+
+    private companion object {
+        @Volatile private var core: SharedCore? = null
+        private val coreLock = Any()
+    }
+
+    private fun sharedCore(): SharedCore = core ?: synchronized(coreLock) {
+        core ?: run {
+            val gateway = PluginActionGateway({ id -> plugins().firstOrNull { it.id == id } }, this)
+            SharedCore(gateway, PluginRuntime({ id -> plugins().firstOrNull { it.id == id } }, gateway)).also { core = it }
+        }
+    }
 
     override fun plugins(): List<PluginRecord> {
         val saved = readArray("plugins")
@@ -80,8 +101,8 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     override fun record(event: String) { log(event) }
 
-    override fun pluginActionGateway(): PluginActionGateway = actionGateway
-    override fun pluginRuntime(): PluginRuntime = pluginRuntime
+    override fun pluginActionGateway(): PluginActionGateway = sharedCore().gateway
+    override fun pluginRuntime(): PluginRuntime = sharedCore().runtime
 
     override fun log(message: String) {
         val logs = readArray("activity")

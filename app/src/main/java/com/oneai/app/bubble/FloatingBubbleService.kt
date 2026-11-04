@@ -420,6 +420,10 @@ class FloatingBubbleService : Service() {
 
     override fun onDestroy() {
         registry.providers().forEach { runCatching { it.onHostStopped() } }
+        runCatching {
+            val runtime = OneAiStore(this).pluginRuntime()
+            registry.providers().forEach { runCatching { it.releaseReady(runtime) } }
+        }
         serviceJob.cancel()
         uiHandler.removeCallbacksAndMessages(null)
         hidePanel()
