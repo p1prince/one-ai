@@ -21,11 +21,22 @@ class TrustEntryCodecTest {
         assertEquals(pending, TrustEntryCodec.decode(TrustEntryCodec.encode(pending)))
     }
 
+    private fun tampered(edit: (org.json.JSONObject) -> Unit): String {
+        val json = org.json.JSONObject(TrustEntryCodec.encode(TrustEntry("dev.example.notes", cert, manifest())))
+        edit(json)
+        return json.toString()
+    }
+
     @Test fun corruptOrTamperedDataIsRejected() {
-        val good = TrustEntryCodec.encode(TrustEntry("dev.example.notes", cert, manifest()))
         assertNull(TrustEntryCodec.decode("not json"))
-        assertNull(TrustEntryCodec.decode(good.replace("\"package\":\"dev.example.notes\",\"certificate\"", "\"package\":\"dev.other.app\",\"certificate\"")))
-        assertNull(TrustEntryCodec.decode(good.replace(cert, "nothex")))
-        assertNull(TrustEntryCodec.decode(good.replace("\"files\"", "\"execute_arbitrary_code\"")))
+        assertNull("package swapped", TrustEntryCodec.decode(tampered { it.put("package", "dev.other.app") }))
+        assertNull("certificate not hex", TrustEntryCodec.decode(tampered { it.put("certificate", "nothex") }))
+        assertNull("unsupported capability", TrustEntryCodec.decode(tampered {
+            it.getJSONObject("manifest").put("capabilities", org.json.JSONArray(listOf("execute_arbitrary_code")))
+        }))
+        assertNull("pending update for a different package", TrustEntryCodec.decode(tampered {
+            it.put("pending", org.json.JSONObject().put("manifest", org.json.JSONObject(it.getJSONObject("manifest").toString())).put("reasons", org.json.JSONArray()))
+            it.getJSONObject("pending").getJSONObject("manifest").put("package", "dev.other.app")
+        }))
     }
 }
