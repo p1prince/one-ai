@@ -15,7 +15,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,9 +47,18 @@ import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.commands.CommandStatus
 import com.oneai.app.core.*
+import com.oneai.app.plugins.CertificateFingerprint
+import com.oneai.app.plugins.Compatibility
+import com.oneai.app.plugins.DiscoveredPlugin
+import com.oneai.app.plugins.ExternalPluginCenter
+import com.oneai.app.plugins.ExternalStatus
+import com.oneai.app.plugins.PluginCenterSnapshot
+import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.security.SecretVault
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Ink=Color(0xFF101114); private val Panel=Color(0xFF1A1C20); private val Gold=Color(0xFFD6AE58)
 private val Muted=Color(0xFF9699A1); private val White=Color(0xFFF5F3EE)
@@ -68,7 +80,7 @@ class MainActivity : ComponentActivity() {
         vault=SecretVault(applicationContext); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
         services.commandRouter=commandRouter
         commandExecutor=CommandExecutor(commandRegistry,{ pluginId,input,ticket -> store.pluginRuntime().invoke(pluginId,input,ticket) },{ store.log(it) })
-        setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
+        setContent { OneAiApp(store,plugins,services.center,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
@@ -102,7 +114,7 @@ internal enum class Page(val title:String) {
 }
 
 @Composable
-private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
@@ -122,11 +134,11 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
-                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,onBubbleToggle,refreshNow)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },onBubbleToggle,refreshNow)
             }
         }
     }
@@ -192,18 +204,111 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     }
 }
 
-@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,refresh:()->Unit) {
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,refresh:()->Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var operationMessage by remember { mutableStateOf("") }
+    var snapshot by remember { mutableStateOf(PluginCenterSnapshot.EMPTY) }
+    var scanning by remember { mutableStateOf(true) }
+    var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
+    var reviewingUpdate by remember { mutableStateOf<String?>(null) }
+    // Looking at installed apps and their signatures happens off the main thread.
+    LaunchedEffect(tick) {
+        scanning=true
+        snapshot=withContext(Dispatchers.IO) { runCatching { center.snapshot() }.getOrDefault(PluginCenterSnapshot.EMPTY) }
+        scanning=false
+    }
     val installed=manager.installed(); val available=manager.catalogue.filterNot { t->installed.any{it.id==t.id} }
+    val candidates=snapshot.candidates.filterNot { it.imported }
+    val changed:(Result<*>,String)->Unit={ result,success -> result.onFailure { error -> operationMessage=error.message ?: "That change failed" }.onSuccess { operationMessage=success };tick++;refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
         if(installed.isEmpty()) item { CardBox { Text("No plugins installed",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI starts empty. Install only the capabilities you want.",color=Muted,fontSize=12.sp) } }
-        items(installed,key={it.id}) { p -> CardBox { Text(p.name,color=White,fontWeight=FontWeight.SemiBold);Text(p.description,color=Muted,fontSize=12.sp);Text("v${p.version} • ${p.capabilities.joinToString()}",color=Gold,fontSize=10.sp);Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{manager.setEnabled(p.id,it).onFailure { error -> operationMessage=error.message ?: "Plugin change failed" }.onSuccess { operationMessage="" };tick++;refresh()});TextButton(onClick={manager.remove(p.id).onFailure { error -> operationMessage=error.message ?: "Plugin removal failed" }.onSuccess { operationMessage="" };tick++;refresh()}){Text("Remove",color=Color(0xFFFF8A80))}} } }
+        items(installed,key={it.id}) { p ->
+            val external=center.isExternal(p.id); val status=snapshot.statuses[p.id]
+            val bubbleService=manager.bubbleServiceOf(p.id)
+            val declared=snapshot.candidates.firstOrNull { it.plugin.packageName==p.id }?.plugin?.manifest?.getOrNull()
+            CardBox {
+                Text(p.name,color=White,fontWeight=FontWeight.SemiBold);Text(p.description,color=Muted,fontSize=12.sp)
+                Text("v${p.version} • ${p.capabilities.joinToString()}"+(if(external) " • separate app" else ""),color=Gold,fontSize=10.sp)
+                when(status) {
+                    is ExternalStatus.UpdatePending -> Text("An update asks for more access. The plugin is off until you review it.",color=Color(0xFFFF8A80),fontSize=11.sp)
+                    ExternalStatus.SignatureChanged -> Text("Signed with a different certificate than the one you trusted. Blocked.",color=Color(0xFFFF8A80),fontSize=11.sp)
+                    ExternalStatus.NotInstalled -> Text("The plugin app is not installed.",color=Color(0xFFFF8A80),fontSize=11.sp)
+                    else -> Unit
+                }
+                Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{ changed(center.setEnabled(p.id,it),"") })}
+                if(bubbleService!=null) Row(verticalAlignment=Alignment.CenterVertically){
+                    Column(Modifier.weight(1f)){Text("Show in Floating Bubble",color=White);Text(if(p.enabled)"Separate from Enabled. Off until you allow it." else "Enable the plugin first.",color=Muted,fontSize=11.sp)}
+                    Switch(manager.hasBubbleAccess(p.id),{ changed(manager.setBubbleAccess(p.id,it),"") },enabled=p.enabled)
+                } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
+                Row {
+                    if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id}){Text("Review update",color=Gold)}
+                    TextButton(onClick={ changed(manager.remove(p.id),"") }){Text("Remove",color=Color(0xFFFF8A80))}
+                }
+            }
+        }
+        item { Row(verticalAlignment=Alignment.CenterVertically){Text("FOUND ON THIS DEVICE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));TextButton(onClick={tick++}){Text(if(scanning)"Scanning…" else "Scan again",color=Gold,fontSize=12.sp)}} }
+        if(candidates.isEmpty()) item { CardBox { Text(if(scanning)"Looking for plugin apps…" else "No new plugin apps found",color=White,fontWeight=FontWeight.SemiBold);Text("Plugins are separate apps you install like any other app. ONE AI never installs or runs them for you, and trusts one only after you review it.",color=Muted,fontSize=12.sp) } }
+        items(candidates,key={it.plugin.packageName}) { c ->
+            val d=c.plugin; val m=d.manifest.getOrNull(); val compat=m?.let { PluginCompatibility.check(it) }
+            CardBox {
+                Text(m?.name ?: d.appLabel.ifBlank{d.packageName},color=White,fontWeight=FontWeight.SemiBold);Text(d.packageName,color=Muted,fontSize=11.sp)
+                if(m==null) Text("Cannot be imported: ${d.manifest.exceptionOrNull()?.message ?: "invalid manifest"}",color=Color(0xFFFF8A80),fontSize=11.sp)
+                else {
+                    if(m.description.isNotBlank()) Text(m.description,color=Muted,fontSize=12.sp)
+                    Text("v${m.versionName} • ${m.capabilities.joinToString()} • ${m.commands.size} command(s)",color=Gold,fontSize=10.sp)
+                    if(m.bubble!=null) Text("Offers a Floating Bubble service. It stays off until you allow it.",color=Muted,fontSize=11.sp)
+                    when(compat) { is Compatibility.Incompatible -> Text(compat.reason,color=Color(0xFFFF8A80),fontSize=11.sp); is Compatibility.CompatibleWithWarning -> Text(compat.warning,color=Muted,fontSize=11.sp); else -> Unit }
+                    Button(onClick={reviewing=d},enabled=compat?.usable==true,modifier=Modifier.fillMaxWidth()){Text("Review and import")}
+                }
+            }
+        }
         item { Text("AVAILABLE CAPABILITIES",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
-        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={manager.install(t).onFailure { error -> operationMessage=error.message ?: "Plugin installation failed" }.onSuccess { operationMessage="Installed ${it.name}; it remains disabled." };tick++;refresh()},modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
+        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={ changed(manager.install(t),"Installed ${t.name}; it remains disabled.") },modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
         if(operationMessage.isNotBlank()) item { Text(operationMessage,color=Gold,fontSize=12.sp) }
+    }
+    reviewing?.let { d ->
+        val m=d.manifest.getOrNull()
+        // Shown to the user and passed back unchanged; the import itself compares it with the installed certificate again.
+        val fingerprint=remember(d.packageName) { center.fingerprint(d.packageName) }
+        AlertDialog(
+            onDismissRequest={reviewing=null},
+            title={Text("Trust ${m?.name ?: d.packageName}?")},
+            text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("It will be able to run only the commands below, and every sensitive action still needs your approval each time.",fontSize=13.sp)
+                if(m!=null) {
+                    Text("Capabilities: ${m.capabilities.joinToString()}",fontSize=12.sp)
+                    m.commands.forEach { Text("• ${it.title} (${it.capability})",fontSize=12.sp) }
+                    Text(if(m.bubble!=null) "It can offer a Floating Bubble service, but only after you allow that separately." else "It does not offer a Floating Bubble service.",fontSize=12.sp)
+                }
+                fingerprint.fold(
+                    { fp -> Text("Signing certificate (SHA-256):\n${CertificateFingerprint.display(fp)}",fontSize=11.sp,fontFamily=FontFamily.Monospace) },
+                    { error -> Text(error.message ?: "The certificate could not be read.",color=Color(0xFFFF8A80),fontSize=12.sp) }
+                )
+                Text("Only continue if you installed this app from a developer you trust. ONE AI remembers this certificate and blocks the plugin if it is ever signed with a different one.",fontSize=12.sp)
+            } },
+            confirmButton={TextButton(enabled=m!=null && fingerprint.isSuccess,onClick={
+                val fp=fingerprint.getOrNull(); val manifest=d.manifest.getOrNull()
+                reviewing=null
+                if(fp!=null && manifest!=null) changed(center.import(d.packageName,manifest.versionCode,fp),"Imported ${manifest.name}. It is off, and has no Bubble access until you allow them.")
+            }){Text("Trust and import",color=Gold)}},
+            dismissButton={TextButton(onClick={reviewing=null}){Text("Cancel")}}
+        )
+    }
+    reviewingUpdate?.let { id ->
+        val pending=snapshot.pendingUpdates[id]
+        AlertDialog(
+            onDismissRequest={reviewingUpdate=null},
+            title={Text("Review update")},
+            text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text(if(pending!=null) "This update asks for more access than you approved:" else "This update is no longer waiting for approval.",fontSize=13.sp)
+                pending?.reasons?.forEach { Text("• $it",fontSize=12.sp) }
+                Text("After you approve it the plugin stays off until you turn it on again.",fontSize=12.sp)
+            } },
+            confirmButton={TextButton(enabled=pending!=null,onClick={ reviewingUpdate=null; changed(center.approveUpdate(id),"Update approved. The plugin is still off.") }){Text("Approve update",color=Gold)}},
+            dismissButton={TextButton(onClick={reviewingUpdate=null}){Text("Not now")}}
+        )
     }
 }
 
@@ -268,7 +373,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
     )
 }
 
-@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
     var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
@@ -298,12 +403,12 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
             val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, BuiltInCatalogue.bubbleBindings).toList()
+            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, BuiltInCatalogue.bubbleBindings + externalBindings()).toList()
             val savedOrder = store.bubbleServiceOrder().filter { it in availableOptions }
             val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
             orderedOptions.forEachIndexed { index, id ->
                 Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)) {
-                    Text(id.replace('_',' '),color=White,modifier=Modifier.weight(1f))
+                    Text(com.oneai.app.bubble.BubbleProviders.registry.provider(id)?.title ?: id.replace('_',' '),color=White,modifier=Modifier.weight(1f))
                     IconButton(onClick={ if(index>0){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index-1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index>0){Icon(Icons.Default.ArrowUpward,"Move up",tint=Gold)}
                     IconButton(onClick={ if(index<orderedOptions.lastIndex){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index+1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index<orderedOptions.lastIndex){Icon(Icons.Default.ArrowDownward,"Move down",tint=Gold)}
                     Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})
