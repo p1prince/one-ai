@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries>
         <package android:name="com.aditsyal.autodroid" />
+        <!-- Plugin discovery (Stage 8): lets ONE AI see apps that expose a plugin service, without QUERY_ALL_PACKAGES. -->
+        <intent>
+            <action android:name="com.oneai.plugin.action.PLUGIN" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
