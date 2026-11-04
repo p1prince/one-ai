@@ -15,6 +15,7 @@ class PluginCallRunnerTest {
         override fun result(requestId: String, title: String, content: String) { events += "result:$requestId:$title:$content"; latch.countDown() }
         override fun error(requestId: String, code: String, message: String) { events += "error:$requestId:$code"; latch.countDown() }
         override fun activity(requestId: String, message: String) { events += "activity:$requestId:$message" }
+        override fun launch(requestId: String, label: String, payload: Any) { events += "launch:$requestId:$label:$payload" }
         fun await() = assertTrue("no reply", latch.await(5, TimeUnit.SECONDS))
     }
 
@@ -96,5 +97,31 @@ class PluginCallRunnerTest {
         runner { _, _, _ -> PluginOutput("T", "c") }.execute("bad id!", "echo", emptyList(), emptyList(), sink)
         Thread.sleep(100)
         assertTrue(sink.events.isEmpty())
+    }
+
+    @Test fun aRequestedScreenIsDeliveredOnceAndBeforeTheResult() {
+        val sink = Sink()
+        runner { _, _, _ -> PluginOutput("Opening", "ok", PluginLaunch("Open Calculator", "intent-token")) }
+            .execute("r1", "echo", emptyList(), emptyList(), sink)
+        sink.await()
+        assertEquals(listOf("launch:r1:Open Calculator:intent-token", "result:r1:Opening:ok"), sink.events.toList())
+    }
+
+    @Test fun anInvalidScreenLabelFailsTheCallAndDeliversNoScreen() {
+        listOf("", "   ", "x".repeat(101)).forEachIndexed { i, label ->
+            val sink = Sink()
+            runner { _, _, _ -> PluginOutput("T", "c", PluginLaunch(label, "token")) }
+                .execute("r$i", "echo", emptyList(), emptyList(), sink)
+            sink.await()
+            assertEquals(listOf("error:r$i:OUTPUT_TOO_LARGE"), sink.events.toList())
+            Thread.sleep(50)
+        }
+    }
+
+    @Test fun commandsWithoutAScreenBehaveAsBefore() {
+        val sink = Sink()
+        runner { _, _, _ -> PluginOutput("T", "c") }.execute("r1", "echo", emptyList(), emptyList(), sink)
+        sink.await()
+        assertEquals(listOf("result:r1:T:c"), sink.events.toList())
     }
 }

@@ -12,7 +12,8 @@ package com.oneai.app.plugins
  */
 object PluginApi {
     /** Plugin API level implemented by this build of ONE AI. Raise it only for a documented contract change. */
-    const val LEVEL = 1
+    /** 2 adds [onLaunch] (a plugin may ask ONE AI to open a screen after the user agrees). Plugins using it declare minCoreApi="2". */
+    const val LEVEL = 2
 
     /** Oldest `targetCoreApi` the host still treats as fully supported. */
     const val MIN_SUPPORTED_TARGET = 1

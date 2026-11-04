@@ -37,6 +37,9 @@ class PluginBoundsAndVerifierTest {
         assertNull(PluginBounds.outputProblem("t", "c"))
         assertNotNull(PluginBounds.outputProblem("t".repeat(121), "c"))
         assertNotNull(PluginBounds.outputProblem("t", "c".repeat(20_001)))
+        assertNull(PluginBounds.outputProblem("t", "c", "Open Calculator"))
+        assertNotNull(PluginBounds.outputProblem("t", "c", " "))
+        assertNotNull(PluginBounds.outputProblem("t", "c", "l".repeat(101)))
     }
 
     private val good = "a".repeat(64)

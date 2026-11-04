@@ -86,7 +86,7 @@ class ExternalPluginManifestTest {
     @Test fun compatibilityFollowsApiLevels() {
         val ok = manifest()
         assertEquals(Compatibility.Compatible, PluginCompatibility.check(ok))
-        val tooNew = PluginCompatibility.check(manifest(minCoreApi = 2, targetCoreApi = 2))
+        val tooNew = PluginCompatibility.check(manifest(minCoreApi = PluginApi.LEVEL + 1, targetCoreApi = PluginApi.LEVEL + 1))
         assertTrue(tooNew is Compatibility.Incompatible)
         assertFalse(tooNew.usable)
         val old = PluginCompatibility.check(manifest(targetCoreApi = 1), hostLevel = 5, minSupportedTarget = 2)

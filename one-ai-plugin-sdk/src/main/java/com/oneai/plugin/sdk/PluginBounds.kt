@@ -10,6 +10,7 @@ object PluginBounds {
     const val MAX_CONTENT = 20_000
     const val MAX_ERROR_MESSAGE = 300
     const val MAX_ACTIVITY = 300
+    const val MAX_LAUNCH_LABEL = 100
     const val MAX_VIEW_JSON = 20_000
     const val DEFAULT_TIMEOUT_MS = 30_000L
 
@@ -36,9 +37,10 @@ object PluginBounds {
         }
     }
 
-    fun outputProblem(title: String, content: String): String? = when {
+    fun outputProblem(title: String, content: String, launchLabel: String? = null): String? = when {
         title.length > MAX_TITLE -> "Result title is too long"
         content.length > MAX_CONTENT -> "Result is too large"
+        launchLabel != null && (launchLabel.isBlank() || launchLabel.length > MAX_LAUNCH_LABEL) -> "Screen label must be 1-$MAX_LAUNCH_LABEL characters"
         else -> null
     }
 }

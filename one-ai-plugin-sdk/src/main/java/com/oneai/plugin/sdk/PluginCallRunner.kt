@@ -10,7 +10,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
-data class PluginOutput(val title: String, val content: String)
+/**
+ * A screen the plugin asks ONE AI to open for the user after they agree (plugin API 2). [payload] must be an
+ * `android.app.PendingIntent`; it is kept opaque here so this logic stays testable on the JVM. Build one with
+ * [screenLaunch].
+ */
+class PluginLaunch(val label: String, val payload: Any)
+
+data class PluginOutput(val title: String, val content: String, val launch: PluginLaunch? = null)
 
 /** Throw from a command to report a clean, user-safe failure. */
 class PluginException(val code: String, message: String) : Exception(message)
@@ -23,6 +30,8 @@ interface ReplySink {
     fun result(requestId: String, title: String, content: String)
     fun error(requestId: String, code: String, message: String)
     fun activity(requestId: String, message: String)
+    /** Called at most once, immediately before [result], when the command asked for a screen to be opened. */
+    fun launch(requestId: String, label: String, payload: Any) {}
 }
 
 /**
@@ -72,9 +81,12 @@ class PluginCallRunner(
             val output = handler(command, args) { message ->
                 if (!call.done.get()) call.sink.activity(call.id, PluginBounds.bound(message, PluginBounds.MAX_ACTIVITY))
             }
-            val problem = PluginBounds.outputProblem(output.title, output.content)
+            val problem = PluginBounds.outputProblem(output.title, output.content, output.launch?.label)
             if (problem != null) finish(call) { call.sink.error(call.id, "OUTPUT_TOO_LARGE", problem) }
-            else finish(call) { call.sink.result(call.id, output.title, output.content) }
+            else finish(call) {
+                output.launch?.let { call.sink.launch(call.id, it.label, it.payload) }
+                call.sink.result(call.id, output.title, output.content)
+            }
         } catch (e: PluginException) {
             finish(call) { call.sink.error(call.id, PluginBounds.safeErrorCode(e.code), PluginBounds.bound(e.message, PluginBounds.MAX_ERROR_MESSAGE)) }
         } catch (e: InterruptedException) {

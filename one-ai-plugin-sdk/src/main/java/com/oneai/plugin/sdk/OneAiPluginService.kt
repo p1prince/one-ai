@@ -1,5 +1,6 @@
 package com.oneai.plugin.sdk
 
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -93,6 +94,18 @@ abstract class OneAiPluginService : Service() {
         override fun error(requestId: String, code: String, message: String) =
             send { callback.onError(requestId, code, PluginBounds.bound(message, PluginBounds.MAX_ERROR_MESSAGE)) }
         override fun activity(requestId: String, message: String) = send { callback.onActivity(requestId, message) }
+        override fun launch(requestId: String, label: String, payload: Any) {
+            // Anything that is not a PendingIntent is dropped; the command's result is still delivered.
+            (payload as? PendingIntent)?.let { screen -> send { callback.onLaunch(requestId, label, screen) } }
+        }
         private fun send(block: () -> Unit) { try { block() } catch (e: android.os.RemoteException) { /* host went away */ } }
     }
 }
+
+/**
+ * Asks ONE AI to open a screen for the user after they agree. Return it in [PluginOutput.launch]. The
+ * [pendingIntent] must be created by this plugin (use `FLAG_IMMUTABLE`); ONE AI refuses one created by anyone
+ * else. [label] says what will open ("Open Calculator"); ONE AI shows it as the plugin's own claim.
+ * Requires `minCoreApi="2"` in the plugin manifest.
+ */
+fun screenLaunch(label: String, pendingIntent: PendingIntent) = PluginLaunch(label, pendingIntent)
