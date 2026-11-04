@@ -104,4 +104,16 @@ class PluginManagerTest {
         assertTrue(manager.create("dev.example.mine", "Mine", "Mine", listOf("commands")).isSuccess)
         assertEquals(1, manager.installed().size)
     }
+
+    @Test fun removalNotifiesTheOwnerHookSoExtensionCommandsCanBeUnregistered() {
+        val removed = mutableListOf<String>()
+        val t = template("dev.example.a")
+        val manager = PluginManager(FakeStore(), listOf(t), onPluginRemoved = { removed += it })
+        manager.install(t)
+        manager.setEnabled(t.id, true)
+        manager.setEnabled(t.id, false)
+        assertTrue("disabling must not unregister commands", removed.isEmpty())
+        assertTrue(manager.remove(t.id).isSuccess)
+        assertEquals(listOf("dev.example.a"), removed)
+    }
 }

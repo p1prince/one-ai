@@ -39,7 +39,12 @@ import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
+import com.oneai.app.commands.CommandException
+import com.oneai.app.commands.CommandExecutor
+import com.oneai.app.commands.CommandOutput
+import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
+import com.oneai.app.commands.CommandStatus
 import com.oneai.app.core.*
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.security.SecretVault
@@ -55,15 +60,24 @@ class MainActivity : ComponentActivity() {
     private lateinit var ai: AiProviderClient
     private lateinit var orchestrator: AiOrchestrator
     private lateinit var commandRouter: CommandRouter
+    private lateinit var commandRegistry: CommandRegistry
+    private lateinit var commandExecutor: CommandExecutor
     private val conversation = AiConversation()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
+        store=OneAiStore(this)
+        commandRegistry=CommandRegistry { pluginId -> store.plugins().any { it.id==pluginId && it.enabled } }
+        plugins=PluginManager(store, onPluginRemoved={ commandRegistry.unregisterOwner(it) }); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
+        commandRegistry.registerCore("run_saved","Run saved command","Runs one of your saved commands through the AI engine.") { args ->
+            val id=args["id"] ?: throw CommandException("INVALID_ARGUMENT","A command ID is required.")
+            CommandOutput("Command result", commandRouter.run(id).content)
+        }
+        commandExecutor=CommandExecutor(commandRegistry,{ pluginId,input,ticket -> store.pluginRuntime().invoke(pluginId,input,ticket) },{ store.log(it) })
         setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
-            onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandRouter.run(id).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } }
+            onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandExecutor.execute("core/run_saved", mapOf("id" to id)) }.onSuccess { r -> done(if(r.status==CommandStatus.COMPLETED) r.content else "Error: ${r.error?.message ?: r.content}") }.onFailure { done("Error: ${it.message}") } } }
         ) }
     }
     private fun toggleBubble(enabled:Boolean) {

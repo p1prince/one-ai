@@ -20,5 +20,6 @@ object CoreErrors {
     }
 
     fun service(code: String, message: String) = CoreError(CoreErrorKind.SERVICE, code, message, true)
+    fun command(code: String, message: String) = CoreError(CoreErrorKind.COMMAND, code, message, true)
     fun plugin(code: String, message: String) = CoreError(CoreErrorKind.PLUGIN, code, message, true)
 }

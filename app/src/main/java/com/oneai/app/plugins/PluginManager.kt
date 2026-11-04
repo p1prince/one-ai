@@ -5,7 +5,8 @@ import com.oneai.app.core.PluginRecord
 
 class PluginManager(
     private val store: PluginStore,
-    val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates
+    val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates,
+    private val onPluginRemoved: (String) -> Unit = {}
 ) {
 
     fun installed() = store.plugins()
@@ -54,6 +55,7 @@ class PluginManager(
         store.pluginActionGateway().revokePendingApprovals()
         serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
+        onPluginRemoved(id)
         store.log("Removed plugin: ${plugin.name}")
         return Result.success(Unit)
     }

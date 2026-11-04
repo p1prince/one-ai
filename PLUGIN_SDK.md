@@ -111,3 +111,28 @@ The optional App Control adapter uses the `app_launch` capability to list launch
 ## Device Control integration (Stage 8)
 
 The optional Device Actions adapter uses the `device_actions` capability to open a fixed allowlist of Android Settings destinations: Wi-Fi, Bluetooth, Sound & vibration, Display and Location. Each action requires an exact-action, one-use approval before an Android Settings intent is launched. Android owns the actual setting controls and any confirmation. The adapter does not silently toggle restricted settings, change secure settings or accept arbitrary intent actions. Availability and exact Settings screens can vary by Android version and device manufacturer.
+
+## Command framework (Stage 6)
+
+Commands are registered with a `CommandRegistry` and run by a `CommandExecutor`. Every command has an ID of the form `owner/name`:
+
+- Core commands: `core/<name>` (for example `core/run_saved`), registered by the app with a handler.
+- Extension commands: `<pluginId>/<name>` (for example `dev.example.notes/add_note`). The owner prefix is the plugin's reverse-domain ID, so an extension can never replace a core command or another plugin's command.
+
+`name` uses lowercase letters, digits and underscores (max 40). Titles are 1–80 characters, descriptions up to 300. An extension may register at most 50 commands.
+
+### Registering an extension command
+
+`registerExtension(pluginId, name, title, description, capability)` registers a command on behalf of a plugin. `capability` is required and must be one of the supported capability identifiers; it must also be declared in the plugin's manifest, because execution goes through the plugin runtime and its gateway, which rejects undeclared capabilities.
+
+### Execution and permissions
+
+`CommandExecutor.execute(commandId, args, approvalTicket)` returns a `CommandResult` with a status: `COMPLETED`, `FAILED`, `REJECTED`, `AWAITING_APPROVAL` or `NOT_FOUND`. Core commands run their handler directly. Extension commands are never run by the executor itself: they are delegated to `PluginRuntime.invoke`, so the plugin must be installed, enabled and registered, the capability policy applies, and sensitive capabilities return `AWAITING_APPROVAL` until the UI obtains a one-use ticket for the exact action (`CommandExecutor.actionFor` returns that action) and calls `execute` again with the ticket.
+
+Arguments are limited to 32 entries (keys up to 80 characters, values up to 4,000). Output titles are limited to 120 characters and content to 20,000. Exceptions from handlers or plugins are contained and returned as a `FAILED` result with a safe message; cancellation propagates. The activity log records only the command ID and outcome, never arguments or output.
+
+### Availability and lifecycle
+
+A command of a disabled or uninstalled plugin is hidden from `list()` and cannot run. Disabling a plugin keeps its registration so re-enabling restores its commands. Removing a plugin calls `unregisterOwner`, which deletes its commands; `core` commands cannot be unregistered.
+
+Status: the registry and executor are implemented and unit-tested. Plugin-side registration from an externally installed plugin depends on the extension model in `docs/DECISIONS.md` (D1) and is part of Stage 8.
