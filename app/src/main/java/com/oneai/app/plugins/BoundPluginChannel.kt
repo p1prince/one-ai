@@ -144,6 +144,9 @@ class BoundPluginChannelFactory(
                     }
                 }
 
+                // Plugin API 2. Not handled yet (Stage 9.4c): the request is dropped, never launched.
+                override fun onLaunch(id: String?, label: String?, screen: android.app.PendingIntent?) = Unit
+
                 override fun onActivity(id: String?, message: String?) {
                     if (id == requestId && continuation.isActive) activity(PluginBounds.bound(message, PluginBounds.MAX_ACTIVITY))
                 }
