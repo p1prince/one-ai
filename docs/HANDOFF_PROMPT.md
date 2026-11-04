@@ -22,11 +22,12 @@ NON-NEGOTIABLE RULES:
 - Never merge PR #1. Never build an APK. Both need my explicit authorisation.
 - Check CI for the exact commit you are reporting. CI here means compile plus JVM unit tests only. Never call something verified on a device or emulator unless it was actually run there. Say plainly what is unverified.
 - Preserve working code; make focused commits with tests; update DEVELOPMENT_TRACKER.md with commit hashes and CI run numbers; end commit messages with the attribution lines I specify.
+- Before editing, run git pull and read DEVELOPMENT_TRACKER.md and the files you will touch: other sessions may have committed. Never overwrite an existing file wholesale; extend it.
 - Avoid asking routine questions. For a genuinely ambiguous architecture decision, ask one concise question.
 
-CURRENT STATE (verify against the tracker): Stages 1-3 documented/accepted at automated level; Stages 4-7 implemented with CI passing but unverified on a device; Stage 8 design approved by default and implementation started (manifest v2 model and validator first); Stage 9+ not started; Stage 12 blocked.
+CURRENT STATE (verify against the tracker): Stages 1-3 documented/accepted at automated level; Stages 4-7 implemented with CI passing but unverified on a device; Stage 8 is 4 of 6 work-breakdown steps done (manifest v2, trust/pinning registry, SDK module with AIDL, host external-plugin adapter and registrar); Stages 9-11 not started; Stage 12 blocked. Some Stage 8 commits record local-JVM verification as well as CI, so read each tracker row's evidence column.
 
-NEXT STEPS: continue the Stage 8 work breakdown in docs/STAGE_8_DESIGN.md section 11 (pin/trust logic, AIDL and SDK module, host PluginConnector and ExternalPluginAdapter, declarative-view parser and external Bubble provider, sample plugin and developer guide). The workspace has no Android SDK, so GitHub CI is the only compile check; write code carefully and fix CI failures before moving on.
+NEXT STEPS: finish Stage 8 per docs/STAGE_8_DESIGN.md section 11: step 5 (declarative-view JSON parser and the generic external-plugin Bubble provider) and step 6 (sample echo plugin, developer guide, emulator-test scaffolding). Then Stage 9 (discovery/import UI, per-plugin enabled and Bubble-access toggles on the Plugins screen, extraction of the six built-in capabilities). The workspace has no Android SDK, so GitHub CI is the only compile check; write code carefully and fix CI failures before moving on.
 
 At the end of every response, give me a short list of clickable next-step options.
 ```
