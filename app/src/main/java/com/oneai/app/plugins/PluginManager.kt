@@ -6,7 +6,9 @@ import com.oneai.app.core.PluginRecord
 class PluginManager(
     private val store: PluginStore,
     val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates,
-    private val onPluginRemoved: (String) -> Unit = {}
+    private val onPluginRemoved: (String) -> Unit = {},
+    /** Plugin ID to Bubble service ID for plugins that are not in [catalogue], such as installed external plugins. */
+    private val bubbleBindings: () -> Map<String, String> = { emptyMap() }
 ) {
 
     fun installed() = store.plugins()
@@ -60,7 +62,27 @@ class PluginManager(
         return Result.success(Unit)
     }
 
-    private fun serviceFor(id: String): String? = catalogue.firstOrNull { it.id == id }?.bubbleService
+    private fun serviceFor(id: String): String? = catalogue.firstOrNull { it.id == id }?.bubbleService ?: bubbleBindings()[id]
+
+    /** The Bubble service the plugin offers, or null when it offers none. */
+    fun bubbleServiceOf(id: String): String? = serviceFor(id)
+
+    /** Whether the user has allowed this plugin into the Bubble. Separate from whether it is enabled. */
+    fun hasBubbleAccess(id: String): Boolean = serviceFor(id)?.let { it in store.bubbleServices() } == true
+
+    /**
+     * Bubble access is its own setting: enabling a plugin never grants it, and it can only be granted
+     * to a plugin that is enabled and offers a Bubble service. Disabling a plugin withdraws it.
+     */
+    fun setBubbleAccess(id: String, allowed: Boolean): Result<Unit> {
+        val plugin = installed().firstOrNull { it.id == id }
+            ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
+        val service = serviceFor(id) ?: return Result.failure(IllegalStateException("This plugin has no Bubble service"))
+        if (allowed && !plugin.enabled) return Result.failure(IllegalStateException("Enable the plugin before giving it Bubble access"))
+        store.setBubbleServices(if (allowed) store.bubbleServices() + service else store.bubbleServices() - service)
+        store.log("${if (allowed) "Allowed" else "Removed"} Bubble access: ${plugin.name}")
+        return Result.success(Unit)
+    }
 
     fun create(id: String, name: String, description: String, capabilities: List<String>,
                version: String = "0.1.0", dependencies: List<String> = emptyList()): Result<PluginRecord> {

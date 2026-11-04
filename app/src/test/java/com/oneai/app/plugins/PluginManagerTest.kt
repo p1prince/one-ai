@@ -116,4 +116,43 @@ class PluginManagerTest {
         assertTrue(manager.remove(t.id).isSuccess)
         assertEquals(listOf("dev.example.a"), removed)
     }
+
+    @Test fun bubbleAccessIsASeparateSettingFromEnablingAPlugin() {
+        val store = FakeStore()
+        val t = template("dev.example.notes", bubble = "notes")
+        val manager = PluginManager(store, listOf(t))
+        manager.install(t)
+        assertTrue("a disabled plugin cannot be given Bubble access", manager.setBubbleAccess(t.id, true).isFailure)
+        manager.setEnabled(t.id, true)
+        assertFalse(manager.hasBubbleAccess(t.id))
+        assertTrue(manager.setBubbleAccess(t.id, true).isSuccess)
+        assertTrue(manager.hasBubbleAccess(t.id))
+        assertEquals(setOf("notes"), store.bubbleServices())
+        assertTrue(manager.setBubbleAccess(t.id, false).isSuccess)
+        assertTrue(store.bubbleServices().isEmpty())
+        assertTrue("withdrawing access must not disable the plugin", manager.installed().single().enabled)
+    }
+
+    @Test fun bubbleAccessNeedsAnInstalledPluginThatOffersAService() {
+        val store = FakeStore()
+        val plain = template("dev.example.plain")
+        val manager = PluginManager(store, listOf(plain))
+        manager.install(plain)
+        manager.setEnabled(plain.id, true)
+        assertTrue(manager.setBubbleAccess(plain.id, true).isFailure)
+        assertTrue(manager.setBubbleAccess("dev.example.unknown", true).isFailure)
+        assertEquals(null, manager.bubbleServiceOf(plain.id))
+        assertTrue(store.bubbleServices().isEmpty())
+    }
+
+    @Test fun bindingsSuppliedByTheHostCoverPluginsOutsideTheCatalogue() {
+        val store = FakeStore()
+        val manager = PluginManager(store, emptyList(), bubbleBindings = { mapOf("dev.example.ext" to "ext") })
+        store.savePlugin(PluginRecord("dev.example.ext", "Ext", "1.0", "External", listOf("commands"), true))
+        assertEquals("ext", manager.bubbleServiceOf("dev.example.ext"))
+        assertTrue(manager.setBubbleAccess("dev.example.ext", true).isSuccess)
+        assertEquals(setOf("ext"), store.bubbleServices())
+        manager.setEnabled("dev.example.ext", false)
+        assertTrue("disabling withdraws the service", store.bubbleServices().isEmpty())
+    }
 }

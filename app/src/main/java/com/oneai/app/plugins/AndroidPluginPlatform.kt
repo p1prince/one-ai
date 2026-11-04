@@ -66,14 +66,6 @@ class SharedPrefsTrustStore(context: Context) : TrustStore {
     private companion object { const val KEY = "entry:" }
 }
 
-/** A plugin app found on the device. Nothing about it is trusted until the user imports it. */
-data class DiscoveredPlugin(
-    val packageName: String,
-    val appLabel: String,
-    val serviceClass: String,
-    val manifest: Result<ExternalPluginManifest>
-)
-
 /** Lists installed plugin APKs and reads their declarative manifest without running any plugin code. */
 class PluginDiscovery(private val context: Context) {
     fun discover(): List<DiscoveredPlugin> {

@@ -120,11 +120,17 @@ class PluginTrustRegistry(
 
     /** Called before every bind. A mismatch is logged so it appears in Activity. */
     @Synchronized
-    fun check(packageName: String): TrustCheck {
+    fun check(packageName: String): TrustCheck = evaluate(packageName, report = true)
+
+    /** Same answer as [check] without writing to the activity log, for screens that redraw often. */
+    @Synchronized
+    fun peek(packageName: String): TrustCheck = evaluate(packageName, report = false)
+
+    private fun evaluate(packageName: String, report: Boolean): TrustCheck {
         val entry = store.get(packageName) ?: return TrustCheck.NotImported
         val matches = signatures.hasSigner(packageName, entry.certificateSha256) ?: return TrustCheck.NotInstalled
         if (!matches) {
-            onEvent("Blocked ${entry.trustedManifest.name}: signing certificate no longer matches the trusted one")
+            if (report) onEvent("Blocked ${entry.trustedManifest.name}: signing certificate no longer matches the trusted one")
             return TrustCheck.SignatureMismatch
         }
         entry.pendingUpdate?.let { return TrustCheck.UpdatePending(it.reasons) }
