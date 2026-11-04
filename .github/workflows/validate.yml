@@ -32,4 +32,5 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
           accept-android-sdk-licenses: true
       - name: Compile and run unit tests (no APK)
-        run: gradle --no-daemon testDebugUnitTest lintDebug
+        # compileDebugAndroidTestKotlin only compiles the emulator tests (Stage 11 scaffolding); it packages nothing.
+        run: gradle --no-daemon testDebugUnitTest lintDebug :app:compileDebugAndroidTestKotlin
