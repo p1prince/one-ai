@@ -26,6 +26,7 @@ import android.graphics.drawable.GradientDrawable
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.security.ActionGateResult
@@ -189,7 +190,7 @@ class FloatingBubbleService : Service() {
                         val result = runCatching {
                             val store = OneAiStore(this@FloatingBubbleService)
                             val provider = AiProviderClient(store, SecretVault(this@FloatingBubbleService))
-                            val router = CommandRouter(store, AiOrchestrator(provider, store))
+                            val router = CommandRouter(store, AiOrchestrator(RetryingAiProvider(provider), store))
                             router.run(command.id).content
                         }.getOrElse { "Error: ${it.message}" }
                         if (serviceJob.isActive) {
@@ -262,7 +263,7 @@ class FloatingBubbleService : Service() {
             inputProvider = VoiceInputProvider { captureVoiceInput() },
             outputProvider = VoiceOutputProvider { speakVoiceResponse(it) },
             orchestrator = AiOrchestrator(
-                AiProviderClient(store, SecretVault(this)),
+                RetryingAiProvider(AiProviderClient(store, SecretVault(this))),
                 store
             )
         )

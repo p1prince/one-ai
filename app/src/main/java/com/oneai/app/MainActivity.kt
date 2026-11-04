@@ -33,7 +33,9 @@ import java.text.DateFormat
 import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.AiConversation
 import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
@@ -53,12 +55,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var ai: AiProviderClient
     private lateinit var orchestrator: AiOrchestrator
     private lateinit var commandRouter: CommandRouter
+    private val conversation = AiConversation()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(ai,store); commandRouter=CommandRouter(store,orchestrator)
+        store=OneAiStore(this); plugins=PluginManager(store); vault=SecretVault(this); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
         setContent { OneAiApp(store,plugins,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
-            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onNewConversation={ conversation.clear() },
             onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandRouter.run(id).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } }
         ) }
     }
@@ -84,7 +88,7 @@ internal enum class Page(val title:String) {
 
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
-                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit,
+                     onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
@@ -102,7 +106,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
         }) { pad ->
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
-                Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} })
+                Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
@@ -117,7 +121,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
 @Composable private fun CardBox(content:@Composable ColumnScope.()->Unit) { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(16.dp)).padding(16.dp),content=content) }
 @Composable private fun ActionRow(title:String,detail:String,action:@Composable RowScope.()->Unit) { Row(Modifier.fillMaxWidth().padding(vertical=9.dp),verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)){Text(title,color=White,fontWeight=FontWeight.SemiBold);Text(detail,color=Muted,fontSize=12.sp)};action() } }
 
-@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,go:(Page)->Unit,result:String,busy:Boolean,onAsk:(String)->Unit) {
+@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,go:(Page)->Unit,result:String,busy:Boolean,onAsk:(String)->Unit,onNewConversation:()->Unit) {
     var prompt by remember { mutableStateOf("") }
     val installed = store.plugins()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=26.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
@@ -138,7 +142,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, vault:SecretVault,
             OutlinedTextField(prompt,{prompt=it},modifier=Modifier.fillMaxWidth(),placeholder={Text("What would you like ONE AI to do?")},minLines=2)
             Spacer(Modifier.height(8.dp))
             Button(onClick={if(prompt.isNotBlank())onAsk(prompt)},enabled=prompt.isNotBlank()&&!busy,modifier=Modifier.fillMaxWidth()){Text(if(busy)"Thinking…" else "Send command")}
-            if(result.isNotBlank()){Spacer(Modifier.height(10.dp));Text(result,color=White,fontSize=13.sp)}
+            if(result.isNotBlank()){Spacer(Modifier.height(10.dp));Text(result,color=White,fontSize=13.sp);TextButton(onClick={prompt="";onNewConversation()}){Text("New conversation",color=Gold)}}
         } }
         item { Text("PLATFORM MODULES",color=Muted,fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.4.sp) }
         item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
