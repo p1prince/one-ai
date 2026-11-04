@@ -256,4 +256,22 @@ class ExternalPluginIntegrationTest {
         assertNotNull(f.commands)
         assertEquals(0, f.opens)
     }
+
+    @Test fun bubbleHooksFireOnRegisterDeactivateAndRemoval() = runBlocking {
+        val f = Fixture(pkg, cert)
+        val added = mutableListOf<String>(); val removed = mutableListOf<String>()
+        var fetched: String? = null
+        val registrar = ExternalPluginRegistrar(
+            f.store, f.trust, f.commands, f.factory, emptySet(), 2_000,
+            onBubbleService = { m, fetch -> added += m.id; fetched = runBlocking { fetch("notes") } },
+            onBubbleRemoved = { removed += it }
+        )
+        registrar.register(imported(f))
+        assertEquals(listOf(pkg), added)
+        assertNotNull(fetched)
+        registrar.deactivate(pkg, "test")
+        assertEquals(listOf(pkg), removed)
+        registrar.onRemoved(pkg)
+        assertEquals(listOf(pkg, pkg), removed)
+    }
 }

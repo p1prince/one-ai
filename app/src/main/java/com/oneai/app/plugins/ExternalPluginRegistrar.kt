@@ -17,7 +17,11 @@ class ExternalPluginRegistrar(
     private val channels: PluginChannelFactory,
     /** IDs that belong to built-in plugins; an APK using one is refused so it can never impersonate them. */
     private val reservedIds: Set<String> = emptySet(),
-    private val timeoutMs: Long = ExternalPluginAdapter.DEFAULT_TIMEOUT_MS
+    private val timeoutMs: Long = ExternalPluginAdapter.DEFAULT_TIMEOUT_MS,
+    /** Called when a plugin with a Bubble declaration is (re)registered; receives a view fetcher for its service. */
+    private val onBubbleService: (ExternalPluginManifest, suspend (String) -> String?) -> Unit = { _, _ -> },
+    /** Called whenever a plugin's Bubble service must disappear (deactivation, removal, failed registration). */
+    private val onBubbleRemoved: (String) -> Unit = {}
 ) {
     /** Registers (or refreshes) a trusted plugin. An existing enabled flag is kept. */
     @Synchronized
@@ -35,15 +39,18 @@ class ExternalPluginRegistrar(
         )
         runtime.unregister(id)
         commands.unregisterOwner(id)
+        onBubbleRemoved(id)
         store.savePlugin(record)
         val adapter = ExternalPluginAdapter(manifest, trust, channels, timeoutMs, { pluginId, message -> store.log("[$pluginId] $message") })
         val failure = runtime.register(adapter).exceptionOrNull() ?: registerCommands(manifest)
         if (failure != null) {
             runtime.unregister(id)
             commands.unregisterOwner(id)
+            onBubbleRemoved(id)
             if (existing == null) store.removePlugin(id)
             return Result.failure(failure)
         }
+        if (manifest.bubble != null) onBubbleService(manifest) { serviceId -> adapter.view(serviceId) }
         store.log("Registered external plugin: ${manifest.name} ${manifest.versionName}")
         return Result.success(record)
     }
@@ -61,6 +68,7 @@ class ExternalPluginRegistrar(
     fun deactivate(pluginId: String, reason: String) {
         store.pluginRuntime().unregister(pluginId)
         commands.unregisterOwner(pluginId)
+        onBubbleRemoved(pluginId)
         store.pluginActionGateway().revokePendingApprovals()
         store.plugins().firstOrNull { it.id == pluginId }?.takeIf { it.enabled }?.let { store.savePlugin(it.copy(enabled = false)) }
         store.log("Deactivated external plugin $pluginId: $reason")
@@ -70,6 +78,7 @@ class ExternalPluginRegistrar(
     @Synchronized
     fun onRemoved(pluginId: String) {
         commands.unregisterOwner(pluginId)
+        onBubbleRemoved(pluginId)
         trust.forget(pluginId)
     }
 

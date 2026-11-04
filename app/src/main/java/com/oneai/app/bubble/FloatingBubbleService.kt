@@ -52,6 +52,7 @@ class FloatingBubbleService : Service() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
     private val registry get() = BubbleProviders.registry
+    private var panelToken = 0
 
     private val host = object : BubbleHost {
         override val context: Context get() = this@FloatingBubbleService
@@ -168,22 +169,41 @@ class FloatingBubbleService : Service() {
     }
 
     /** Service views are rendered inside the overlay; they never redirect to MainActivity. */
-    private fun showService(service: String) {
+    private fun showService(service: String, loaded: Result<BubbleView>? = null) {
         val box = basePanel()
         addLabel(box, "ONE AI  •  " + titleFor(service), 16f)
         if (service == BubbleUiPolicy.COMMAND_MANAGER) {
             renderCommandManager(box)
         } else {
             val provider = registry.provider(service)
-            if (provider == null) {
-                addLabel(box, "This service is enabled, but no compatible provider is connected yet.")
-            } else {
-                renderView(box, provider, provider.view(host))
+            when {
+                provider == null -> addLabel(box, "This service is enabled, but no compatible provider is connected yet.")
+                provider.isAsync && loaded == null -> {
+                    addLabel(box, "Loading…")
+                    loadAsync(service, provider)
+                }
+                provider.isAsync -> loaded!!.fold(
+                    { renderView(box, provider, it) },
+                    { addLabel(box, "This service could not be loaded: " + (it.message ?: "unknown error").take(200)) }
+                )
+                else -> renderView(box, provider, provider.view(host))
             }
         }
         addButton(box, "Back to services") { showPanel() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
+    }
+
+    /** Fetches a view that lives in another app, then redraws the panel if the user is still looking at it. */
+    private fun loadAsync(service: String, provider: BubbleServiceProvider) {
+        val expected = panelToken + 1 // the token the panel being built right now will receive
+        serviceScope.launch {
+            val loaded = runCatching { provider.loadView(host) }
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (serviceJob.isActive && panel != null && panelToken == expected) showService(service, loaded)
+            }
+        }
     }
 
     private fun renderCommandManager(box: LinearLayout) {
@@ -321,6 +341,7 @@ class FloatingBubbleService : Service() {
 
     private fun attachPanel(box: LinearLayout) {
         hidePanel()
+        panelToken++
         // Keep large command/service lists inside the visible display instead of letting
         // the overlay extend beyond the screen. The Bubble remains independently usable.
         val scroll = ScrollView(this).apply {

@@ -91,6 +91,12 @@ interface BubbleServiceProvider {
 
     fun view(host: BubbleHost): BubbleView
 
+    /** True when the view must be fetched off the main thread (for example from another app). */
+    val isAsync: Boolean get() = false
+
+    /** Used instead of [view] when [isAsync]; may suspend and may fail. */
+    suspend fun loadView(host: BubbleHost): BubbleView = view(host)
+
     /** Prepares the plugin runtime before an action (for example registering its adapter). */
     fun ensureReady(runtime: PluginRuntime, host: BubbleHost): Result<Unit> = Result.success(Unit)
 
@@ -125,6 +131,7 @@ class BubbleProviderRegistry {
     @Synchronized fun providers(): List<BubbleServiceProvider> = providers.values.toList()
     /** Plugin ID to Bubble service ID for every registered contributor. */
     @Synchronized fun bindings(): Map<String, String> = providers.values.associate { it.pluginId to it.serviceId }
+    @Synchronized fun unregisterPlugin(pluginId: String): Boolean = providers.values.removeAll { it.pluginId == pluginId }
     @Synchronized fun clear() { providers.clear() }
 
     private companion object { val SERVICE_ID = Regex("[a-z][a-z0-9_]{0,39}") }
