@@ -269,9 +269,11 @@ class ExternalPluginIntegrationTest {
         registrar.register(imported(f))
         assertEquals(listOf(pkg), added)
         assertNotNull(fetched)
-        registrar.deactivate(pkg, "test")
+        // Registering first clears any stale service, so a re-registration replaces rather than duplicates.
         assertEquals(listOf(pkg), removed)
-        registrar.onRemoved(pkg)
+        registrar.deactivate(pkg, "test")
         assertEquals(listOf(pkg, pkg), removed)
+        registrar.onRemoved(pkg)
+        assertEquals(listOf(pkg, pkg, pkg), removed)
     }
 }
