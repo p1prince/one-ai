@@ -3,6 +3,7 @@ package com.oneai.app.bubble
 import com.oneai.app.plugins.PluginActionOutput
 import com.oneai.app.core.PluginInvocationResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -61,6 +62,16 @@ class BubbleContractTest {
         r.register(FakeProvider("notes", "dev.example.notes"))
         assertEquals(setOf("command_manager"), BubbleUiPolicy.availableServices(emptySet(), r.bindings()))
         assertEquals(setOf("command_manager", "notes"), BubbleUiPolicy.availableServices(setOf("dev.example.notes"), r.bindings()))
+    }
+
+    @Test fun bubbleCommandExecutionUsesSharedHostServices() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val shell = File(dir, "FloatingBubbleService.kt").readText()
+        assertFalse(shell.contains("AiProviderClient("))
+        assertFalse(shell.contains("SecretVault("))
+        assertFalse(shell.contains("CommandRouter("))
+        assertTrue(shell.contains("commandExecutor.execute(commandId, args)"))
+        assertTrue(shell.contains("commandRegistry.list()"))
     }
 
     /** Guards the architecture rule: the Bubble shell must not reference any specific capability. */

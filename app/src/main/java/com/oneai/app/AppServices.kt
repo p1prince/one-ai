@@ -4,7 +4,11 @@ import android.app.Application
 import com.oneai.app.bubble.BubbleProviders
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.ExternalBubbleProvider
+import com.oneai.app.ai.AiOrchestrator
+import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.commands.CommandException
+import com.oneai.app.commands.CommandExecutor
 import com.oneai.app.commands.CommandOutput
 import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
@@ -18,6 +22,7 @@ import com.oneai.app.plugins.PluginDiscovery
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.plugins.PluginTrustRegistry
 import com.oneai.app.plugins.SharedPrefsTrustStore
+import com.oneai.app.security.SecretVault
 
 /**
  * Process-wide composition of the plugin system. One instance serves the app screens and the Floating
@@ -41,8 +46,16 @@ class AppServices private constructor(app: Application) {
     val pluginRuntime = pluginExecution.runtime
     val approvalGateway = pluginExecution.approvalGateway
 
-    /** Set by the main screen; core command `core/run_saved` runs through it. Null until a screen exists. */
-    @Volatile var commandRouter: CommandRouter? = null
+    /** AI and saved-command services are process-scoped and shared by Home and Floating Bubble. */
+    val vault = SecretVault(app)
+    val aiProvider = AiProviderClient(store, vault)
+    val aiOrchestrator = AiOrchestrator(RetryingAiProvider(aiProvider), store)
+    val commandRouter = CommandRouter(store, aiOrchestrator)
+    val commandExecutor = CommandExecutor(
+        commandRegistry,
+        { pluginId, input, ticket -> pluginExecution.executor.invoke(pluginId, input, ticket) },
+        { store.log(it) }
+    )
 
     val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), AndroidPackageSignatureSource(app.packageManager)) { store.log(it) }
 
@@ -68,8 +81,7 @@ class AppServices private constructor(app: Application) {
         )
         commandRegistry.registerCore("run_saved", "Run saved command", "Runs one of your saved commands through the AI engine.") { args ->
             val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "A command ID is required.")
-            val router = commandRouter ?: throw CommandException("UNAVAILABLE", "Open ONE AI to run saved commands.")
-            CommandOutput("Command result", router.run(id).content)
+            CommandOutput("Command result", commandRouter.run(id).content)
         }
     }
 

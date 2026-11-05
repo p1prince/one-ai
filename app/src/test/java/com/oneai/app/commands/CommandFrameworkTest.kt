@@ -76,6 +76,18 @@ class CommandFrameworkTest {
         assertNull(r.definition("dev.example.a/do"))
     }
 
+    @Test fun disabledExtensionCommandCannotReachTheHostRuntime() = runBlocking {
+        var enabled = true
+        val r = CommandRegistry { enabled }
+        r.registerExtension("dev.example.notes", "read", "Read notes", "", "files")
+        val inv = Invoker(PluginInvocationResult.Completed(PluginActionOutput("Done", "unexpected")))
+        val ex = executor(r, inv)
+        assertEquals(CommandStatus.COMPLETED, ex.execute("dev.example.notes/read").status)
+        enabled = false
+        assertEquals(CommandStatus.NOT_FOUND, ex.execute("dev.example.notes/read").status)
+        assertEquals(1, inv.calls.size)
+    }
+
     // ---- core execution ----
     @Test fun coreCommandsRunWithNoPluginsAndNeverTouchThePluginRuntime() = runBlocking {
         val r = CommandRegistry { false }

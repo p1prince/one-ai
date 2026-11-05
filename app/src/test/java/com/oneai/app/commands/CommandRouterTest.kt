@@ -6,6 +6,7 @@ import com.oneai.app.ai.AiMessage
 import com.oneai.app.ai.AiOrchestrator
 import com.oneai.app.ai.AiProvider
 import com.oneai.app.core.CommandRecord
+import com.oneai.app.core.PluginInvocationResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,6 +74,28 @@ class CommandRouterTest {
         assertEquals("done", result.content)
         assertEquals("Do the task", provider.lastPrompt)
         assertTrue(repository.events.any { it.contains("Command completed") })
+    }
+
+    @Test
+    fun savedPromptRunsThroughTheCoreCommandExecutorHandler() = runBlocking {
+        val repository = MemoryCommands()
+        val provider = FakeProvider()
+        val router = CommandRouter(repository, AiOrchestrator(provider, repository))
+        val saved = router.add("Shared route", "Use the shared engine").getOrThrow()
+        router.setEnabled(saved.id, true)
+        val registry = CommandRegistry()
+        registry.registerCore("run_saved", "Run saved command", "") { args ->
+            val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "Missing command ID.")
+            val completion = router.run(id)
+            CommandOutput("Command result", completion.content)
+        }
+        val executor = CommandExecutor(registry, { _, _, _ ->
+            PluginInvocationResult.Failed("Core command must not call plugin runtime.")
+        })
+        val result = executor.execute("core/run_saved", mapOf("id" to saved.id))
+        assertEquals(CommandStatus.COMPLETED, result.status)
+        assertEquals("done", result.content)
+        assertEquals("Use the shared engine", provider.lastPrompt)
     }
 
     @Test

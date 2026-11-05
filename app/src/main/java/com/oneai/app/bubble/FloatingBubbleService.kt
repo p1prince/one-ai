@@ -24,18 +24,12 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import com.oneai.app.ai.AiOrchestrator
-import com.oneai.app.ai.AiProviderClient
-import com.oneai.app.ai.RetryingAiProvider
-import com.oneai.app.commands.CommandRouter
-import com.oneai.app.core.OneAiStore
 import com.oneai.app.AppServices
 import com.oneai.app.core.PluginInvocationResult
 import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.core.PluginActionExecutor
 import com.oneai.app.security.PluginActionApprovalGateway
 import com.oneai.app.security.ActionGateResult
-import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -151,7 +145,7 @@ class FloatingBubbleService : Service() {
         registry.provider(service)?.title ?: service.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     private fun showPanel() {
-        val store = OneAiStore(this)
+        val store = AppServices.get(application).store
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
         val availableServices = BubbleUiPolicy.availableServices(enabledPlugins, registry.bindings())
         // Ignore stale saved toggles when a plugin is disabled or removed.
@@ -210,24 +204,70 @@ class FloatingBubbleService : Service() {
     }
 
     private fun renderCommandManager(box: LinearLayout) {
-        val commands = OneAiStore(this).commands().filter { it.enabled }
-        if (commands.isEmpty()) addLabel(box, "No enabled commands yet. Create commands in Command Manager.")
-        commands.forEach { command ->
+        val services = AppServices.get(application)
+        val saved = services.store.commands().filter { it.enabled }
+        val extensions = services.commandRegistry.list().filterNot { it.isCore }
+        if (saved.isEmpty() && extensions.isEmpty()) {
+            addLabel(box, "No enabled commands are available. Create commands or enable an extension that contributes commands.")
+        }
+        saved.forEach { command ->
             addButton(box, "Run: ${command.title}") {
-                val output = addLabel(box, "Running ${command.title}…", 12f)
-                serviceScope.launch {
-                    val result = runCatching {
-                        val store = OneAiStore(this@FloatingBubbleService)
-                        val provider = AiProviderClient(store, SecretVault(this@FloatingBubbleService))
-                        val router = CommandRouter(store, AiOrchestrator(RetryingAiProvider(provider), store))
-                        router.run(command.id).content
-                    }.getOrElse { "Error: ${it.message}" }
-                    if (serviceJob.isActive) {
-                        uiHandler.post { if (serviceJob.isActive) output.text = result }
-                    }
+                runRegisteredCommand(box, "core/run_saved", command.title, mapOf("id" to command.id))
+            }
+        }
+        extensions.forEach { command ->
+            addButton(box, "${command.title}  •  ${command.owner}") {
+                runRegisteredCommand(box, command.id, command.title)
+            }
+        }
+    }
+
+    /** Home and Bubble share the same process-wide registry, executor and host security boundary. */
+    private fun runRegisteredCommand(box: LinearLayout, commandId: String, title: String, args: Map<String, String> = emptyMap()) {
+        val services = AppServices.get(application)
+        val output = addLabel(box, "Running $title…", 12f)
+        serviceScope.launch {
+            val result = services.commandExecutor.execute(commandId, args)
+            if (!serviceJob.isActive) return@launch
+            if (result.status == com.oneai.app.commands.CommandStatus.AWAITING_APPROVAL) {
+                val definition = services.commandRegistry.definition(commandId)
+                val input = services.commandExecutor.actionFor(commandId, args)
+                uiHandler.post {
+                    if (serviceJob.isActive && definition != null && input != null) showCommandApproval(commandId, definition.owner, input, title)
+                    else if (serviceJob.isActive) showHandoffResult("Command unavailable", "ONE AI could not prepare the required approval.")
+                }
+            } else {
+                val message = if (result.status == com.oneai.app.commands.CommandStatus.COMPLETED) result.content
+                else result.error?.message ?: result.content.ifBlank { "The command could not be completed." }
+                uiHandler.post { if (serviceJob.isActive) output.text = message }
+            }
+        }
+    }
+
+    private fun showCommandApproval(commandId: String, pluginId: String, input: com.oneai.app.plugins.PluginActionInput, title: String) {
+        val services = AppServices.get(application)
+        val box = basePanel()
+        addLabel(box, "Approval required", 16f)
+        addLabel(box, "Allow $title from $pluginId to run?")
+        addButton(box, "Cancel") { showService(BubbleUiPolicy.COMMAND_MANAGER) }
+        addButton(box, "Approve and run") {
+            val ticket = services.pluginExecution.executor.approveSensitiveAction(pluginId, input).getOrElse {
+                showHandoffResult("Approval unavailable", "ONE AI could not verify approval for this command.")
+                return@addButton
+            }
+            hidePanel()
+            serviceScope.launch {
+                val result = services.commandExecutor.execute(commandId, input.values, ticket)
+                if (serviceJob.isActive) uiHandler.post {
+                    if (serviceJob.isActive) showHandoffResult(
+                        result.title.ifBlank { title },
+                        if (result.status == com.oneai.app.commands.CommandStatus.COMPLETED) result.content
+                        else result.error?.message ?: result.content.ifBlank { "The command could not be completed." }
+                    )
                 }
             }
         }
+        attachPanel(box)
     }
 
     private fun renderView(box: LinearLayout, provider: BubbleServiceProvider, view: BubbleView) {

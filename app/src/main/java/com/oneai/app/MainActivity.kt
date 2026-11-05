@@ -37,13 +37,9 @@ import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiConversation
-import com.oneai.app.ai.AiOrchestrator
-import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
-import com.oneai.app.commands.CommandExecutor
-import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.commands.CommandStatus
 import com.oneai.app.core.*
@@ -66,32 +62,18 @@ private val Muted=Color(0xFF9699A1); private val White=Color(0xFFF5F3EE)
 class MainActivity : ComponentActivity() {
     private lateinit var store: OneAiStore
     private lateinit var plugins: PluginManager
-    private lateinit var vault: SecretVault
-    private lateinit var ai: AiProviderClient
-    private lateinit var orchestrator: AiOrchestrator
     private lateinit var commandRouter: CommandRouter
-    private lateinit var commandRegistry: CommandRegistry
-    private lateinit var commandExecutor: CommandExecutor
     private val conversation = AiConversation()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val services=AppServices.get(application)
-        store=services.store; commandRegistry=services.commandRegistry; plugins=services.plugins
-        vault=SecretVault(applicationContext); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
-        services.commandRouter=commandRouter
-        commandExecutor=CommandExecutor(commandRegistry,{ pluginId,input,ticket -> services.pluginExecution.executor.invoke(pluginId,input,ticket) },{ store.log(it) })
-        setContent { OneAiApp(store,plugins,services.center,vault,ai,commandRouter,
+        store=services.store; plugins=services.plugins; commandRouter=services.commandRouter
+        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
-            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
+            onAsk={ prompt,done -> lifecycleScope.launch { runCatching { services.aiOrchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
-            onRunCommand={ id,done -> lifecycleScope.launch { runCatching { commandExecutor.execute("core/run_saved", mapOf("id" to id)) }.onSuccess { r -> done(if(r.status==CommandStatus.COMPLETED) r.content else "Error: ${r.error?.message ?: r.content}") }.onFailure { done("Error: ${it.message}") } } }
+            onRunCommand={ id,done -> lifecycleScope.launch { val r=services.commandExecutor.execute("core/run_saved", mapOf("id" to id)); done(if(r.status==CommandStatus.COMPLETED) r.content else "Error: ${r.error?.message ?: r.content}") } }
         ) }
-    }
-    override fun onDestroy() {
-        // The shared services outlive this screen, so they must not keep a reference to it.
-        val services=AppServices.get(application)
-        if(services.commandRouter===commandRouter) services.commandRouter=null
-        super.onDestroy()
     }
     private fun toggleBubble(enabled:Boolean) {
         store.setBubbleEnabled(enabled)
