@@ -74,6 +74,15 @@ class BubbleContractTest {
         assertTrue(shell.contains("commandRegistry.list()"))
     }
 
+    @Test fun productionPanelCanReceiveTextInputAndShowTheKeyboard() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val source = File(dir, "FloatingBubbleService.kt").readText()
+        val panel = source.substringAfter("private fun attachPanel").substringBefore("private fun resizeBubble")
+        assertFalse(panel.contains("FLAG_NOT_FOCUSABLE"))
+        assertTrue(panel.contains("FLAG_NOT_TOUCH_MODAL"))
+        assertTrue(panel.contains("SOFT_INPUT_ADJUST_RESIZE"))
+    }
+
     @Test fun productionBubbleShellUsesCoreActionTypesNotPluginImplementationAliases() {
         val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
         val source = File(dir, "FloatingBubbleService.kt").readText()

@@ -400,8 +400,9 @@ class FloatingBubbleService : Service() {
         val maxPanelHeight = (resources.displayMetrics.heightPixels * 0.78f).toInt().coerceAtLeast(320)
         val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.84f).toInt(),
             maxPanelHeight, overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT).apply {
             gravity=Gravity.CENTER; x=0; y=0
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
         runCatching { windowManager.addView(scroll,params) }.onSuccess { panel=scroll }
     }
