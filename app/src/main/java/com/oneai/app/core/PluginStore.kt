@@ -1,9 +1,8 @@
 package com.oneai.app.core
 
-
 /**
- * The persistence and runtime surface the plugin manager needs. Keeping it as an interface lets
- * the manager run, and be tested, without Android storage (including with zero plugins).
+ * Persistence-only plugin contract. Runtime registration, execution and approvals are owned by the
+ * process composition root and injected through separate interfaces.
  */
 interface PluginStore {
     fun plugins(): List<PluginRecord>

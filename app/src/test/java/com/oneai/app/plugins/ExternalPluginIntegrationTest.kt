@@ -70,7 +70,7 @@ class ExternalPluginIntegrationTest {
         }
         fun registrar(reserved: Set<String> = emptySet(), timeoutMs: Long = 2_000) =
             ExternalPluginRegistrar(store, runtime, runtime, trust, commands, factory, reserved, timeoutMs)
-        val executor = CommandExecutor(commands, { id, input, ticket -> store.pluginRuntime().invoke(id, input, ticket) }, { store.log(it) })
+        val executor = CommandExecutor(commands, { id, input, ticket -> runtime.invoke(id, input, ticket) }, { store.log(it) })
     }
 
     private fun manifest(versionCode: Long = 1, capabilities: List<String> = listOf("files"), extraCommand: Boolean = false): ExternalPluginManifest {

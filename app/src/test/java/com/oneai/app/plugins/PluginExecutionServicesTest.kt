@@ -55,4 +55,22 @@ class PluginExecutionServicesTest {
         assertTrue(store.plugins().isEmpty())
         assertTrue(store.events.isEmpty())
     }
+    @Test fun pluginManagerUsesTheInjectedLifecycleBoundaryForDisableAndRemoval() {
+        val store = EmptyStore()
+        val removed = mutableListOf<String>()
+        var revocations = 0
+        val lifecycle = object : PluginLifecycleController {
+            override fun unregister(pluginId: String): Boolean { removed += pluginId; return true }
+            override fun revokePendingApprovals() { revocations++ }
+        }
+        val template = PluginTemplate("dev.example.lifecycle", "Lifecycle", "Test", listOf("commands"))
+        val manager = com.oneai.app.plugins.PluginManager(store, listOf(template), lifecycle = lifecycle)
+        assertTrue(manager.install(template).isSuccess)
+        assertTrue(manager.setEnabled(template.id, true).isSuccess)
+        assertTrue(manager.setEnabled(template.id, false).isSuccess)
+        assertTrue(manager.remove(template.id).isSuccess)
+        assertEquals(listOf(template.id, template.id), removed)
+        assertEquals(2, revocations)
+    }
+
 }
