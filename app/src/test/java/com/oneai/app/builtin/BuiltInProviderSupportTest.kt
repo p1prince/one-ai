@@ -7,6 +7,7 @@ import com.oneai.app.core.PluginRecord
 import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginActionOutput
 import com.oneai.app.plugins.PluginAdapter
+import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.plugins.PluginManifest
 import com.oneai.app.plugins.PluginRuntime
 import com.oneai.app.security.ActionAuditLogger
@@ -34,7 +35,7 @@ class BuiltInProviderSupportTest {
         override suspend fun execute(input: PluginActionInput) = PluginActionOutput("Title", "Content")
     }
 
-    private inner class InAppProvider : BuiltInBubbleProvider() {
+    private inner class InAppProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvider(runtime) {
         override val serviceId = "example"
         override val pluginId = manifest.id
         override val title = "Example"
@@ -58,7 +59,7 @@ class BuiltInProviderSupportTest {
     @Test fun builtInProvidersDropTheirAdapterWhenTheBubbleStops() {
         val runtime = runtime()
         ensureRegistered(runtime, manifest.id) { StubAdapter(manifest) }
-        InAppProvider().releaseReady(runtime)
+        InAppProvider(runtime).releaseReady()
         assertTrue(runtime.registeredPluginIds().isEmpty())
     }
 
@@ -71,7 +72,7 @@ class BuiltInProviderSupportTest {
         )
         assertTrue(runtime.register(StubAdapter(manifest)).isSuccess)
         assertTrue(runtime.register(StubAdapter(other)).isSuccess)
-        InAppProvider().releaseReady(runtime)
+        InAppProvider(runtime).releaseReady()
         assertEquals(setOf(other.id), runtime.registeredPluginIds())
     }
 
@@ -84,7 +85,7 @@ class BuiltInProviderSupportTest {
             override val title = "Example"
             override fun view(host: BubbleHost) = BubbleView(emptyList())
         }
-        plain.releaseReady(runtime)
+        plain.releaseReady()
         assertFalse(runtime.registeredPluginIds().isEmpty())
     }
 }
