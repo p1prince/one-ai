@@ -74,6 +74,16 @@ class BubbleContractTest {
         assertTrue(shell.contains("commandRegistry.list()"))
     }
 
+    @Test fun bubbleSdkContractUsesOnlyCoreSdkAndAndroidTypes() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val source = File(dir, "BubbleContract.kt").readText()
+        assertFalse(source.contains("com.oneai.app.plugins"))
+        assertFalse(source.contains("com.oneai.app.security"))
+        assertTrue(source.contains("com.oneai.app.core.PluginActionInput"))
+        assertTrue(source.contains("com.oneai.app.core.PluginActionOutput"))
+        assertTrue(source.contains("com.oneai.app.core.PluginInvocationResult"))
+    }
+
     /** Guards the architecture rule: the Bubble shell must not reference any specific capability. */
     @Test fun bubbleShellContainsNoCapabilitySpecificCode() {
         val forbidden = Regex(
