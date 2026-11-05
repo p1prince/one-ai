@@ -18,6 +18,7 @@ interface PluginAdapter {
 interface PluginAdapterRegistrar {
     fun register(adapter: PluginAdapter): Result<Unit>
     fun unregister(pluginId: String): Boolean
+    fun isRegistered(pluginId: String): Boolean
 }
 
 /**
@@ -62,7 +63,7 @@ class PluginRuntime(
     override fun revokePendingApprovals() = actionGateway.revokePendingApprovals()
 
     @Synchronized
-    fun registeredPluginIds(): Set<String> = adapters.keys.toSet()
+    override fun isRegistered(pluginId: String): Boolean = pluginId in adapters
 
     override suspend fun invoke(
         pluginId: String,
