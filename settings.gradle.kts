@@ -4,3 +4,4 @@ rootProject.name = "ONE AI"
 include(":app")
 include(":one-ai-plugin-sdk")
 include(":samples:echo-plugin")
+include(":reference-plugins:app-control")
