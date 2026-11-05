@@ -21,7 +21,6 @@ object BuiltInCatalogue {
         PluginTemplate("one.web.research", "Web Research", "A connector slot for approved web search providers.", listOf("internet"), bubbleService = "web_research"),
         PluginTemplate("one.screen.intelligence", "Screen Intelligence", "A permission-gated screen understanding integration.", listOf("screen_capture", "internet"), bubbleService = "screen_intelligence"),
         PluginTemplate("one.voice.interface", "Voice Interface", "A voice input and spoken response integration.", listOf("microphone", "audio"), bubbleService = "voice_interface"),
-        PluginTemplate("one.app.control", "App Control", "Find and launch installed Android apps with explicit approval.", listOf("app_launch"), bubbleService = "app_control"),
         PluginTemplate("one.device.actions", "Device Actions", "User-approved Android settings and device action integrations.", listOf("device_actions"), bubbleService = "device_control"),
         PluginTemplate("one.automation.engine", "Automation Engine", "A safe integration point for automation engines such as AutoDroid.", listOf("accessibility", "automation"), bubbleService = "automation")
     )

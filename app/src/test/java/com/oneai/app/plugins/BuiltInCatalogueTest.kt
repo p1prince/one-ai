@@ -28,8 +28,9 @@ class BuiltInCatalogueTest {
         assertTrue("command_manager" !in BuiltInCatalogue.bubbleBindings.values)
     }
 
-    @Test fun appControlAndDeviceControlHaveBubbleBindingsSoSettingsCanEnableThem() {
-        assertEquals("app_control", BuiltInCatalogue.bubbleBindings["one.app.control"])
+    @Test fun appControlIsNoLongerAnInAppTemplateAndDeviceControlRemainsAvailable() {
+        assertTrue(BuiltInCatalogue.templates.none { it.id == "one.app.control" })
+        assertTrue("app_control" !in BuiltInCatalogue.bubbleBindings.values)
         assertEquals("device_control", BuiltInCatalogue.bubbleBindings["one.device.actions"])
     }
 

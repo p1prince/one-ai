@@ -16,15 +16,12 @@ import com.oneai.app.bubble.BubbleProviderRegistry
 import com.oneai.app.bubble.BubbleView
 import com.oneai.app.bubble.ScreenCaptureConsentActivity
 import com.oneai.app.core.OneAiStore
-import com.oneai.app.plugins.AndroidAppLauncher
 import com.oneai.app.plugins.AndroidAutoDroidLauncher
 import com.oneai.app.plugins.AndroidDeviceSettingsLauncher
-import com.oneai.app.plugins.AppControlAdapter
 import com.oneai.app.plugins.AutoDroidAdapter
 import com.oneai.app.plugins.AutoDroidIntegrationPolicy
 import com.oneai.app.plugins.DeviceControlAdapter
 import com.oneai.app.plugins.DeviceControlPolicy
-import com.oneai.app.plugins.InstalledAppCatalog
 import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.plugins.ScreenIntelligenceAdapter
@@ -45,7 +42,6 @@ object BuiltInBubbleProviders {
         WebResearchAdapter.PLUGIN_ID to WebResearchBubbleProvider.SERVICE_ID,
         ScreenIntelligenceAdapter.PLUGIN_ID to ScreenIntelligenceBubbleProvider.SERVICE_ID,
         VoiceInterfaceAdapter.PLUGIN_ID to VoiceBubbleProvider.SERVICE_ID,
-        AppControlAdapter.PLUGIN_ID to AppControlBubbleProvider.SERVICE_ID,
         DeviceControlAdapter.PLUGIN_ID to DeviceControlBubbleProvider.SERVICE_ID,
         AutoDroidAdapter.PLUGIN_ID to AutoDroidBubbleProvider.SERVICE_ID
     )
@@ -53,7 +49,7 @@ object BuiltInBubbleProviders {
     fun registerAll(registry: BubbleProviderRegistry, runtime: PluginAdapterRegistrar) {
         listOf(
             WebResearchBubbleProvider(runtime), ScreenIntelligenceBubbleProvider(runtime), VoiceBubbleProvider(runtime),
-            AppControlBubbleProvider(runtime), DeviceControlBubbleProvider(runtime), AutoDroidBubbleProvider(runtime)
+            DeviceControlBubbleProvider(runtime), AutoDroidBubbleProvider(runtime)
         ).forEach { registry.register(it) }
     }
 }
@@ -185,48 +181,6 @@ class VoiceBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvid
     override fun onHostStopped() = VoiceCaptureBridge.cancelPending()
 
     companion object { const val SERVICE_ID = "voice_interface" }
-}
-
-class AppControlBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvider(runtime) {
-    override val serviceId = SERVICE_ID
-    override val pluginId = AppControlAdapter.PLUGIN_ID
-    override val title = "App control"
-
-    override fun view(host: BubbleHost): BubbleView {
-        val apps = InstalledAppCatalog.load(host.context)
-        val elements = mutableListOf<BubbleElement>(
-            BubbleElement.Label("Choose an installed app to open. ONE AI will ask before launching it. This does not sign in, read private app data, or automate actions inside the selected app.")
-        )
-        if (apps.isEmpty()) elements += BubbleElement.Label("No launcher-visible apps were found.")
-        apps.forEach { target -> elements += BubbleElement.Button(target.label) { _ -> launch(target.packageName, target.label) } }
-        return BubbleView(elements)
-    }
-
-    private fun launch(packageName: String, appLabel: String): BubbleAction {
-        val safeLabel = appLabel.take(80).ifBlank { packageName }
-        return BubbleAction.PluginCall(
-            pluginId = pluginId,
-            input = PluginActionInput(
-                actionId = AppControlAdapter.LAUNCH_ACTION,
-                capability = "app_launch",
-                description = "Launch installed app $safeLabel ($packageName)",
-                values = mapOf("package_name" to packageName, "app_label" to safeLabel)
-            ),
-            approval = BubbleApproval(
-                "LAUNCH $safeLabel?",
-                "ONE AI will open this app using its Android launcher activity. It will not access the app's private data, sign in, or perform actions inside it.",
-                null, "Allow once and open"
-            ),
-            outcomes = BubbleOutcomes("App Control unavailable", "App launch blocked", "App launch failed") {
-                if (it.title == "App opened") "App launched" else "App launch result"
-            },
-            backTo = SERVICE_ID
-        )
-    }
-
-    override fun ensureReady(host: BubbleHost) = ensureRegistered(pluginId) { AppControlAdapter(AndroidAppLauncher(host.context)) }
-
-    companion object { const val SERVICE_ID = "app_control" }
 }
 
 class DeviceControlBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvider(runtime) {
