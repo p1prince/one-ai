@@ -4,6 +4,7 @@ import com.oneai.plugin.sdk.PluginException
 import com.oneai.plugin.sdk.PluginOutput
 import org.json.JSONObject
 import org.junit.Assert.*
+import java.io.File
 import org.junit.Test
 
 class AppControlPluginContractTest {
@@ -62,6 +63,13 @@ class AppControlPluginContractTest {
         assertEquals("launch_app", button.getString("command"))
         assertEquals("com.example.app1", button.getJSONObject("args").getString("package_name"))
         assertEquals("Example 1", button.getJSONObject("args").getString("app_label"))
+    }
+
+    @Test fun renderedBubbleViewMatchesTheSharedHostContractFixture() {
+        val fixture = File("src/test/resources/app_control_view.json").readText()
+        val rendered = AppControlBubbleView.render(listOf(AppLaunchTarget("com.example.calculator", "Calculator")))
+        assertTrue("production Bubble JSON must match the fixture consumed by the host parser",
+            JSONObject(rendered).similar(JSONObject(fixture)))
     }
 
     @Test fun emptyCatalogueShowsAnExplicitEmptyState() {

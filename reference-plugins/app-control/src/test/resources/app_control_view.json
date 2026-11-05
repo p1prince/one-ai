@@ -1,0 +1,1 @@
+{"v":1,"elements":[{"t":"label","text":"Choose an installed app to open. ONE AI will ask before launching it. This does not sign in, read private app data, or automate actions inside it.","size":14},{"t":"button","label":"Calculator","command":"launch_app","args":{"package_name":"com.example.calculator","app_label":"Calculator"}}]}
