@@ -1,10 +1,10 @@
 package com.oneai.app.bubble
 
 import android.content.Context
-import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginActionOutput
-import com.oneai.app.plugins.PluginInvocationResult
-import com.oneai.app.plugins.PluginRuntime
+import com.oneai.app.core.PluginActionInput
+import com.oneai.app.core.PluginActionOutput
+import com.oneai.app.core.PluginInvocationResult
+import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.security.ActionRequest
 
 /**
@@ -98,13 +98,13 @@ interface BubbleServiceProvider {
     suspend fun loadView(host: BubbleHost): BubbleView = view(host)
 
     /** Prepares the plugin runtime before an action (for example registering its adapter). */
-    fun ensureReady(runtime: PluginRuntime, host: BubbleHost): Result<Unit> = Result.success(Unit)
+    fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost): Result<Unit> = Result.success(Unit)
 
     /**
      * Called when the Bubble service stops, with the process-wide runtime. A contributor that registered
      * an adapter in [ensureReady] holding the Bubble's Context drops it here so that Context is not kept alive.
      */
-    fun releaseReady(runtime: PluginRuntime) {}
+    fun releaseReady(runtime: PluginAdapterRegistrar) {}
 
     fun followUp(imagePath: String, host: BubbleHost): BubbleFollowUp? = null
 

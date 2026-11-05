@@ -26,8 +26,6 @@ class ExternalPluginIntegrationTest {
         val records = linkedMapOf<String, PluginRecord>()
         val logs = mutableListOf<String>()
         private var services = emptySet<String>()
-        private val gateway = PluginActionGateway({ id -> records[id] }, ActionAuditLogger { logs += it })
-        private val runtime = PluginRuntime({ id -> records[id] }, gateway)
         override fun plugins() = records.values.toList()
         override fun savePlugin(plugin: PluginRecord) { records[plugin.id] = plugin }
         override fun removePlugin(id: String) { records.remove(id) }
@@ -35,8 +33,6 @@ class ExternalPluginIntegrationTest {
         override fun setBubbleServices(services: Set<String>) { this.services = services }
         override fun developerMode() = false
         override fun log(message: String) { logs += message }
-        override fun pluginRuntime() = runtime
-        override fun pluginActionGateway() = gateway
     }
 
     private class FakeSignatures : PackageSignatureSource {
@@ -60,6 +56,8 @@ class ExternalPluginIntegrationTest {
         val store = FakeStore()
         val signatures = FakeSignatures().also { it.signers[pkg] = listOf(cert) }
         val trust = PluginTrustRegistry(InMemoryTrustStore(), signatures) { store.log(it) }
+        val gateway = PluginActionGateway({ id -> store.plugins().firstOrNull { it.id == id } }, ActionAuditLogger { store.log(it) })
+        val runtime = PluginRuntime({ id -> store.plugins().firstOrNull { it.id == id } }, gateway)
         val commands = CommandRegistry { id -> store.plugins().any { it.id == id && it.enabled } }
         val channels = mutableListOf<FakeChannel>()
         var behaviour: suspend (String, String, Map<String, String>, (String) -> Unit) -> PluginActionOutput =
@@ -71,7 +69,7 @@ class ExternalPluginIntegrationTest {
             FakeChannel { r, c, a, act -> behaviour(r, c, a, act) }.also { channels += it }
         }
         fun registrar(reserved: Set<String> = emptySet(), timeoutMs: Long = 2_000) =
-            ExternalPluginRegistrar(store, trust, commands, factory, reserved, timeoutMs)
+            ExternalPluginRegistrar(store, runtime, runtime, trust, commands, factory, reserved, timeoutMs)
         val executor = CommandExecutor(commands, { id, input, ticket -> store.pluginRuntime().invoke(id, input, ticket) }, { store.log(it) })
     }
 
@@ -88,7 +86,7 @@ class ExternalPluginIntegrationTest {
     /** Sensitive capabilities need a one-use ticket for the exact action, as the Bubble/Home approval dialog issues. */
     private suspend fun runApproved(f: Fixture, id: String, args: Map<String, String> = emptyMap()): com.oneai.app.commands.CommandResult {
         val action = f.executor.actionFor(id, args)!!
-        val ticket = f.store.pluginRuntime().approveSensitiveAction(id.substringBefore('/'), action).getOrThrow()
+        val ticket = f.runtime.approveSensitiveAction(id.substringBefore('/'), action).getOrThrow()
         return f.executor.execute(id, args, ticket)
     }
 
@@ -109,7 +107,7 @@ class ExternalPluginIntegrationTest {
         assertFalse(record.enabled)
         assertFalse(record.developerCreated)
         assertTrue(f.store.bubbleServices().isEmpty())
-        assertEquals(setOf(pkg), f.store.pluginRuntime().registeredPluginIds())
+        assertEquals(setOf(pkg), f.runtime.registeredPluginIds())
         assertTrue("disabled plugin's commands must be hidden", f.commands.list().isEmpty())
     }
 
@@ -195,7 +193,7 @@ class ExternalPluginIntegrationTest {
         assertTrue(decision is UpdateDecision.ConsentRequired)
         assertFalse(f.store.plugins().single().enabled)
         assertTrue(f.commands.list().isEmpty())
-        assertTrue(f.store.pluginRuntime().registeredPluginIds().isEmpty())
+        assertTrue(f.runtime.registeredPluginIds().isEmpty())
 
         val record = registrar.approvePendingUpdate(pkg).getOrThrow()
         assertFalse("approval must not silently re-enable", record.enabled)
@@ -219,16 +217,16 @@ class ExternalPluginIntegrationTest {
         val registrar = f.registrar()
         registrar.register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
-        f.store.pluginRuntime().unregister(pkg) // simulate a process restart
+        f.runtime.unregister(pkg) // simulate a process restart
         f.commands.unregisterOwner(pkg)
         registrar.restoreAll()
-        assertEquals(setOf(pkg), f.store.pluginRuntime().registeredPluginIds())
+        assertEquals(setOf(pkg), f.runtime.registeredPluginIds())
         assertTrue(f.store.plugins().single().enabled)
 
         f.signatures.signers[pkg] = listOf("c".repeat(64))
         registrar.restoreAll()
         assertFalse(f.store.plugins().single().enabled)
-        assertTrue(f.store.pluginRuntime().registeredPluginIds().isEmpty())
+        assertTrue(f.runtime.registeredPluginIds().isEmpty())
         assertTrue(f.commands.list().isEmpty())
     }
 
@@ -237,7 +235,7 @@ class ExternalPluginIntegrationTest {
         val result = f.registrar(reserved = setOf(pkg)).register(imported(f))
         assertTrue(result.isFailure)
         assertTrue(f.store.plugins().isEmpty())
-        assertTrue(f.store.pluginRuntime().registeredPluginIds().isEmpty())
+        assertTrue(f.runtime.registeredPluginIds().isEmpty())
     }
 
     @Test fun removalDropsCommandsAndThePin() {
@@ -262,7 +260,7 @@ class ExternalPluginIntegrationTest {
         val added = mutableListOf<String>(); val removed = mutableListOf<String>()
         var fetched: String? = null
         val registrar = ExternalPluginRegistrar(
-            f.store, f.trust, f.commands, f.factory, emptySet(), 2_000,
+            f.store, f.runtime, f.runtime, f.trust, f.commands, f.factory, emptySet(), 2_000,
             onBubbleService = { m, fetch -> added += m.id; fetched = runBlocking { fetch("notes") } },
             onBubbleRemoved = { removed += it }
         )

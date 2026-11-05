@@ -38,3 +38,16 @@ interface PluginActionExecutor {
     /** Issues a one-use approval ticket only after validating the installed plugin and action. */
     fun approveSensitiveAction(pluginId: String, input: PluginActionInput): Result<String>
 }
+
+
+/** Lifecycle operations required by core plugin management, independent of runtime implementation. */
+interface PluginLifecycleController {
+    fun unregister(pluginId: String): Boolean
+    fun revokePendingApprovals()
+}
+
+/** Used only by isolated tests or a deliberately empty host; production injects its shared runtime. */
+object NoOpPluginLifecycleController : PluginLifecycleController {
+    override fun unregister(pluginId: String) = false
+    override fun revokePendingApprovals() = Unit
+}

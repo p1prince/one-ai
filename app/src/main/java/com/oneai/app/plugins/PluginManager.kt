@@ -2,13 +2,16 @@ package com.oneai.app.plugins
 
 import com.oneai.app.core.PluginStore
 import com.oneai.app.core.PluginRecord
+import com.oneai.app.core.PluginLifecycleController
+import com.oneai.app.core.NoOpPluginLifecycleController
 
 class PluginManager(
     private val store: PluginStore,
     val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates,
     private val onPluginRemoved: (String) -> Unit = {},
     /** Plugin ID to Bubble service ID for plugins that are not in [catalogue], such as installed external plugins. */
-    private val bubbleBindings: () -> Map<String, String> = { emptyMap() }
+    private val bubbleBindings: () -> Map<String, String> = { emptyMap() },
+    private val lifecycle: PluginLifecycleController = NoOpPluginLifecycleController
 ) {
 
     fun installed() = store.plugins()
@@ -40,8 +43,8 @@ class PluginManager(
         }
         store.savePlugin(plugin.copy(enabled=enabled))
         if (!enabled) {
-            store.pluginRuntime().unregister(id)
-            store.pluginActionGateway().revokePendingApprovals()
+            lifecycle.unregister(id)
+            lifecycle.revokePendingApprovals()
             serviceFor(plugin.id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         }
         store.log("${if (enabled) "Enabled" else "Disabled"} plugin: ${plugin.name}")
@@ -53,8 +56,8 @@ class PluginManager(
             ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
         val dependents = installed().filter { id in it.dependencies }
         if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Remove dependent plugins first: ${dependents.joinToString { it.name }}"))
-        store.pluginRuntime().unregister(id)
-        store.pluginActionGateway().revokePendingApprovals()
+        lifecycle.unregister(id)
+        lifecycle.revokePendingApprovals()
         serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
         onPluginRemoved(id)

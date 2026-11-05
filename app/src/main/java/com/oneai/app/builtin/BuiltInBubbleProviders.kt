@@ -26,7 +26,7 @@ import com.oneai.app.plugins.DeviceControlAdapter
 import com.oneai.app.plugins.DeviceControlPolicy
 import com.oneai.app.plugins.InstalledAppCatalog
 import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginRuntime
+import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.plugins.ScreenIntelligenceAdapter
 import com.oneai.app.plugins.VoiceInputProvider
 import com.oneai.app.plugins.VoiceInterfaceAdapter
@@ -85,7 +85,7 @@ class WebResearchBubbleProvider : BuiltInBubbleProvider() {
         )
     }
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) =
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) =
         ensureRegistered(runtime, pluginId) { WebResearchAdapter(BraveSearchProvider(SecretVault(host.context))) }
 
     companion object { const val SERVICE_ID = "web_research" }
@@ -140,7 +140,7 @@ class ScreenIntelligenceBubbleProvider : BuiltInBubbleProvider() {
         )
     )
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) = ensureRegistered(runtime, pluginId) {
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) = ensureRegistered(runtime, pluginId) {
         val store = OneAiStore(host.context)
         ScreenIntelligenceAdapter(host.context, OpenAiCompatibleVisionProvider(store, SecretVault(host.context)))
     }
@@ -174,7 +174,7 @@ class VoiceBubbleProvider : BuiltInBubbleProvider() {
         }
     ))
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) = ensureRegistered(runtime, pluginId) {
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) = ensureRegistered(runtime, pluginId) {
         val context = host.context
         val store = OneAiStore(context)
         VoiceInterfaceAdapter(
@@ -226,7 +226,7 @@ class AppControlBubbleProvider : BuiltInBubbleProvider() {
         )
     }
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) =
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) =
         ensureRegistered(runtime, pluginId) { AppControlAdapter(AndroidAppLauncher(host.context)) }
 
     companion object { const val SERVICE_ID = "app_control" }
@@ -265,7 +265,7 @@ class DeviceControlBubbleProvider : BuiltInBubbleProvider() {
         )
     }
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) =
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) =
         ensureRegistered(runtime, pluginId) { DeviceControlAdapter(AndroidDeviceSettingsLauncher(host.context)) }
 
     companion object { const val SERVICE_ID = "device_control" }
@@ -297,7 +297,7 @@ class AutoDroidBubbleProvider : BuiltInBubbleProvider() {
         }
     ))
 
-    override fun ensureReady(runtime: PluginRuntime, host: BubbleHost) =
+    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost) =
         ensureRegistered(runtime, pluginId) { AutoDroidAdapter(AndroidAutoDroidLauncher(host.context)) }
 
     companion object { const val SERVICE_ID = "automation" }

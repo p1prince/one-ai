@@ -29,8 +29,11 @@ import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.core.OneAiStore
+import com.oneai.app.AppServices
 import com.oneai.app.plugins.PluginInvocationResult
 import com.oneai.app.plugins.PluginRuntime
+import com.oneai.app.core.PluginActionExecutor
+import com.oneai.app.security.PluginActionApprovalGateway
 import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.CoroutineScope
@@ -265,7 +268,7 @@ class FloatingBubbleService : Service() {
 
     /** One shared flow: invoke, ask for approval when required, invoke again with the one-use ticket. */
     private fun runPluginCall(call: BubbleAction.PluginCall, provider: BubbleServiceProvider) {
-        val runtime: PluginRuntime = OneAiStore(this).pluginRuntime()
+        val runtime: PluginRuntime = AppServices.get(application).pluginRuntime
         provider.ensureReady(runtime, host).onFailure {
             showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
             return
@@ -281,7 +284,7 @@ class FloatingBubbleService : Service() {
         }
     }
 
-    private fun showApproval(call: BubbleAction.PluginCall, runtime: PluginRuntime) {
+    private fun showApproval(call: BubbleAction.PluginCall, runtime: PluginActionExecutor) {
         val box = basePanel()
         addLabel(box, call.approval.title, 16f)
         addLabel(box, call.approval.message)
@@ -304,7 +307,7 @@ class FloatingBubbleService : Service() {
 
     /** The gateway issues and consumes the approval; the contributor then performs the action. */
     private fun runGatedHostAction(action: BubbleAction.GatedHostAction) {
-        val gateway = OneAiStore(this).pluginActionGateway()
+        val gateway: PluginActionApprovalGateway = AppServices.get(application).approvalGateway
         when (val decision = gateway.check(action.request)) {
             is ActionGateResult.Rejected -> {
                 showHandoffResult(action.blockedTitle, decision.authorization.reason)
@@ -421,7 +424,7 @@ class FloatingBubbleService : Service() {
     override fun onDestroy() {
         registry.providers().forEach { runCatching { it.onHostStopped() } }
         runCatching {
-            val runtime = OneAiStore(this).pluginRuntime()
+            val runtime = AppServices.get(application).pluginRuntime
             registry.providers().forEach { runCatching { it.releaseReady(runtime) } }
         }
         serviceJob.cancel()

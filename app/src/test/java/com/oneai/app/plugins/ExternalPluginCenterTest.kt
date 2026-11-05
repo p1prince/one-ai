@@ -21,8 +21,6 @@ class ExternalPluginCenterTest {
         val records = linkedMapOf<String, PluginRecord>()
         val logs = mutableListOf<String>()
         private var services = emptySet<String>()
-        private val gateway = PluginActionGateway({ id -> records[id] }, ActionAuditLogger { logs += it })
-        private val runtime = PluginRuntime({ id -> records[id] }, gateway)
         override fun plugins() = records.values.toList()
         override fun savePlugin(plugin: PluginRecord) { records[plugin.id] = plugin }
         override fun removePlugin(id: String) { records.remove(id) }
@@ -30,8 +28,6 @@ class ExternalPluginCenterTest {
         override fun setBubbleServices(services: Set<String>) { this.services = services }
         override fun developerMode() = false
         override fun log(message: String) { logs += message }
-        override fun pluginRuntime() = runtime
-        override fun pluginActionGateway() = gateway
     }
 
     private class FakeSignatures : PackageSignatureSource {
@@ -54,18 +50,20 @@ class ExternalPluginCenterTest {
         val store = FakeStore()
         val signatures = FakeSignatures().also { it.signers[pkg] = listOf(cert) }
         val trust = PluginTrustRegistry(InMemoryTrustStore(), signatures) { store.log(it) }
+        val gateway = PluginActionGateway({ id -> store.plugins().firstOrNull { it.id == id } }, ActionAuditLogger { store.log(it) })
+        val runtime = PluginRuntime({ id -> store.plugins().firstOrNull { it.id == id } }, gateway)
         val commands = CommandRegistry { id -> store.plugins().any { it.id == id && it.enabled } }
         val bubbleServices = mutableSetOf<String>()
         /** What is installed on the "device"; null means the plugin app is not installed. */
         var installed: ExternalPluginManifest? = manifest()
         var extras: List<DiscoveredPlugin> = emptyList()
         val registrar = ExternalPluginRegistrar(
-            store, trust, commands, { _, _ -> error("these tests never bind to a plugin") }, reserved, 2_000,
+            store, runtime, runtime, trust, commands, { _, _ -> error("these tests never bind to a plugin") }, reserved, 2_000,
             onBubbleService = { m, _ -> bubbleServices += m.id },
             onBubbleRemoved = { bubbleServices -= it }
         )
         lateinit var center: ExternalPluginCenter
-        val manager = PluginManager(store, emptyList(), onPluginRemoved = { center.onRemoved(it) }, bubbleBindings = { center.bubbleBindings() })
+        val manager = PluginManager(store, emptyList(), onPluginRemoved = { center.onRemoved(it) }, bubbleBindings = { center.bubbleBindings() }, lifecycle = runtime)
 
         init {
             center = ExternalPluginCenter(
@@ -134,16 +132,16 @@ class ExternalPluginCenterTest {
         f.import()
         assertTrue(f.center.setEnabled(pkg, true).isSuccess)
         assertTrue(f.store.plugins().single().enabled)
-        assertEquals(setOf(pkg), f.store.pluginRuntime().registeredPluginIds())
+        assertEquals(setOf(pkg), f.runtime.registeredPluginIds())
         assertEquals(1, f.commands.listByOwner(pkg).size)
 
         assertTrue(f.center.setEnabled(pkg, false).isSuccess)
         assertFalse(f.store.plugins().single().enabled)
-        assertTrue(f.store.pluginRuntime().registeredPluginIds().isEmpty())
+        assertTrue(f.runtime.registeredPluginIds().isEmpty())
         assertTrue(f.bubbleServices.isEmpty())
 
         assertTrue(f.center.setEnabled(pkg, true).isSuccess)
-        assertEquals(setOf(pkg), f.store.pluginRuntime().registeredPluginIds())
+        assertEquals(setOf(pkg), f.runtime.registeredPluginIds())
         assertEquals(setOf(pkg), f.bubbleServices)
     }
 

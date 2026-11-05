@@ -3,6 +3,7 @@ package com.oneai.app.plugins
 import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.core.PluginStore
+import com.oneai.app.core.PluginLifecycleController
 
 /**
  * Connects trusted external plugins to the existing core: a plugin record, an adapter in the
@@ -12,6 +13,8 @@ import com.oneai.app.core.PluginStore
  */
 class ExternalPluginRegistrar(
     private val store: PluginStore,
+    private val runtime: PluginAdapterRegistrar,
+    private val lifecycle: PluginLifecycleController,
     private val trust: PluginTrustRegistry,
     private val commands: CommandRegistry,
     private val channels: PluginChannelFactory,
@@ -31,7 +34,6 @@ class ExternalPluginRegistrar(
         if (id in reservedIds) return Result.failure(IllegalStateException("That plugin ID is reserved"))
         val existing = store.plugins().firstOrNull { it.id == id }
         if (existing?.developerCreated == true) return Result.failure(IllegalStateException("That plugin ID is already used by a developer plugin"))
-        val runtime = store.pluginRuntime()
         val record = PluginRecord(
             id, manifest.name, manifest.versionName, manifest.description, manifest.capabilities,
             enabled = existing?.enabled ?: false, developerCreated = false,
@@ -66,10 +68,10 @@ class ExternalPluginRegistrar(
     /** Takes a plugin out of service (adapter, commands, pending approvals) and disables it. The pin is kept. */
     @Synchronized
     fun deactivate(pluginId: String, reason: String) {
-        store.pluginRuntime().unregister(pluginId)
+        runtime.unregister(pluginId)
         commands.unregisterOwner(pluginId)
         onBubbleRemoved(pluginId)
-        store.pluginActionGateway().revokePendingApprovals()
+        lifecycle.revokePendingApprovals()
         store.plugins().firstOrNull { it.id == pluginId }?.takeIf { it.enabled }?.let { store.savePlugin(it.copy(enabled = false)) }
         store.log("Deactivated external plugin $pluginId: $reason")
     }

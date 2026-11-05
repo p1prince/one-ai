@@ -8,13 +8,19 @@ sealed interface ActionGateResult {
     data class Rejected(val authorization: ActionAuthorization) : ActionGateResult
 }
 
+interface PluginActionApprovalGateway {
+    fun check(request: ActionRequest, approvalTicket: String? = null): ActionGateResult
+    fun confirmUserApproval(request: ActionRequest): String
+    fun revokePendingApprovals()
+}
+
 /** Mandatory policy boundary for future plugin action adapters. */
 class PluginActionGateway(
     private val findPlugin: (String) -> PluginRecord?,
     private val audit: ActionAuditLogger,
     private val approvals: OneTimeApprovalGate = OneTimeApprovalGate()
-) {
-    fun check(request: ActionRequest, approvalTicket: String? = null): ActionGateResult {
+) : PluginActionApprovalGateway {
+    override fun check(request: ActionRequest, approvalTicket: String?): ActionGateResult {
         val plugin = findPlugin(request.pluginId)
         if (plugin == null) {
             val rejected = ActionAuthorization(false, false, ActionRisk.BLOCKED, "Plugin is not installed")
@@ -43,7 +49,7 @@ class PluginActionGateway(
     }
 
     /** Call only from the affirmative branch of a real, visible consent UI. */
-    fun confirmUserApproval(request: ActionRequest): String {
+    override fun confirmUserApproval(request: ActionRequest): String {
         val plugin = findPlugin(request.pluginId) ?: throw IllegalStateException("Plugin is not installed")
         val authorization = CapabilityPolicy.evaluate(request, plugin.enabled, plugin.capabilities.toSet())
         kotlin.check(authorization.allowed) { authorization.reason }
@@ -58,5 +64,5 @@ class PluginActionGateway(
         audit.record("Plugin action $outcome: $pluginId/$actionId")
     }
 
-    fun revokePendingApprovals() = approvals.revokeAll()
+    override fun revokePendingApprovals() = approvals.revokeAll()
 }

@@ -31,13 +31,23 @@ class AppServices private constructor(app: Application) {
 
     val commandRegistry = CommandRegistry { pluginId -> store.plugins().any { it.id == pluginId && it.enabled } }
 
+    /** Production host composition; the same type is exercised with an empty catalogue in JVM tests. */
+    val pluginHost = PluginHostComposition(
+        store, BuiltInCatalogue.templates, BubbleProviders.registry,
+        onPluginRemoved = { id -> center.onRemoved(id); commandRegistry.unregisterOwner(id) },
+        bubbleBindings = { center.bubbleBindings() }
+    )
+    val pluginExecution = pluginHost.execution
+    val pluginRuntime = pluginExecution.runtime
+    val approvalGateway = pluginExecution.approvalGateway
+
     /** Set by the main screen; core command `core/run_saved` runs through it. Null until a screen exists. */
     @Volatile var commandRouter: CommandRouter? = null
 
     val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), AndroidPackageSignatureSource(app.packageManager)) { store.log(it) }
 
     val registrar = ExternalPluginRegistrar(
-        store, trust, commandRegistry, BoundPluginChannelFactory(app),
+        store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app),
         reservedIds = BuiltInCatalogue.templates.map { it.id }.toSet(),
         onBubbleService = { manifest, viewSource ->
             // A refused registration (reserved or duplicate service name) simply leaves the plugin out of the Bubble.
@@ -49,11 +59,7 @@ class AppServices private constructor(app: Application) {
     lateinit var center: ExternalPluginCenter
         private set
 
-    val plugins: PluginManager = PluginManager(
-        store,
-        onPluginRemoved = { id -> center.onRemoved(id); commandRegistry.unregisterOwner(id) },
-        bubbleBindings = { center.bubbleBindings() }
-    )
+    val plugins: PluginManager = pluginHost.manager
 
     init {
         center = ExternalPluginCenter(

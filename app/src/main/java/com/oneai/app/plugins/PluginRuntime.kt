@@ -2,15 +2,22 @@ package com.oneai.app.plugins
 
 import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.ActionRequest
-import com.oneai.app.security.PluginActionGateway
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.core.PluginActionExecutor
+import com.oneai.app.core.PluginLifecycleController
+import com.oneai.app.security.PluginActionApprovalGateway
 import kotlinx.coroutines.CancellationException
 
 /** A trusted in-app or explicitly permissioned external adapter for one declared plugin. */
 interface PluginAdapter {
     val manifest: PluginManifest
     suspend fun execute(input: PluginActionInput): PluginActionOutput
+}
+
+/** Narrow registration surface used by Bubble contributors without exposing the runtime implementation. */
+interface PluginAdapterRegistrar {
+    fun register(adapter: PluginAdapter): Result<Unit>
+    fun unregister(pluginId: String): Boolean
 }
 
 /**
@@ -23,12 +30,12 @@ interface PluginAdapter {
  */
 class PluginRuntime(
     private val findInstalledPlugin: (String) -> PluginRecord?,
-    private val actionGateway: PluginActionGateway
-) : PluginActionExecutor {
+    private val actionGateway: PluginActionApprovalGateway
+) : PluginActionExecutor, PluginLifecycleController, PluginAdapterRegistrar {
     private val adapters = linkedMapOf<String, PluginAdapter>()
 
     @Synchronized
-    fun register(adapter: PluginAdapter): Result<Unit> {
+    override fun register(adapter: PluginAdapter): Result<Unit> {
         val manifest = PluginManifestValidator.validate(adapter.manifest)
             .getOrElse { return Result.failure(it) }
         if (manifest.id in adapters) {
@@ -50,7 +57,9 @@ class PluginRuntime(
     }
 
     @Synchronized
-    fun unregister(pluginId: String): Boolean = adapters.remove(pluginId) != null
+    override fun unregister(pluginId: String): Boolean = adapters.remove(pluginId) != null
+
+    override fun revokePendingApprovals() = actionGateway.revokePendingApprovals()
 
     @Synchronized
     fun registeredPluginIds(): Set<String> = adapters.keys.toSet()
