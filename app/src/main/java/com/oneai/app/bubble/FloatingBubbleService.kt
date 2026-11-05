@@ -146,11 +146,7 @@ class FloatingBubbleService : Service() {
 
     private fun showPanel() {
         val services = AppServices.get(application)
-        services.pluginLaunchApprovals.current()?.let { pending ->
-            launchApprovalRequestId = pending.requestId
-            showPluginLaunchApproval(pending)
-            return
-        }
+        if (services.pluginLaunchApprovalController.presentPending()) return
         val store = services.store
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
         // Both plugin enablement and its separate Bubble-access toggle are required.

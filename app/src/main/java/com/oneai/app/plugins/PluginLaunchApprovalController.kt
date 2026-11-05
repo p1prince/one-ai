@@ -43,6 +43,13 @@ class PluginLaunchApprovalController(
         broker.setObserver(observer)
     }
 
+    /** Re-displays an unhandled request when the user reopens the Bubble after closing its panel. */
+    fun presentPending(): Boolean {
+        val request = broker.current() ?: return false
+        observer(request)
+        return true
+    }
+
     fun detach() {
         presenter = null
         broker.setObserver(null)
