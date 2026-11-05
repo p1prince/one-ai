@@ -2,7 +2,7 @@ package com.oneai.plugin.sdk
 
 /** Hard limits on everything that crosses the plugin boundary. Oversized data fails the call; it is never truncated silently. */
 object PluginBounds {
-    const val SDK_API = 1
+    const val SDK_API = 2
     const val MAX_ARGS = 32
     const val MAX_ARG_KEY = 80
     const val MAX_ARG_VALUE = 4_000

@@ -8,6 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PluginBoundsAndVerifierTest {
+    @Test fun advertisesTheCurrentAidlSdkContractVersion() {
+        assertEquals(2, PluginBounds.SDK_API)
+    }
+
     @Test fun validatesIdsAndNames() {
         assertTrue(PluginBounds.isValidRequestId("req-1_A"))
         assertFalse(PluginBounds.isValidRequestId("bad id"))

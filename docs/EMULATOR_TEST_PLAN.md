@@ -10,7 +10,7 @@ Building any APK, including the debug builds and the instrumentation test APK th
 |---|---|---|
 | CI (compile + JVM unit tests + lint + androidTest compile) | Logic is right against fakes; files are acceptable to the host's parsers; the instrumented test compiles | Passing (see `DEVELOPMENT_TRACKER.md` for commit and run numbers) |
 | Instrumented test `EchoPluginInstrumentedTest` (section 2) | Real discovery, XML resource reading, certificate reading, bound service, SDK caller check, deadline, progress | **Never run** |
-| Manual checks (section 3) | Behaviour that needs the Stage 9 screens, the overlay and real user interaction | **Never run; some need Stage 9 first** |
+| Manual checks (section 3) | Behaviour using the existing Stage 9 screens, the overlay and real user interaction | **Never run; Stage 11 acceptance pending** |
 
 ## 2. Instrumented test (available now)
 
@@ -38,13 +38,13 @@ What the nine tests check:
 
 **Assumption to confirm on first run:** instrumentation code executes in the ONE AI process, so the plugin sees the ONE AI package as the caller. If every call fails with `PLUGIN_UNAVAILABLE`, suspect this first (the test setup, not the plugin).
 
-## 3. Manual checks (after Stage 9 adds the import UI and toggles)
+## 3. Manual checks (Stage 9 UI is implemented; run during Stage 11 acceptance)
 
 Record pass/fail per row. "Expected" is what the design requires, not an observed result.
 
 | # | Step | Expected |
 |---:|---|---|
-| M1 | Install echo plugin; open Plugins | Listed as available, **not trusted**; nothing bound or run |
+| M1 | Install echo plugin; open Plugins | Listed as available, **not trusted**; nothing bound or run (UI exists but is not visually/device verified) |
 | M2 | Import; compare the shown certificate fingerprint with `apksigner verify --print-certs` on the APK | They match; user must confirm before it is stored |
 | M3 | Enable the plugin; open the Bubble | Bubble still **empty**: plugin enablement does not grant Bubble access |
 | M4 | Turn on the plugin's Bubble access | "Echo" service appears; turn it off and it disappears while the plugin stays enabled |

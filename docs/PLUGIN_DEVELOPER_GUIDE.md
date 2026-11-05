@@ -1,8 +1,8 @@
-# ONE AI Plugin Developer Guide (plugin API level 1)
+# ONE AI Plugin Developer Guide (plugin API level 2)
 
 For people who build a plugin for ONE AI. The reference implementation is `samples/echo-plugin`; copy it as a starting point. Design background and threat model: `docs/STAGE_8_DESIGN.md`. The older `PLUGIN_SDK.md` describes manifest v1 and the in-app adapters; it stays for migration.
 
-> **Status (read this first).** The plugin contract, SDK, host trust logic and Bubble rendering are implemented and unit-tested in CI (compile + JVM tests only). **Nothing here has been run on an emulator or device yet**: real binding, certificate reading, process isolation and the Bubble overlay are unverified (see `docs/EMULATOR_TEST_PLAN.md`). The import/enable screens are not built yet (Stage 9), so today a plugin cannot be imported from the app UI. The SDK is not published to a Maven repository; add it as a module, as the sample does.
+> **Status (read this first).** The plugin contract, SDK, host trust logic and Bubble rendering are implemented and unit-tested in CI (compile + JVM tests only). **Nothing here has been run on an emulator or device yet**: real binding, certificate reading, process isolation and the Bubble overlay are unverified (see `docs/EMULATOR_TEST_PLAN.md`). The Stage 9 Plugins screen and process-wide host wiring are now present: users can discover, fingerprint-review, import, enable, separately grant Bubble access, update-review and remove plugins. These screens and flows have not yet been visually or device-verified. The SDK is not published to a Maven repository; add it as a module, as the sample does.
 
 ## 1. What a plugin is
 
@@ -39,7 +39,7 @@ ONE AI reads this without running your code, so the user can review it before tr
 | Rule | Limit |
 |---|---|
 | `manifestVersion` | must be `2` |
-| `minCoreApi` / `targetCoreApi` | integers; `minCoreApi` ≥ 1, `targetCoreApi` ≥ `minCoreApi`. This ONE AI provides API level **1**; a plugin whose `minCoreApi` is higher is refused |
+| `minCoreApi` / `targetCoreApi` | integers; `minCoreApi` ≥ 1, `targetCoreApi` ≥ `minCoreApi`. This ONE AI provides core API level **2**; a plugin whose `minCoreApi` is higher is refused |
 | Name | 1–60 characters |
 | Description | up to 500 characters |
 | Capabilities | 1–12, from the supported list (below) |
@@ -74,6 +74,8 @@ Make commands **cancellable**: let `InterruptedException` escape and do not swal
 Error codes must look like `[A-Z][A-Z0-9_]{0,39}`; anything else is replaced by `PLUGIN_ERROR`. Messages are cut to 300 characters and are shown to the user, so never include secrets or internals. `context.reportActivity("...")` sends a bounded (300 characters) progress line, shown in Activity as plugin-originated; never put secrets in it.
 
 ONE AI waits slightly longer than the plugin's own deadline (35 seconds) and cancels the request if it gives up.
+
+The `describe()` handshake reports the AIDL SDK wire version (`sdkApi`). The host currently accepts wire versions 1 through 2. This is separate from manifest `minCoreApi`/`targetCoreApi`, which describe host feature compatibility; API 2 features such as the screen-launch callback must be declared with `minCoreApi="2"`.
 
 ## 5. Bubble views (declarative)
 
@@ -116,9 +118,10 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - Check that your manifest XML and view JSON are acceptable to ONE AI. `EchoSamplePluginContractTest` (in the app's tests) shows how: it feeds both through the host's real parsers.
 - Real binding, signature checks and the Bubble need an emulator or device: `docs/EMULATOR_TEST_PLAN.md`.
 
-## 9. Known limits (API level 1)
+## 9. Known limits (API level 2)
 
 - No streaming results; one result per request.
 - Arguments and results are text only.
 - A plugin cannot call back into ONE AI beyond progress lines.
-- Plugin API stability: level 1 may change before the first foundation release.
+- The AIDL SDK handshake reports wire SDK API **2**. The manifest's `minCoreApi`/`targetCoreApi` independently describe required host features; a plugin that requests the API 2 screen-launch feature must declare `minCoreApi="2"`.
+- API 2 adds a plugin-requested `PendingIntent` callback. The SDK can emit it, but the current host channel intentionally drops it pending Stage 9.4c (user confirmation, creator/identity validation and host launch handling). Do not rely on screen requests until that host path is implemented and device-tested.

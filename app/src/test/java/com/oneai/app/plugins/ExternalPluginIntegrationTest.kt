@@ -44,7 +44,7 @@ class ExternalPluginIntegrationTest {
     private class FakeChannel(val behaviour: suspend (String, String, Map<String, String>, (String) -> Unit) -> PluginActionOutput) : PluginChannel {
         var closed = false
         val cancelled = mutableListOf<String>()
-        override suspend fun describe() = """{"sdkApi":1}"""
+        override suspend fun describe() = """{"sdkApi":2}"""
         override suspend fun execute(requestId: String, command: String, args: Map<String, String>, onActivity: (String) -> Unit) =
             behaviour(requestId, command, args, onActivity)
         override suspend fun view(serviceId: String): String? = """{"views":[]}"""
@@ -94,9 +94,12 @@ class ExternalPluginIntegrationTest {
 
     @Test fun handshakeParsing() {
         assertEquals(1, PluginHandshake.parse("""{"sdkApi":1}"""))
+        assertEquals(2, PluginHandshake.parse("""{"sdkApi":2}"""))
         assertNull(PluginHandshake.parse("nonsense"))
         assertNull(PluginHandshake.parse("x".repeat(500)))
+        // Host API 2 accepts the backward-compatible wire contract 1 and the current contract 2.
         assertTrue(PluginHandshake.isSupported("""{"sdkApi":1}"""))
+        assertTrue(PluginHandshake.isSupported("""{"sdkApi":2}"""))
         assertFalse(PluginHandshake.isSupported("""{"sdkApi":2}""", hostLevel = 1))
         assertFalse(PluginHandshake.isSupported("""{"sdkApi":0}"""))
     }
