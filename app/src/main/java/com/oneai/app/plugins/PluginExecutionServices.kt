@@ -1,6 +1,7 @@
 package com.oneai.app.plugins
 
 import com.oneai.app.core.PluginStore
+import com.oneai.app.core.PluginActionExecutor
 import com.oneai.app.security.ActionAuditLogger
 import com.oneai.app.security.PluginActionApprovalGateway
 import com.oneai.app.security.PluginActionGateway
@@ -15,4 +16,5 @@ class PluginExecutionServices(store: PluginStore) {
         findInstalledPlugin = { id -> store.plugins().firstOrNull { it.id == id } },
         actionGateway = approvalGateway
     )
+    val executor: PluginActionExecutor get() = runtime
 }

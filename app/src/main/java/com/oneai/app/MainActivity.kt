@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         store=services.store; commandRegistry=services.commandRegistry; plugins=services.plugins
         vault=SecretVault(applicationContext); ai=AiProviderClient(store,vault); orchestrator=AiOrchestrator(RetryingAiProvider(ai),store); commandRouter=CommandRouter(store,orchestrator)
         services.commandRouter=commandRouter
-        commandExecutor=CommandExecutor(commandRegistry,{ pluginId,input,ticket -> store.pluginRuntime().invoke(pluginId,input,ticket) },{ store.log(it) })
+        commandExecutor=CommandExecutor(commandRegistry,{ pluginId,input,ticket -> services.pluginExecution.executor.invoke(pluginId,input,ticket) },{ store.log(it) })
         setContent { OneAiApp(store,plugins,services.center,vault,ai,commandRouter,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { orchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },

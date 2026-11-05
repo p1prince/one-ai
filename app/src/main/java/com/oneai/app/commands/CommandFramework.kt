@@ -3,7 +3,7 @@ package com.oneai.app.commands
 import com.oneai.app.core.CoreError
 import com.oneai.app.core.CoreErrors
 import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginInvocationResult
+import com.oneai.app.core.PluginInvocationResult
 import com.oneai.app.plugins.PluginManifestValidator
 import kotlinx.coroutines.CancellationException
 

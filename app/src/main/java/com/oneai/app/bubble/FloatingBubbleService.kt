@@ -30,8 +30,8 @@ import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.AppServices
-import com.oneai.app.plugins.PluginInvocationResult
-import com.oneai.app.plugins.PluginRuntime
+import com.oneai.app.core.PluginInvocationResult
+import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.core.PluginActionExecutor
 import com.oneai.app.security.PluginActionApprovalGateway
 import com.oneai.app.security.ActionGateResult
@@ -268,17 +268,19 @@ class FloatingBubbleService : Service() {
 
     /** One shared flow: invoke, ask for approval when required, invoke again with the one-use ticket. */
     private fun runPluginCall(call: BubbleAction.PluginCall, provider: BubbleServiceProvider) {
-        val runtime: PluginRuntime = AppServices.get(application).pluginRuntime
-        provider.ensureReady(runtime, host).onFailure {
+        val services = AppServices.get(application)
+        val executor: PluginActionExecutor = services.pluginExecution.executor
+        val registrar: PluginAdapterRegistrar = services.pluginRuntime
+        provider.ensureReady(registrar, host).onFailure {
             showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
             return
         }
         serviceScope.launch {
-            val decision = runtime.invoke(call.pluginId, call.input)
+            val decision = executor.invoke(call.pluginId, call.input)
             if (!serviceJob.isActive) return@launch
             uiHandler.post {
                 if (!serviceJob.isActive) return@post
-                if (decision is PluginInvocationResult.AwaitingApproval) showApproval(call, runtime)
+                if (decision is PluginInvocationResult.AwaitingApproval) showApproval(call, executor)
                 else show(call.outcomes.present(decision))
             }
         }

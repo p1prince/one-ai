@@ -67,21 +67,21 @@ class PluginRuntime(
     override suspend fun invoke(
         pluginId: String,
         input: PluginActionInput,
-        approvalTicket: String? = null
+        approvalTicket: String?
     ): PluginInvocationResult {
         val adapter = synchronized(this) { adapters[pluginId] }
-            ?: return PluginInvocationResult.Rejected("No trusted adapter is registered for this plugin")
+            ?: return com.oneai.app.core.PluginInvocationResult.Rejected("No trusted adapter is registered for this plugin")
         val installed = findInstalledPlugin(pluginId)
-            ?: return PluginInvocationResult.Rejected("Plugin is not installed")
-        if (!installed.enabled) return PluginInvocationResult.Rejected("Plugin is disabled")
-        validateInput(input, installed)?.let { return PluginInvocationResult.Rejected(it) }
+            ?: return com.oneai.app.core.PluginInvocationResult.Rejected("Plugin is not installed")
+        if (!installed.enabled) return com.oneai.app.core.PluginInvocationResult.Rejected("Plugin is disabled")
+        validateInput(input, installed)?.let { return com.oneai.app.core.PluginInvocationResult.Rejected(it) }
 
         val action = ActionRequest(pluginId, input.actionId, input.capability, input.description)
         when (val gate = actionGateway.check(action, approvalTicket)) {
             is ActionGateResult.AwaitingUserApproval ->
-                return PluginInvocationResult.AwaitingApproval(gate.authorization.reason)
+                return com.oneai.app.core.PluginInvocationResult.AwaitingApproval(gate.authorization.reason)
             is ActionGateResult.Rejected ->
-                return PluginInvocationResult.Rejected(gate.authorization.reason)
+                return com.oneai.app.core.PluginInvocationResult.Rejected(gate.authorization.reason)
             is ActionGateResult.Permitted -> Unit
         }
 
@@ -90,24 +90,24 @@ class PluginRuntime(
         val current = findInstalledPlugin(pluginId)
         val stillRegistered = synchronized(this) { adapters[pluginId] === adapter }
         if (current == null || !current.enabled || !stillRegistered) {
-            return PluginInvocationResult.Rejected("Plugin was disabled or removed before execution")
+            return com.oneai.app.core.PluginInvocationResult.Rejected("Plugin was disabled or removed before execution")
         }
 
         return try {
             val output = adapter.execute(input)
             if (!output.isValidForCoreUi()) {
                 actionGateway.recordExecutionResult(pluginId, input.actionId, "failed")
-                PluginInvocationResult.Failed("The plugin returned data outside the supported limits.")
+                com.oneai.app.core.PluginInvocationResult.Failed("The plugin returned data outside the supported limits.")
             } else {
                 actionGateway.recordExecutionResult(pluginId, input.actionId, "completed")
-                PluginInvocationResult.Completed(output)
+                com.oneai.app.core.PluginInvocationResult.Completed(output)
             }
         } catch (cancelled: CancellationException) {
             actionGateway.recordExecutionResult(pluginId, input.actionId, "cancelled")
             throw cancelled
         } catch (_: Exception) {
             actionGateway.recordExecutionResult(pluginId, input.actionId, "failed")
-            PluginInvocationResult.Failed("The plugin action failed. Check its activity entry for details.")
+            com.oneai.app.core.PluginInvocationResult.Failed("The plugin action failed. Check its activity entry for details.")
         }
     }
 
