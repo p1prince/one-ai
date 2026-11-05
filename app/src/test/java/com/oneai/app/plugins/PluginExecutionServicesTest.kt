@@ -55,6 +55,36 @@ class PluginExecutionServicesTest {
         assertTrue(store.plugins().isEmpty())
         assertTrue(store.events.isEmpty())
     }
+
+    @Test fun productionManagerAndBubbleShareOneRuntimeForPluginLifecycle() {
+        val id = "dev.example.lifecycle"
+        val template = PluginTemplate(id, "Lifecycle", "Test plugin", listOf("commands"))
+        val store = EmptyStore()
+        val host = PluginHostComposition(store, listOf(template))
+        assertTrue(host.manager.install(template).isSuccess)
+        assertTrue(host.manager.setEnabled(id, true).isSuccess)
+
+        val record = host.manager.installed().single()
+        val manifest = PluginManifest(
+            id = record.id,
+            name = record.name,
+            version = record.version,
+            description = record.description,
+            capabilities = record.capabilities,
+            dependencies = record.dependencies
+        )
+        val adapter = object : PluginAdapter {
+            override val manifest = manifest
+            override suspend fun execute(input: PluginActionInput) =
+                PluginActionOutput("Result", "Executed")
+        }
+        assertTrue(host.execution.runtime.register(adapter).isSuccess)
+        assertEquals(setOf(id), host.execution.runtime.registeredPluginIds())
+
+        assertTrue(host.manager.setEnabled(id, false).isSuccess)
+        assertEquals(emptySet<String>(), host.execution.runtime.registeredPluginIds())
+    }
+
     @Test fun pluginManagerUsesTheInjectedLifecycleBoundaryForDisableAndRemoval() {
         val store = EmptyStore()
         val removed = mutableListOf<String>()
@@ -64,7 +94,7 @@ class PluginExecutionServicesTest {
             override fun revokePendingApprovals() { revocations++ }
         }
         val template = PluginTemplate("dev.example.lifecycle", "Lifecycle", "Test", listOf("commands"))
-        val manager = com.oneai.app.plugins.PluginManager(store, listOf(template), lifecycle = lifecycle)
+        val manager = PluginManager(store, listOf(template), lifecycle = lifecycle)
         assertTrue(manager.install(template).isSuccess)
         assertTrue(manager.setEnabled(template.id, true).isSuccess)
         assertTrue(manager.setEnabled(template.id, false).isSuccess)
@@ -72,5 +102,4 @@ class PluginExecutionServicesTest {
         assertEquals(listOf(template.id, template.id), removed)
         assertEquals(2, revocations)
     }
-
 }

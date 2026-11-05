@@ -2,8 +2,6 @@ package com.oneai.app.plugins
 
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.core.PluginStore
-import com.oneai.app.security.ActionAuditLogger
-import com.oneai.app.security.PluginActionGateway
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,8 +13,6 @@ class PluginManagerTest {
         private var services = emptySet<String>()
         var developer = false
         val logs = mutableListOf<String>()
-        private val gateway = PluginActionGateway({ id -> records[id] }, ActionAuditLogger { logs += it })
-        private val runtime = PluginRuntime({ id -> records[id] }, gateway)
         override fun plugins() = records.values.toList()
         override fun savePlugin(plugin: PluginRecord) { records[plugin.id] = plugin }
         override fun removePlugin(id: String) { records.remove(id) }
@@ -24,8 +20,6 @@ class PluginManagerTest {
         override fun setBubbleServices(services: Set<String>) { this.services = services }
         override fun developerMode() = developer
         override fun log(message: String) { logs += message }
-        override fun pluginRuntime() = runtime
-        override fun pluginActionGateway() = gateway
     }
 
     private fun template(id: String, deps: List<String> = emptyList(), bubble: String? = null) =
