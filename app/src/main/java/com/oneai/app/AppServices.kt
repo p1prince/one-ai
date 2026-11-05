@@ -68,7 +68,10 @@ class AppServices private constructor(app: Application) {
             // A refused registration (reserved or duplicate service name) simply leaves the plugin out of the Bubble.
             BubbleProviders.registry.register(ExternalBubbleProvider(manifest, viewSource))
         },
-        onBubbleRemoved = { pluginId -> BubbleProviders.registry.unregisterPlugin(pluginId) }
+        onBubbleRemoved = { pluginId ->
+            pluginLaunchApprovals.clearPlugin(pluginId)
+            BubbleProviders.registry.unregisterPlugin(pluginId)
+        }
     )
 
     lateinit var center: ExternalPluginCenter

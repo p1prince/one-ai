@@ -120,9 +120,11 @@ class BoundPluginChannelFactory(
     ) : PluginChannel {
         @Volatile private var dead = false
         @Volatile private var pending: CancellableContinuation<PluginActionOutput>? = null
+        @Volatile private var pendingRequestId: String? = null
 
         fun markDead() {
             dead = true
+            pendingRequestId?.let(launchBroker::reject)
             pending?.takeIf { it.isActive }?.resumeWithException(PluginChannelException("PLUGIN_DIED", "The plugin stopped unexpectedly"))
         }
 
@@ -138,6 +140,7 @@ class BoundPluginChannelFactory(
                 return@suspendCancellableCoroutine
             }
             pending = continuation
+            pendingRequestId = requestId
             val callback = object : IPluginCallback.Stub() {
                 private val terminal = AtomicBoolean(false)
                 private val launchDelivered = AtomicBoolean(false)
@@ -150,6 +153,7 @@ class BoundPluginChannelFactory(
 
                 override fun onError(id: String?, code: String?, message: String?) {
                     if (id == requestId && continuation.isActive && terminal.compareAndSet(false, true)) {
+                        launchBroker.reject(requestId)
                         continuation.resumeWithException(
                             PluginChannelException(PluginBounds.safeErrorCode(code), PluginBounds.bound(message, PluginBounds.MAX_ERROR_MESSAGE))
                         )
@@ -179,14 +183,22 @@ class BoundPluginChannelFactory(
             try {
                 plugin.execute(requestId, command, args.keys.toTypedArray(), args.values.toTypedArray(), callback)
             } catch (e: RemoteException) {
+                launchBroker.reject(requestId)
                 continuation.resumeWithException(PluginChannelException("PLUGIN_UNAVAILABLE", "The plugin could not be reached"))
             } catch (e: SecurityException) {
+                launchBroker.reject(requestId)
                 continuation.resumeWithException(PluginChannelException("PLUGIN_UNAVAILABLE", "The plugin refused the request"))
             }
-            continuation.invokeOnCancellation { pending = null }
+            continuation.invokeOnCancellation {
+                pending = null
+                launchBroker.reject(requestId)
+            }
         }
 
-        override fun cancel(requestId: String) { runCatching { plugin.cancel(requestId) } }
+        override fun cancel(requestId: String) {
+            launchBroker.reject(requestId)
+            runCatching { plugin.cancel(requestId) }
+        }
 
         override fun close() { binding.unbind() }
 
