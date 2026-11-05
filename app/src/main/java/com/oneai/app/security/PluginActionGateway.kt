@@ -12,6 +12,7 @@ interface PluginActionApprovalGateway {
     fun check(request: ActionRequest, approvalTicket: String? = null): ActionGateResult
     fun confirmUserApproval(request: ActionRequest): String
     fun revokePendingApprovals()
+    fun recordExecutionResult(pluginId: String, actionId: String, outcome: String)
 }
 
 /** Mandatory policy boundary for future plugin action adapters. */
@@ -59,7 +60,7 @@ class PluginActionGateway(
     }
 
     /** Records only a bounded outcome label; never pass secrets or plugin payloads. */
-    fun recordExecutionResult(pluginId: String, actionId: String, outcome: String) {
+    override fun recordExecutionResult(pluginId: String, actionId: String, outcome: String) {
         require(outcome in setOf("completed", "failed", "cancelled"))
         audit.record("Plugin action $outcome: $pluginId/$actionId")
     }
