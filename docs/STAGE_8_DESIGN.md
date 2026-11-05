@@ -1,6 +1,6 @@
 # Stage 8 — Plugin Architecture and Developer SDK: Design and implementation review
 
-Status: **Reviewed against owner-approved D1/D4 on 2026-11-05.** The six implementation steps in §11 exist in source and are CI-validated. This is not Android-runtime acceptance: real package discovery, certificate reads, binding, callbacks and process isolation remain for Stage 11 emulator/device testing. The current host's API 2 screen-launch callback is declared by the SDK but is not yet handled by the host channel (Stage 9.4c). The standalone plugin-author fake-host test kit listed in §8 is not yet packaged as a reusable deliverable.
+Status: **Reviewed against owner-approved D1/D4 on 2026-11-05.** The six implementation steps in §11 exist in source and are CI-validated. This is not Android-runtime acceptance: real package discovery, certificate reads, binding, callbacks and process isolation remain for Stage 11 emulator/device testing. The API 2 screen-launch callback is captured by the host channel and connected to the Floating Bubble's one-time approval surface (Stage 9.4c source implementation); the standalone plugin-author fake-host test kit listed in §8 is not yet packaged as a reusable deliverable. Android runtime launch behaviour remains unverified on a device.
 
 This design implements D1 and the owner-approved D4 hybrid model: signed external APKs use the secure AIDL contract; built-in capabilities will become separate reference modules implementing the same contract during Stage 9. No arbitrary dex/class loading is permitted. The generic shell, SDK contract and plugin management/security remain core.
 
@@ -70,7 +70,7 @@ The implemented AIDL contract is IOneAiPlugin plus IPluginCallback (see one-ai-p
 - describe() returns bounded JSON, currently {"sdkApi":2}.
 - execute(requestId, commandName, argKeys, argValues, callback) is asynchronous and returns exactly one result/error; progress is a bounded callback.
 - view(serviceId) returns declarative Bubble JSON; cancel(requestId) asks the plugin to stop.
-- API 2 adds onLaunch(requestId, label, PendingIntent). The SDK emits this only for a plugin-created PendingIntent. The host must show its own confirmation and validate creator/identity before sending it. The current Android host channel drops this callback; Stage 9.4c remains open, so screen launch is not functional.
+- API 2 adds `onLaunch(requestId, label, PendingIntent)`. The host captures only a creator-package/UID-matched immutable PendingIntent, queues one request, and surfaces a Bubble confirmation showing the package plus an explicitly untrusted plugin label. The user must tap Allow once; the host consumes the request, rechecks the signing-certificate trust and enabled state, then sends it. Reject, cancellation, plugin removal, stale requests and failed trust checks clear the request. The host uses Android's explicit sender BAL opt-in on API 34+ and `MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE` on API 36+. Device-specific launch acceptance remains pending.
 
 Versioning has two distinct checks:
 1. sdkApi is the AIDL/SDK wire-contract version returned by describe(). The current SDK reports 2; the host accepts compatible wire versions 1 through 2.
@@ -80,7 +80,7 @@ All strings and maps use hard bounds (keys up to 80, values up to 4,000, output 
 
 ## 6. Permissions and approvals
 
-- **Host policy:** unchanged. `PluginActionGateway` + `CapabilityPolicy` decide per command; sensitive capabilities require a one-use approval ticket for the exact action. Enabling a plugin never grants Bubble access; those remain two settings.
+- **Host policy:** unchanged. `PluginActionGateway` + `CapabilityPolicy` decide per command; sensitive capabilities require a one-use approval ticket for the exact action. Enabling a plugin never grants Bubble access; those remain two settings. A plugin-requested screen is a separate generic host action: Bubble confirmation, one-use PendingIntent, trust/enabled recheck and Android BAL opt-in are mandatory.
 - **Android permissions belong to the plugin.** A Voice plugin declares and requests `RECORD_AUDIO` itself; a Screen plugin owns its MediaProjection consent and foreground service. This removes `RECORD_AUDIO` and `FOREGROUND_SERVICE_MEDIA_PROJECTION` from the core manifest (F5).
 - **Plugin secrets** (for example an API key for web search) live inside the plugin app, which fixes the single-slot credential limitation in the core vault (F19). Plugins may offer their own settings Activity; the host can launch it from the Plugins screen with a user tap.
 

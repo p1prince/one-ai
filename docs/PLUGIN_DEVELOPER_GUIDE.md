@@ -77,6 +77,14 @@ ONE AI waits slightly longer than the plugin's own deadline (35 seconds) and can
 
 The `describe()` handshake reports the AIDL SDK wire version (`sdkApi`). The host currently accepts wire versions 1 through 2. This is separate from manifest `minCoreApi`/`targetCoreApi`, which describe host feature compatibility; API 2 features such as the screen-launch callback must be declared with `minCoreApi="2"`.
 
+### Plugin-requested screens (API 2)
+
+A plugin that needs to show a screen must return a **plugin-created immutable** `PendingIntent` through the API 2 `onLaunch` callback. The creator package and UID must match the imported plugin APK; mutable PendingIntents are rejected on Android 12+. The callback does not launch anything. ONE AI places the request in its own Floating Bubble and shows the package name plus the plugin-supplied label (which users should treat as untrusted text). The user must choose **Allow once** or **Reject**. Approval is consumed once, and ONE AI rechecks both the signing-certificate trust state and the plugin's enabled state immediately before sending. A canceled, stale, disabled or no-longer-trusted request is discarded.
+
+Create the PendingIntent with `FLAG_IMMUTABLE`. For plugins targeting Android 15/API 35 or later, creator background-activity-start privileges are no longer contributed by default; only opt in with `ActivityOptions.setPendingIntentCreatorBackgroundActivityStartMode(MODE_BACKGROUND_ACTIVITY_START_ALLOWED)` when your plugin genuinely needs to delegate its own BAL privilege. This does not bypass the host's user confirmation or Android's launch restrictions.
+
+On Android 14/API 34+, the host explicitly opts in when it sends the PendingIntent after the user's tap. On Android 16/API 36+, the host uses `MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE`, the least-privilege visible-sender mode. A Floating Bubble overlay is not equivalent to a visible Activity on every Android release/device, so the request can still be blocked by Android; handle that outcome and test on the supported device matrix. Never rely on a plugin's own background activity launch.
+
 ## 5. Bubble views (declarative)
 
 If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. It must be fast (ONE AI waits 5 seconds) and at most 20,000 characters. The core draws it; plugins never draw overlays.
