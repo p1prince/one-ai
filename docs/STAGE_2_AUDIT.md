@@ -174,3 +174,54 @@ Conclusion: the layers are not cleanly separable today. Extracting capabilities 
 - Branch head at reconciliation: `6433404d5c272714405dd32c65af07bdcef838f8`. The preceding `6999052` had CI #488 pass. CI #489 on `6433404` failed before a runner or any job steps were recorded; this is not evidence of a source/test failure. No usable job log was available to identify the infrastructure cause.
 - The current Stage 2 gate remains open. The line-by-line reviews and class-level dependency map listed in §9.4 have not been completed by this update. Do not infer their completion from the earlier package-level graph.
 - No application code, tests, Gradle configuration, APK or release artifact was changed or built by this documentation reconciliation.
+
+
+## 11. Update 4 — source-level verification against the current implementation (2026-11-05)
+
+### Files and assertions inspected in this pass
+
+Read the current FloatingBubbleService.kt, BubbleContract.kt, BubbleUiPolicy.kt, BuiltInBubbleProviders.kt, BuiltInProviderSupport.kt, BuiltInCatalogue.kt, PluginManager.kt, PluginRuntime.kt, ExternalPluginCenter.kt, OneAiStore.kt, PluginActionGateway.kt, ActionSecurity.kt, SecretVault.kt, MainActivity.kt, AndroidManifest.xml, app/build.gradle.kts, root build.gradle.kts, the screen-capture and voice activities/services, and selected Bubble, catalogue, manager, external-plugin, security and screen-artifact unit tests.
+
+### Earlier findings whose status has changed
+
+| Finding | Current status | Evidence / qualification |
+|---|---|---|
+| F1 — six navigation sections | Resolved in code | MainActivity.Page.destinations contains Home, Plugins, Develop, Activity and Settings; Commands is a Home sub-screen. The UI itself has not been visually exercised. |
+| F4 — capability-specific Bubble shell | Resolved at shell level | FloatingBubbleService now uses BubbleProviderRegistry and generic BubbleServiceProvider contracts; rendering is registry-driven and has no capability-name branch. Capability-specific code remains outside that shell in the interim provider package. |
+| F6 — no external extension model | Partially resolved | The signed APK/AIDL SDK, discovery, trust and external plugin centre exist in code. Their real Android binding and process boundary remain unverified; built-in capability code is still in the app module. |
+| F7 — no compatibility/Bubble declarations | Partially resolved | External manifest v2 includes min/target core API, commands, capabilities, dependencies and optional Bubble declaration. A plugin settings/activity integration declaration is not present in the manifest model reviewed here. |
+| F8 — no extension command framework | Resolved at automated-test level | CommandRegistry/executor and external registrar paths exist; external manifest declarations are registered through the host. Real external plugin binding remains unverified. |
+| F9 — tracker has a different stage structure | Resolved | DEVELOPMENT_TRACKER.md uses the official 12-stage sequence. |
+| F10 — AutoDroid documented as built-in | Partially resolved | The integration document labels AutoDroid as a future plugin and forbids assuming a remote macro API. The interim adapter/provider and catalogue entry still ship in the app module. |
+| F13 — capability-specific showService chain | Resolved | showService resolves a provider by service ID and renders its generic BubbleView. |
+| F14 — stale Voice/Automation fallback text | Resolved | The old capability-specific fallback branch is absent from the current FloatingBubbleService. |
+| F15 — separate enablement and Bubble-access controls | Implemented in screen source; visual verification pending | PluginsPage shows an Enabled switch and a distinct “Show in Floating Bubble” switch, disabled until the plugin is enabled. The UI has not been rendered/clicked on an emulator or device. |
+| F19 — only one named credential slot | Partially resolved | SecretVault now has saveNamed/readNamed encrypted aliases in addition to the primary provider key. The API is app-vault scoped, not a demonstrated plugin-owned secret store; external plugins should keep their own secrets as the Stage 8 design specifies. |
+| F21 — no instrumentation dependencies | Resolved as scaffolding | app/build.gradle.kts includes AndroidX test runner/JUnit dependencies and validate.yml compiles androidTest sources. This is compile-only; no instrumentation test has run. |
+
+### Current findings confirmed or added
+
+| # | Finding | Evidence | Required audit/correction consequence |
+|---|---|---|---|
+| F22 | The six interim built-in Bubble contributors are still declared together in app/src/main/java/com/oneai/app/builtin/BuiltInBubbleProviders.kt. They directly construct app-internal adapters and use OneAiStore, core AI providers, PluginRuntime, and Bubble classes. They are not yet separate reference Gradle modules with a clean module boundary. | BuiltInBubbleProviders.kt; BuiltInProviderSupport.kt | Under D4, separate capability implementations into reference plugin modules that implement the stable SDK contract; do not simply rename the existing package or move UI code while leaving capability logic in core. |
+| F23 | BuiltInCatalogue.templates still hard-codes seven plugin records, and PluginManager defaults to that catalogue. Provider bindings are also a hard-coded list in BuiltInBubbleProviders. | BuiltInCatalogue.kt; PluginManager constructor; BuiltInBubbleProviders.bindings | F2/F12 remain open. Replace the production catalogue/bindings with registration/discovery data; retain only generic plugin infrastructure in core. |
+| F24 | The core manifest still declares RECORD_AUDIO and FOREGROUND_SERVICE_MEDIA_PROJECTION; it also declares VoiceCaptureActivity, ScreenCaptureConsentActivity, ScreenRegionSelectionActivity and ScreenProjectionCaptureService in the app. | app/src/main/AndroidManifest.xml; voice/screen activity/service source | F5 remains open. Move microphone and MediaProjection ownership to the appropriate future plugin package/module and remove capability-only core permissions/components when safe. Keep overlay permission and the Floating Bubble foreground service as core requirements. |
+| F25 | OneAiStore still constructs and exposes PluginRuntime and PluginActionGateway, so core persistence remains coupled to the plugin runtime package. | core/OneAiStore.kt imports and sharedCore() | F11 remains open. Audit an inversion through core-owned interfaces/composition before proposing a safe change; do not break the shared process-wide runtime/gateway behaviour. |
+| F26 | The zero-plugin unit tests construct PluginManager with an explicitly empty catalogue and verify BubbleProviderRegistry emptiness in isolation. In production, PluginManager defaults to BuiltInCatalogue.templates, and OneAiApplication calls BuiltInBubbleProviders.registerAll on startup. Thus those unit tests do not yet prove the full production composition starts with no optional plugins available/activated. | PluginManagerTest.coreWorksWithNoPluginsAndAnEmptyCatalogue; BubbleContractTest.registryStartsEmpty; OneAiApplication.onCreate() | Add a composition-level empty-catalogue test after the reference-module registration model is designed. Preserve the user-visible empty-by-default Bubble; distinguish “providers known to the host” from “plugin enabled/Bubble access granted.” |
+| F27 | The Bubble's core command_manager still creates a CommandRouter directly and executes saved commands through it rather than the Stage 6 CommandExecutor/CommandRegistry path used by Home. | FloatingBubbleService.renderCommandManager; MainActivity command execution | Carry forward the tracker gap; reconcile the Bubble's core command execution path during the appropriate later stage, not as part of this audit-only pass. |
+| F28 | Tests cover policy and contracts but do not render the actual Android Bubble panel or prove the app composition starts empty. Screen-artifact tests cover path containment, size and expiry; region-policy tests cover coordinate mapping. | BubbleContractTest, BubbleUiPolicyTest, ScreenCaptureArtifactPolicyTest, ScreenRegionPolicyTest | Add explicit integration coverage at the appropriate stage; keep emulator/device acceptance separate. |
+| F29 | Developer Mode's current plugin creation path persists a validated declarative PluginRecord; it does not compile, package or run plugin code. | PluginManager.create() and Developer screen | Align Developer Mode with the SDK/reference-module workflow. Do not introduce arbitrary in-process code loading. |
+
+### Security and external-plugin test observations
+
+- CapabilityPolicy rejects disabled plugins, unknown or undeclared capabilities, and marks sensitive capabilities for approval. OneTimeApprovalGate binds a short-lived ticket to the exact plugin/action/capability/description and consumes it once.
+- PluginActionGateway re-checks installed/enabled state and records bounded outcomes; PluginRuntime validates the installed declaration, checks approval immediately before execution, re-checks lifecycle state and contains adapter exceptions.
+- ExternalPluginCenterTest exercises fingerprint confirmation, disabled-by-default import, update consent, certificate mismatch, dependency/service conflicts, separate Bubble access and removal using fake signatures/channel dependencies. It does not prove real Android binder IPC.
+- ExternalPluginManifestTest covers identity/version/API validation, declared capabilities, command bounds, optional Bubble declarations, dependency validation and update consent.
+- ExternalBubbleProviderTest checks declarative view parsing and that buttons produce host-mediated plugin calls with exact argument review.
+- BubbleContractTest includes a source guard against capability-specific references in the Bubble shell; the guard is a static text check, not a runtime proof.
+- docs/EMULATOR_TEST_PLAN.md remains scaffolding only. Its nine real-binder instrumented tests and manual plugin/Bubble checks have not been run. No APK or emulator/device run was performed during this audit.
+
+### Audit completion still outstanding
+
+This pass narrows and corrects the previous findings, but it is not a complete file-by-file audit. Remaining work includes a full class-level dependency map; review of all AI orchestration/provider and command registry/executor implementations; full review of app composition, settings and activity-history persistence; the remaining external SDK/registrar/discovery/AIDL implementation; the complete test suite's assertions; and reconciliation of every file classification and migration dependency against D4. Stage 2 must remain in progress until those items and the final correction plan are complete.
