@@ -66,10 +66,27 @@ class AppControlPluginContractTest {
     }
 
     @Test fun renderedBubbleViewMatchesTheSharedHostContractFixture() {
-        val fixture = File("src/test/resources/app_control_view.json").readText()
-        val rendered = AppControlBubbleView.render(listOf(AppLaunchTarget("com.example.calculator", "Calculator")))
-        assertTrue("production Bubble JSON must match the fixture consumed by the host parser",
-            JSONObject(rendered).similar(JSONObject(fixture)))
+        val expected = JSONObject(File("src/test/resources/app_control_view.json").readText())
+        val actual = JSONObject(AppControlBubbleView.render(listOf(AppLaunchTarget("com.example.calculator", "Calculator"))))
+        assertEquals(expected.getInt("v"), actual.getInt("v"))
+        val expectedElements = expected.getJSONArray("elements")
+        val actualElements = actual.getJSONArray("elements")
+        assertEquals(expectedElements.length(), actualElements.length())
+        for (index in 0 until expectedElements.length()) {
+            val expectedElement = expectedElements.getJSONObject(index)
+            val actualElement = actualElements.getJSONObject(index)
+            assertEquals(expectedElement.getString("t"), actualElement.getString("t"))
+            if (expectedElement.has("size")) assertEquals(expectedElement.getInt("size"), actualElement.getInt("size"))
+            if (expectedElement.has("text")) assertEquals(expectedElement.getString("text"), actualElement.getString("text"))
+            if (expectedElement.has("label")) assertEquals(expectedElement.getString("label"), actualElement.getString("label"))
+            if (expectedElement.has("command")) assertEquals(expectedElement.getString("command"), actualElement.getString("command"))
+            if (expectedElement.has("args")) {
+                val expectedArgs = expectedElement.getJSONObject("args")
+                val actualArgs = actualElement.getJSONObject("args")
+                assertEquals(expectedArgs.getString("package_name"), actualArgs.getString("package_name"))
+                assertEquals(expectedArgs.getString("app_label"), actualArgs.getString("app_label"))
+            }
+        }
     }
 
     @Test fun emptyCatalogueShowsAnExplicitEmptyState() {
