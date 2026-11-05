@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.builtin.BuiltInBubbleProviders
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
