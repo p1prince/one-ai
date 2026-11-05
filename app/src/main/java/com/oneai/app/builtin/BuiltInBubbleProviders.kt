@@ -17,11 +17,8 @@ import com.oneai.app.bubble.BubbleView
 import com.oneai.app.bubble.ScreenCaptureConsentActivity
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.plugins.AndroidAutoDroidLauncher
-import com.oneai.app.plugins.AndroidDeviceSettingsLauncher
 import com.oneai.app.plugins.AutoDroidAdapter
 import com.oneai.app.plugins.AutoDroidIntegrationPolicy
-import com.oneai.app.plugins.DeviceControlAdapter
-import com.oneai.app.plugins.DeviceControlPolicy
 import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.plugins.ScreenIntelligenceAdapter
@@ -42,14 +39,13 @@ object BuiltInBubbleProviders {
         WebResearchAdapter.PLUGIN_ID to WebResearchBubbleProvider.SERVICE_ID,
         ScreenIntelligenceAdapter.PLUGIN_ID to ScreenIntelligenceBubbleProvider.SERVICE_ID,
         VoiceInterfaceAdapter.PLUGIN_ID to VoiceBubbleProvider.SERVICE_ID,
-        DeviceControlAdapter.PLUGIN_ID to DeviceControlBubbleProvider.SERVICE_ID,
         AutoDroidAdapter.PLUGIN_ID to AutoDroidBubbleProvider.SERVICE_ID
     )
 
     fun registerAll(registry: BubbleProviderRegistry, runtime: PluginAdapterRegistrar) {
         listOf(
             WebResearchBubbleProvider(runtime), ScreenIntelligenceBubbleProvider(runtime), VoiceBubbleProvider(runtime),
-            DeviceControlBubbleProvider(runtime), AutoDroidBubbleProvider(runtime)
+            AutoDroidBubbleProvider(runtime)
         ).forEach { registry.register(it) }
     }
 }
@@ -181,44 +177,6 @@ class VoiceBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvid
     override fun onHostStopped() = VoiceCaptureBridge.cancelPending()
 
     companion object { const val SERVICE_ID = "voice_interface" }
-}
-
-class DeviceControlBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvider(runtime) {
-    override val serviceId = SERVICE_ID
-    override val pluginId = DeviceControlAdapter.PLUGIN_ID
-    override val title = "Device control"
-
-    override fun view(host: BubbleHost): BubbleView {
-        val elements = mutableListOf<BubbleElement>(
-            BubbleElement.Label("Choose an Android settings screen. ONE AI asks before opening it; Android remains in control of the actual setting and any system confirmation.")
-        )
-        DeviceControlPolicy.actions().forEach { action ->
-            elements += BubbleElement.Button(action.label) { _ -> open(action.actionId, action.label) }
-        }
-        return BubbleView(elements)
-    }
-
-    private fun open(actionId: String, label: String): BubbleAction {
-        val action = DeviceControlPolicy.action(actionId)
-            ?: return BubbleAction.Message("Unsupported device action", "ONE AI does not support that settings action.")
-        return BubbleAction.PluginCall(
-            pluginId = pluginId,
-            input = PluginActionInput(actionId = action.actionId, capability = "device_actions", description = "Open Android " + action.label + " settings"),
-            approval = BubbleApproval(
-                "OPEN " + label.uppercase() + " SETTINGS?",
-                "ONE AI will open the corresponding Android Settings screen. You will make and confirm any changes there. ONE AI will not silently toggle restricted settings.",
-                null, "Allow once and open"
-            ),
-            outcomes = BubbleOutcomes("Device Control unavailable", "Device action blocked", "Device action failed") {
-                if (it.title == "Settings opened") null else it.title
-            },
-            backTo = SERVICE_ID
-        )
-    }
-
-    override fun ensureReady(host: BubbleHost) = ensureRegistered(pluginId) { DeviceControlAdapter(AndroidDeviceSettingsLauncher(host.context)) }
-
-    companion object { const val SERVICE_ID = "device_control" }
 }
 
 class AutoDroidBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvider(runtime) {

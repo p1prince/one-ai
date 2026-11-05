@@ -2,6 +2,7 @@ package com.oneai.app.plugins
 
 import com.oneai.app.builtin.BuiltInBubbleProviders
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,10 +29,11 @@ class BuiltInCatalogueTest {
         assertTrue("command_manager" !in BuiltInCatalogue.bubbleBindings.values)
     }
 
-    @Test fun appControlIsNoLongerAnInAppTemplateAndDeviceControlRemainsAvailable() {
+    @Test fun appControlAndDeviceControlAreNoLongerInAppTemplates() {
         assertTrue(BuiltInCatalogue.templates.none { it.id == "one.app.control" })
-        assertTrue("app_control" !in BuiltInCatalogue.bubbleBindings.values)
-        assertEquals("device_control", BuiltInCatalogue.bubbleBindings["one.device.actions"])
+        assertTrue(BuiltInCatalogue.templates.none { it.id == "one.device.actions" })
+        assertFalse("app_control" in BuiltInCatalogue.bubbleBindings.values)
+        assertFalse("device_control" in BuiltInCatalogue.bubbleBindings.values)
     }
 
     @Test fun interimBubbleProvidersStayInStepWithTheCatalogueBindings() {

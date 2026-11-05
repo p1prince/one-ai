@@ -86,9 +86,9 @@ class DeviceControlReferencePluginContractTest {
         )
     }
 
-    @Test fun interimHostDeviceControlRemainsUntilReferencePluginMigrationIsVerified() {
-        assertTrue(BuiltInCatalogue.templates.any { it.id == "one.device.actions" })
-        assertTrue("device_control" in BuiltInCatalogue.bubbleBindings.values)
-        assertFalse(BuiltInCatalogue.templates.any { it.id == packageName })
+    @Test fun retiredInterimHostDeviceControlIsNotRegistered() {
+        assertFalse(BuiltInCatalogue.templates.any { it.id == "one.device.actions" })
+        assertFalse("device_control" in BuiltInCatalogue.bubbleBindings.values)
+        assertFalse(BuiltInBubbleProviders.bindings.containsKey("one.device.actions"))
     }
 }
