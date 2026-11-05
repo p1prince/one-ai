@@ -65,3 +65,5 @@ Known defects and open items: see findings F1–F21 in `docs/STAGE_2_AUDIT.md`.
 
 | 2026-11-05 | `0b019b8` | Docs: record approved hybrid plugin model (D4) and reconcile Stage 2 audit decision/correction plan | **CI #490 failed before any validation steps were recorded**; job returned no steps or usable logs. No evidence of an app source/test failure; infrastructure cause not identifiable from available GitHub job data. |
 | 2026-11-05 | `24ed17d` | Docs: deepen Stage 2 source audit findings (F22–F29); correct statuses for resolved/partial findings | **CI #491 failed before any validation steps were recorded**; job returned no steps or usable logs. No evidence of an app source/test failure; infrastructure cause not identifiable from available GitHub job data. |
+
+| 2026-11-05 | `19e86d1` | Tracker: record Stage 2 source-audit update and CI #490–491 | **CI #492 failed before any validation steps were recorded**; job returned no steps or usable logs. No evidence of an app source/test failure; infrastructure cause not identifiable from available GitHub job data. |
