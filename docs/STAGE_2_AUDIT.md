@@ -1,8 +1,8 @@
 # ONE AI — Stage 2 Repository Audit and Proposed Correction Plan
 
-Status: **DRAFT FOR USER APPROVAL. No code was changed.**
+Status: **Hybrid extension model approved by the owner (D4); Stage 2 audit completion remains in progress. No application code was changed.**
 Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 November 2026).
-Audited: repository `p1prince/one-ai`, branch `foundation/batch-03-ai-engine`, commit `1cdfd117c986ed0ae275c150720d19164c79e5af`.
+Initial audit baseline: repository `p1prince/one-ai`, branch `foundation/batch-03-ai-engine`, commit `1cdfd117c986ed0ae275c150720d19164c79e5af`. The audit was reconciled against branch head `6433404d5c272714405dd32c65af07bdcef838f8` on 2026-11-05; the initial findings below are historical until the remaining file-by-file checks are completed.
 
 ## 1. Verified facts (checked live)
 
@@ -89,32 +89,28 @@ Legend: **C** Core · **PI** Plugin infrastructure · **FP** Future plugin · **
 
 The full import graph should be generated mechanically in the audit completion step.
 
-## 7. Key decision needed before code changes (F6)
+## 7. Approved extension model (F6) — owner decision D4
 
-Stage 8 requires choosing and documenting a secure Android extension model. Options to be decided by the user:
+The owner approved the **hybrid model** on 2026-11-05:
 
-1. **Separate APK plugins** (signed, discovered via an exported service/intent contract, communicating through bound services or content providers, with signature and permission checks). Strongest isolation; most work.
-2. **In-repo modules behind a stable interface** (separate Gradle modules compiled into optional build variants). Simple, but not independently installable.
-3. **Hybrid:** the core defines the SDK contract first; built-in capabilities become reference plugin modules, and external APK plugins follow once the contract is proven.
+1. **Stable core SDK contract:** ONE AI owns a versioned plugin contract, generic runtime/management, security and approval boundary, command registration interfaces, and generic Bubble contribution protocol.
+2. **Built-in reference plugin modules:** capability implementations are separated from the permanent core and developed as reference modules against the same SDK. They demonstrate and test the contract; they must not become capability-specific code in the core shell. These modules do not replace the external plugin model.
+3. **External APK plugins:** independently developed extensions are separately installed, signed APKs using the same documented contract. The current Stage 8 design's bound-service AIDL, package-name identity, explicit fingerprint trust, per-bind certificate verification, bounded IPC, host-controlled approvals, declarative Bubble UI and failure isolation remain the secure external boundary.
 
-Arbitrary dex or class loading from a plugin folder is rejected, as the plan requires.
+D1 remains in force: compile-time-only modules are not accepted as the sole extension model. Arbitrary dex/class loading from plugin folders remains rejected. New plugins must not require capability-specific edits to core source.
 
-## 8. Proposed correction plan (for approval)
+## 8. Correction plan and approval state
 
-Each step is one commit, CI-checked on its exact commit, with no merge and no APK.
+The documentation-reconciliation portion is now complete: the tracker already uses the official 12 stages, the AutoDroid integration document already labels AutoDroid as a future plugin, and D4 now records the owner's hybrid-model approval. This is a docs-only decision record; it does not complete the Stage 2 repository audit.
 
-1. **Docs only:** rewrite `DEVELOPMENT_TRACKER.md` to the plan's 12 stages with honest statuses; update the AutoDroid doc; record the extension-model decision.
-2. **Mechanical dependency map** and read-through of the not-yet-read files; update this audit.
-3. **Navigation:** reduce to five sections; place command management under Develop or Settings (user to choose).
-4. **Core decoupling:** remove `OneAiStore` → `PluginRuntime` coupling; confirm the core runs with an empty catalogue (add a test).
-5. **Generic Bubble:** split `FloatingBubbleService` into a generic shell and a plugin-contributed area; add per-plugin Bubble-access as a distinct stored setting.
-6. **Plugin contract:** manifest additions and the extension model from section 7.
-7. **Extract capability code** one plugin at a time (Web Research first, as the smallest), retaining existing tests.
-8. **Trim manifest permissions**; re-run CI.
-9. **Command framework** extension interface.
-10. Stage 11 acceptance matrix, separating CI, unit, integration, emulator and device results.
+Remaining audit work, in order:
+1. **Complete the file-by-file review:** read the outstanding portions of `FloatingBubbleService`, `ActionSecurity`, `SecretVault`, screen-capture/voice activities, build scripts and dependencies, and inspect the actual assertions in the test suite. Reconfirm earlier classifications against current branch code rather than relying on file names or the old tracker.
+2. **Complete dependency analysis:** generate/update the mechanical package and class-level dependency map; explicitly trace and plan removal of inverted `plugins → bubble`, `security → plugins`, and `core → plugins` edges, plus hard-coded plugin ID/catalogue tables.
+3. **Reconcile implementation to D4:** map each existing built-in capability and its UI, permissions, settings, secrets and tests to a reference plugin module using the stable SDK; keep only generic infrastructure in core. Confirm the external signed-APK AIDL contract remains the public extension path.
+4. **Update this audit and correction plan** with verified file-level evidence, corrected classifications, migration order, dependencies and test coverage. Only then is the Stage 2 audit ready for final owner review/acceptance.
+5. After Stage 2 acceptance, implement corrections in official 12-stage order: core decoupling and empty-catalogue proof; generic empty-by-default Bubble and independent per-plugin Bubble access; stable plugin contract integration; capability extraction into reference modules; permission minimisation; command extension interface; and Stage 11 acceptance matrix. Each implementation change must be scoped to its official stage and CI-checked on the exact commit.
 
-Rules honoured: no merge of PR #1, no APK, no invented design details, 12 stages preserved.
+Rules: no merge of PR #1, no APK, no invented design details, and no change to the official 12-stage sequence.
 
 ---
 
@@ -170,3 +166,11 @@ Conclusion: the layers are not cleanly separable today. Extracting capabilities 
 - Dependency map is package-level; a class-level graph is needed before extraction begins.
 - Nothing has been run on a device or emulator. CI success means compile + unit tests only.
 - Visual design cannot be audited: the original reference was not recovered.
+
+
+## 10. Update 3 — owner decision and current reconciliation (2026-11-05)
+
+- Owner approved the hybrid extension model recorded as D4 in `docs/DECISIONS.md`.
+- Branch head at reconciliation: `6433404d5c272714405dd32c65af07bdcef838f8`. The preceding `6999052` had CI #488 pass. CI #489 on `6433404` failed before a runner or any job steps were recorded; this is not evidence of a source/test failure. No usable job log was available to identify the infrastructure cause.
+- The current Stage 2 gate remains open. The line-by-line reviews and class-level dependency map listed in §9.4 have not been completed by this update. Do not infer their completion from the earlier package-level graph.
+- No application code, tests, Gradle configuration, APK or release artifact was changed or built by this documentation reconciliation.

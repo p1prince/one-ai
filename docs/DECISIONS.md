@@ -5,13 +5,20 @@
 - **Decision:** Independently developed plugins ship as separate, signed Android APKs that the core discovers and talks to through a documented, versioned contract (exported service / intent interface, bound-service or content-provider IPC).
 - **Rejected:** loading arbitrary dex/class code from a plugin folder (unsafe on Android); compile-time-only modules as the sole model (not independently installable).
 - **Required design work (not yet done):** discovery mechanism; caller authentication (signature / package verification); permission and capability mapping onto the core approval gateway; Bubble contribution protocol; manifest additions including core-compatibility; failure isolation; SDK documentation and test kit.
-- **Consequence:** built-in capability code (Web Research, Voice, Screen Intelligence, App Control, Device Control, AutoDroid) must be extracted out of the core. Order and any interim in-repo reference modules to be approved in the correction plan.
+- **Consequence:** built-in capability code (Web Research, Voice, Screen Intelligence, App Control, Device Control, AutoDroid) must remain outside the permanent core. The approved hybrid implementation and reference-module approach are recorded in D4.
 
 ## D2 — Command Manager placement
 - **Date:** 2026-11-04. **Decided by:** owner (Master Development Instructions §5). Command Manager is a **Home module**, not a sixth navigation destination.
 
 ## D3 — Autonomy
 - **Date:** 2026-11-04. Owner instructs the stages to proceed in order without routine approval prompts. Still requiring explicit authorisation: PR merge, APK build, any change to the architecture or the 12 stages. One concise question only for genuinely ambiguous architecture.
+
+## D4 — Hybrid plugin implementation model (Stage 2 correction plan)
+- **Date:** 2026-11-05. **Decided by:** project owner.
+- **Decision:** ONE AI will define and maintain a stable, versioned core Plugin SDK/contract. Built-in capabilities will be developed as separate reference plugin modules that implement and exercise that same contract; they must not be hard-coded as capability logic in the permanent core shell. Independently developed external plugins will be separately installed, signed APKs using the secure external contract.
+- **External APK boundary:** plugin identity is its package name; discovery/import requires explicit user trust and certificate fingerprint confirmation; the pinned signing certificate is re-checked on every bind; communication uses the documented bound-service AIDL interface with bounded requests/results, compatibility checks, host-controlled permissions and approvals, declarative Bubble contributions, and failure isolation. Arbitrary dex/class loading from plugin folders remains rejected.
+- **Clarification of D1:** compile-time-only modules are still rejected as the *sole* extension model. Reference modules are an implementation and validation path for the shared contract, not a replacement for independently installable external APK plugins. The core SDK, generic plugin management/security and generic Floating Bubble remain core.
+- **Consequence:** new plugins must use the stable contract without requiring capability-specific edits to core source. The audit/correction plan must map existing built-in implementations into reference modules and preserve the secure external APK path.
 
 ## Open decisions
 - **O3 — Stage 8 design defaults** (`docs/STAGE_8_DESIGN.md` §12): trust-on-first-use with fingerprint confirmation; declarative plugin UI only; minSdk 26. Proceeding with these unless the owner objects.
