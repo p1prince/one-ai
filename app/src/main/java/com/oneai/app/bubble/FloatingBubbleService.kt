@@ -1,6 +1,8 @@
 package com.oneai.app.bubble
 
+import android.app.ActivityOptions
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -25,6 +27,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.oneai.app.AppServices
+import com.oneai.app.plugins.PluginLaunchRequest
+import com.oneai.app.plugins.TrustCheck
 import com.oneai.app.core.PluginInvocationResult
 import com.oneai.app.core.PluginActionExecutor
 import com.oneai.app.security.PluginActionApprovalGateway
@@ -49,6 +53,21 @@ class FloatingBubbleService : Service() {
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
     private val registry get() = BubbleProviders.registry
     private var panelToken = 0
+    private var launchApprovalRequestId: String? = null
+
+    /** Broker callbacks may arrive on Binder/worker threads; all overlay work stays on main. */
+    private val launchRequestObserver: (PluginLaunchRequest?) -> Unit = { request ->
+        uiHandler.post {
+            if (!serviceJob.isActive) return@post
+            if (request != null) {
+                launchApprovalRequestId = request.requestId
+                showPluginLaunchApproval(request)
+            } else if (launchApprovalRequestId != null) {
+                launchApprovalRequestId = null
+                showPanel()
+            }
+        }
+    }
 
     private val host = object : BubbleHost {
         override val context: Context get() = this@FloatingBubbleService
@@ -64,6 +83,7 @@ class FloatingBubbleService : Service() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, notification())
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        AppServices.get(application).pluginLaunchApprovals.setObserver(launchRequestObserver)
         showBubble()
     }
 
@@ -144,7 +164,13 @@ class FloatingBubbleService : Service() {
         registry.provider(service)?.title ?: service.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     private fun showPanel() {
-        val store = AppServices.get(application).store
+        val services = AppServices.get(application)
+        services.pluginLaunchApprovals.current()?.let { pending ->
+            launchApprovalRequestId = pending.requestId
+            showPluginLaunchApproval(pending)
+            return
+        }
+        val store = services.store
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
         // Both plugin enablement and its separate Bubble-access toggle are required.
         val enabled = BubbleUiPolicy.panelServices(enabledPlugins, store.bubbleServices(), registry.bindings(), store.bubbleServiceOrder())
@@ -271,6 +297,69 @@ class FloatingBubbleService : Service() {
         attachPanel(box)
     }
 
+    /**
+     * A plugin-requested screen is never opened directly from Binder. The Bubble presents the
+     * plugin identity and its untrusted label, and requires a fresh, one-time user tap.
+     */
+    private fun showPluginLaunchApproval(request: PluginLaunchRequest) {
+        val box = basePanel()
+        addLabel(box, "PLUGIN SCREEN REQUEST", 16f)
+        addLabel(box, "Package: ${request.pluginPackage}", 12f)
+        addLabel(box, "Requested screen: ${request.label}")
+        addLabel(box, "This description comes from the plugin and may be misleading. Continue only if you expected this screen.", 12f)
+        addButton(box, "Reject") {
+            launchApprovalRequestId = null
+            AppServices.get(application).pluginLaunchApprovals.reject(request.requestId)
+            showHandoffResult("Screen request rejected", "ONE AI did not open the plugin screen.")
+        }
+        addButton(box, "Allow once") {
+            if (launchApprovalRequestId != request.requestId) {
+                showHandoffResult("Request expired", "This plugin screen request is no longer active.")
+                return@addButton
+            }
+            launchApprovalRequestId = null
+            val services = AppServices.get(application)
+            serviceScope.launch {
+                val payload = services.pluginLaunchApprovals.approve(request.requestId) { packageName ->
+                    val stillTrusted = services.trust.check(packageName) is TrustCheck.Trusted
+                    val stillEnabled = services.store.plugins().any { it.id == packageName && it.enabled }
+                    stillTrusted && stillEnabled
+                }
+                val pendingIntent = payload as? PendingIntent
+                val result = if (pendingIntent == null) {
+                    "ONE AI could not verify that this plugin is still trusted and enabled. The request was discarded."
+                } else {
+                    runCatching {
+                        if (Build.VERSION.SDK_INT >= 34) {
+                            val options = ActivityOptions.makeBasic()
+                            val mode = if (Build.VERSION.SDK_INT >= 36) {
+                                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
+                            } else {
+                                ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                            }
+                            options.setPendingIntentBackgroundActivityStartMode(mode)
+                            pendingIntent.send(this@FloatingBubbleService, 0, null, null, null, null, options.toBundle())
+                        } else {
+                            pendingIntent.send()
+                        }
+                        "The approved plugin screen launch was sent."
+                    }.getOrElse { error ->
+                        when (error) {
+                            is PendingIntent.CanceledException -> "The plugin screen request expired before it could open."
+                            is SecurityException -> "Android blocked this plugin screen launch."
+                            else -> "The plugin screen could not be opened."
+                        }
+                    }
+                }
+                services.store.log("Plugin screen request from ${request.pluginPackage}: ${if (pendingIntent == null) "blocked" else "sent/failed"}")
+                if (serviceJob.isActive) uiHandler.post {
+                    if (serviceJob.isActive) showHandoffResult("Plugin screen request", result)
+                }
+            }
+        }
+        addButton(box, "Close panel") { hidePanel() }
+        attachPanel(box)
+    }
     private fun renderView(box: LinearLayout, provider: BubbleServiceProvider, view: BubbleView) {
         val inputs = mutableMapOf<String, EditText>()
         view.elements.forEach { element ->
@@ -466,6 +555,8 @@ class FloatingBubbleService : Service() {
     }
 
     override fun onDestroy() {
+        AppServices.get(application).pluginLaunchApprovals.setObserver(null)
+        launchApprovalRequestId = null
         registry.providers().forEach { runCatching { it.onHostStopped() } }
         runCatching {
             registry.providers().forEach { runCatching { it.releaseReady() } }

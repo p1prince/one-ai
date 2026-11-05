@@ -34,6 +34,14 @@ object PluginLaunchIdentityPolicy {
 
 class PluginLaunchApprovalBroker {
     private var pending: PluginLaunchRequest? = null
+    private var observer: ((PluginLaunchRequest?) -> Unit)? = null
+
+    /** One process-wide Bubble listener; registering replays a request that arrived before the Bubble started. */
+    @Synchronized
+    fun setObserver(listener: ((PluginLaunchRequest?) -> Unit)?) {
+        observer = listener
+        listener?.invoke(pending)
+    }
 
     /** Stores one well-formed request. A second request cannot replace one awaiting the user. */
     @Synchronized
@@ -44,6 +52,7 @@ class PluginLaunchApprovalBroker {
         if (!packagePattern.matches(request.pluginPackage)) return false
         if (label.isBlank() || pending != null) return false
         pending = request.copy(label = label)
+        observer?.invoke(pending)
         return true
     }
 
@@ -55,6 +64,7 @@ class PluginLaunchApprovalBroker {
     fun approve(requestId: String, stillTrusted: (String) -> Boolean): Any? {
         val request = pending?.takeIf { it.requestId == requestId } ?: return null
         pending = null
+        observer?.invoke(null)
         return request.payload.takeIf { stillTrusted(request.pluginPackage) }
     }
 
@@ -62,6 +72,7 @@ class PluginLaunchApprovalBroker {
     fun reject(requestId: String): Boolean {
         if (pending?.requestId != requestId) return false
         pending = null
+        observer?.invoke(null)
         return true
     }
 
@@ -69,6 +80,7 @@ class PluginLaunchApprovalBroker {
     fun clearPlugin(pluginPackage: String): Boolean {
         if (pending?.pluginPackage != pluginPackage) return false
         pending = null
+        observer?.invoke(null)
         return true
     }
 

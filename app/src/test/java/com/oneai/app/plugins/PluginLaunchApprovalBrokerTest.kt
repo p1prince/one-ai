@@ -52,4 +52,18 @@ class PluginLaunchApprovalBrokerTest {
         assertTrue(broker.offer(PluginLaunchRequest("request", "dev.example.notes", "x".repeat(200), Any())))
         assertEquals(120, broker.current()?.label?.length)
     }
+
+    @Test fun observerReceivesExistingAndNewRequestsAndClearEvents() {
+        val broker = PluginLaunchApprovalBroker()
+        val events = mutableListOf<String?>()
+        broker.offer(PluginLaunchRequest("request-1", "dev.example.notes", "Open Notes", Any()))
+        broker.setObserver { events += it?.requestId }
+        assertEquals(listOf("request-1"), events)
+        assertTrue(broker.reject("request-1"))
+        assertEquals(listOf("request-1", null), events)
+        assertTrue(broker.offer(PluginLaunchRequest("request-2", "dev.example.notes", "Open Notes", Any())))
+        assertEquals(listOf("request-1", null, "request-2"), events)
+        assertTrue(broker.approve("request-2") { true } != null)
+        assertEquals(listOf("request-1", null, "request-2", null), events)
+    }
 }
