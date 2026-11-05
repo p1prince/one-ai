@@ -33,4 +33,4 @@ jobs:
           accept-android-sdk-licenses: true
       - name: Compile and run unit tests (no APK)
         # compileDebugAndroidTestKotlin only compiles the emulator tests (Stage 11 scaffolding); it packages nothing.
-        run: gradle --no-daemon testDebugUnitTest lintDebug :app:compileDebugAndroidTestKotlin :reference-plugins:app-control:testDebugUnitTest :reference-plugins:app-control:lintDebug :reference-plugins:app-control:compileDebugKotlin
+        run: gradle --no-daemon testDebugUnitTest lintDebug :app:compileDebugAndroidTestKotlin :reference-plugins:app-control:testDebugUnitTest :reference-plugins:app-control:lintDebug :reference-plugins:app-control:compileDebugKotlin :reference-plugins:device-control:testDebugUnitTest :reference-plugins:device-control:lintDebug :reference-plugins:device-control:compileDebugKotlin

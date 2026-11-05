@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 2 is required because settings screens are returned as immutable PendingIntent launch requests. -->
+<one-ai-plugin manifestVersion="2" minCoreApi="2" targetCoreApi="2">
+    <info
+        name="Device Control"
+        description="Open allowlisted Android Settings screens after explicit ONE AI approval." />
+    <capability name="device_actions" />
+    <command name="open_wifi_settings" title="Open Wi-Fi settings" description="Request the Android Wi-Fi settings screen." capability="device_actions" />
+    <command name="open_bluetooth_settings" title="Open Bluetooth settings" description="Request the Android Bluetooth settings screen." capability="device_actions" />
+    <command name="open_sound_settings" title="Open sound settings" description="Request the Android sound and vibration settings screen." capability="device_actions" />
+    <command name="open_display_settings" title="Open display settings" description="Request the Android display settings screen." capability="device_actions" />
+    <command name="open_location_settings" title="Open location settings" description="Request the Android location settings screen." capability="device_actions" />
+    <bubble service="device_control" title="Device control" />
+</one-ai-plugin>
