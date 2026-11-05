@@ -24,7 +24,7 @@ interface PluginAdapter {
 class PluginRuntime(
     private val findInstalledPlugin: (String) -> PluginRecord?,
     private val actionGateway: PluginActionGateway
-) {
+) : PluginActionExecutor {
     private val adapters = linkedMapOf<String, PluginAdapter>()
 
     @Synchronized
@@ -55,7 +55,7 @@ class PluginRuntime(
     @Synchronized
     fun registeredPluginIds(): Set<String> = adapters.keys.toSet()
 
-    suspend fun invoke(
+    override suspend fun invoke(
         pluginId: String,
         input: PluginActionInput,
         approvalTicket: String? = null
