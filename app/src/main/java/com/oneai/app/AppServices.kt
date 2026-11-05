@@ -19,6 +19,7 @@ import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
 import com.oneai.app.plugins.PluginDiscovery
+import com.oneai.app.plugins.PluginLaunchApprovalBroker
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.plugins.PluginTrustRegistry
 import com.oneai.app.plugins.SharedPrefsTrustStore
