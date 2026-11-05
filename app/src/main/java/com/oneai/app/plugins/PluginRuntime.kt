@@ -65,6 +65,10 @@ class PluginRuntime(
     @Synchronized
     override fun isRegistered(pluginId: String): Boolean = pluginId in adapters
 
+    /** Concrete-runtime diagnostic; intentionally absent from the narrow registrar interface. */
+    @Synchronized
+    fun registeredPluginIds(): Set<String> = adapters.keys.toSet()
+
     override suspend fun invoke(
         pluginId: String,
         input: PluginActionInput,

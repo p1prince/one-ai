@@ -1,7 +1,7 @@
 package com.oneai.app.bubble
 
 import com.oneai.app.plugins.PluginActionOutput
-import com.oneai.app.plugins.PluginInvocationResult
+import com.oneai.app.core.PluginInvocationResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

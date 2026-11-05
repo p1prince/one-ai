@@ -2,7 +2,7 @@ package com.oneai.app.commands
 
 import com.oneai.app.plugins.PluginActionInput
 import com.oneai.app.plugins.PluginActionOutput
-import com.oneai.app.plugins.PluginInvocationResult
+import com.oneai.app.core.PluginInvocationResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
