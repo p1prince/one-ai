@@ -61,7 +61,7 @@ class ExternalBubbleProvider(
     }
 
     override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost): Result<Unit> =
-        if (pluginId in runtime.isRegistered(pluginId)) Result.success(Unit)
+        if (runtime.isRegistered(pluginId)) Result.success(Unit)
         else Result.failure(IllegalStateException("This plugin is not available right now."))
 
     private companion object {
