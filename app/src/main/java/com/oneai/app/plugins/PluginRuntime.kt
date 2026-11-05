@@ -4,34 +4,16 @@ import com.oneai.app.security.ActionGateResult
 import com.oneai.app.security.ActionRequest
 import com.oneai.app.security.PluginActionGateway
 import com.oneai.app.core.PluginRecord
+import com.oneai.app.core.PluginActionInput
+import com.oneai.app.core.PluginActionOutput
+import com.oneai.app.core.PluginInvocationResult
+import com.oneai.app.core.PluginActionExecutor
 import kotlinx.coroutines.CancellationException
-
-/** Input delivered to a trusted, registered plugin adapter after core policy checks. */
-data class PluginActionInput(
-    val actionId: String,
-    val capability: String,
-    val description: String,
-    val values: Map<String, String> = emptyMap()
-)
-
-/** Normalized output returned by a plugin; the shell does not interpret plugin-specific payloads. */
-data class PluginActionOutput(
-    val title: String,
-    val content: String,
-    val metadata: Map<String, String> = emptyMap()
-)
 
 /** A trusted in-app or explicitly permissioned external adapter for one declared plugin. */
 interface PluginAdapter {
     val manifest: PluginManifest
     suspend fun execute(input: PluginActionInput): PluginActionOutput
-}
-
-sealed interface PluginInvocationResult {
-    data class Completed(val output: PluginActionOutput) : PluginInvocationResult
-    data class AwaitingApproval(val reason: String) : PluginInvocationResult
-    data class Rejected(val reason: String) : PluginInvocationResult
-    data class Failed(val message: String) : PluginInvocationResult
 }
 
 /**
@@ -128,7 +110,7 @@ class PluginRuntime(
      * a registered adapter and a valid action declaration. Call this only from
      * the affirmative branch of SensitiveActionApprovalDialog.
      */
-    fun approveSensitiveAction(pluginId: String, input: PluginActionInput): Result<String> {
+    override fun approveSensitiveAction(pluginId: String, input: PluginActionInput): Result<String> {
         val adapter = synchronized(this) { adapters[pluginId] }
             ?: return Result.failure(IllegalStateException("No trusted adapter is registered for this plugin"))
         val installed = findInstalledPlugin(pluginId)

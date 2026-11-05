@@ -14,9 +14,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginInvocationResult
-import com.oneai.app.plugins.PluginRuntime
+import com.oneai.app.core.PluginActionInput
+import com.oneai.app.core.PluginInvocationResult
+import com.oneai.app.core.PluginActionExecutor
 import kotlinx.coroutines.launch
 
 /**
@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 fun PluginActionButton(
     pluginId: String,
     input: PluginActionInput,
-    runtime: PluginRuntime,
+    runtime: PluginActionExecutor,
     label: String,
     modifier: Modifier = Modifier,
     onResult: (PluginInvocationResult) -> Unit
