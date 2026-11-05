@@ -75,7 +75,7 @@ class PluginRuntimeTest {
 
         val result = runtime.invoke(manifest.id,
             PluginActionInput("prepare", "commands", "Prepare a command"))
-        assertEquals(PluginInvocationResult.Completed(PluginActionOutput("Command", "Prepared")), result)
+        assertEquals(com.oneai.app.core.PluginInvocationResult.Completed(PluginActionOutput("Command", "Prepared")), result)
         assertEquals(1, adapter.calls)
     }
 
@@ -88,7 +88,7 @@ class PluginRuntimeTest {
             PluginActionOutput("Safe title", "safe content")
         }).isSuccess)
         assertTrue(successRuntime.invoke(manifest.id,
-            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Completed)
+            PluginActionInput("prepare", "commands", "Prepare")) is com.oneai.app.core.PluginInvocationResult.Completed)
         assertTrue(events.any { it.contains("Plugin action completed: ${manifest.id}/prepare") })
         assertTrue(events.none { it.contains("safe content") })
 
@@ -98,7 +98,7 @@ class PluginRuntimeTest {
             throw IllegalStateException("secret provider response")
         }).isSuccess)
         assertTrue(failedRuntime.invoke(manifest.id,
-            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Failed)
+            PluginActionInput("prepare", "commands", "Prepare")) is com.oneai.app.core.PluginInvocationResult.Failed)
         assertTrue(events.any { it.contains("Plugin action failed: ${manifest.id}/prepare") })
         assertTrue(events.none { it.contains("secret provider response") })
     }
@@ -111,11 +111,11 @@ class PluginRuntimeTest {
         assertTrue(runtime.register(adapter).isSuccess)
         val input = PluginActionInput("wifi.toggle", "device_actions", "Turn Wi-Fi off")
 
-        assertTrue(runtime.invoke(manifest.id, input) is PluginInvocationResult.AwaitingApproval)
+        assertTrue(runtime.invoke(manifest.id, input) is com.oneai.app.core.PluginInvocationResult.AwaitingApproval)
         assertEquals(0, adapter.calls)
 
         val ticket = runtime.approveSensitiveAction(manifest.id, input).getOrThrow()
-        assertTrue(runtime.invoke(manifest.id, input, ticket) is PluginInvocationResult.Completed)
+        assertTrue(runtime.invoke(manifest.id, input, ticket) is com.oneai.app.core.PluginInvocationResult.Completed)
         assertEquals(1, adapter.calls)
     }
 
@@ -142,9 +142,9 @@ class PluginRuntimeTest {
         val adapter = TestAdapter(manifest) { PluginActionOutput("x", "y") }
         assertTrue(runtime.register(adapter).isSuccess)
         assertTrue(runtime.invoke(manifest.id,
-            PluginActionInput("prepare", "commands", "Prepare")).let { it is PluginInvocationResult.Rejected })
+            PluginActionInput("prepare", "commands", "Prepare")).let { it is com.oneai.app.core.PluginInvocationResult.Rejected })
         assertTrue(runtime.invoke("dev.unknown.plugin",
-            PluginActionInput("prepare", "commands", "Prepare")).let { it is PluginInvocationResult.Rejected })
+            PluginActionInput("prepare", "commands", "Prepare")).let { it is com.oneai.app.core.PluginInvocationResult.Rejected })
         assertEquals(0, adapter.calls)
     }
 
@@ -162,7 +162,7 @@ class PluginRuntimeTest {
             PluginActionInput("prepare", "commands", "Prepare", (0..32).associate { "k$it" to "v" })
         )
         invalid.forEach { input ->
-            assertTrue(runtime.invoke(manifest.id, input) is PluginInvocationResult.Rejected)
+            assertTrue(runtime.invoke(manifest.id, input) is com.oneai.app.core.PluginInvocationResult.Rejected)
         }
         assertEquals(0, adapter.calls)
     }
@@ -174,7 +174,7 @@ class PluginRuntimeTest {
             PluginActionGateway({ installed }, ActionAuditLogger {}))
         assertTrue(runtime.register(adapter).isSuccess)
         assertTrue(runtime.invoke(manifest.id,
-            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Failed)
+            PluginActionInput("prepare", "commands", "Prepare")) is com.oneai.app.core.PluginInvocationResult.Failed)
     }
 
     @Test fun pluginRemovedBeforeInvocationCannotExecute() = runBlocking {
@@ -185,7 +185,7 @@ class PluginRuntimeTest {
         assertTrue(runtime.register(adapter).isSuccess)
         installed = null
         assertTrue(runtime.invoke(manifest.id,
-            PluginActionInput("prepare", "commands", "Prepare")) is PluginInvocationResult.Rejected)
+            PluginActionInput("prepare", "commands", "Prepare")) is com.oneai.app.core.PluginInvocationResult.Rejected)
         assertEquals(0, adapter.calls)
     }
 }
