@@ -147,15 +147,14 @@ class FloatingBubbleService : Service() {
     private fun showPanel() {
         val store = AppServices.get(application).store
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-        val availableServices = BubbleUiPolicy.availableServices(enabledPlugins, registry.bindings())
-        // Ignore stale saved toggles when a plugin is disabled or removed.
-        val enabled = BubbleUiPolicy.visibleServices(store.bubbleServices(), availableServices)
+        // Both plugin enablement and its separate Bubble-access toggle are required.
+        val enabled = BubbleUiPolicy.panelServices(enabledPlugins, store.bubbleServices(), registry.bindings(), store.bubbleServiceOrder())
         val box = basePanel()
         addLabel(box, "ONE AI  •  QUICK PANEL", 16f)
         if (enabled.isEmpty()) {
             addLabel(box, "No services enabled. Choose services in ONE AI Settings.")
         } else {
-            BubbleUiPolicy.orderedServices(store.bubbleServiceOrder(), enabled).forEach { service ->
+            enabled.forEach { service ->
                 addButton(box, titleFor(service)) { showService(service) }
             }
         }

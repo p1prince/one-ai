@@ -3,6 +3,8 @@ package com.oneai.app.bubble
 import com.oneai.app.plugins.BuiltInCatalogue
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.Assert.assertTrue
+import java.io.File
 
 class BubbleUiPolicyTest {
     @Test fun sizeIsClampedToSupportedBounds() {
@@ -67,6 +69,38 @@ class BubbleUiPolicyTest {
             setOf("command_manager"),
             BubbleUiPolicy.availableServices(setOf("dev.example.notes", "one.command.tools"), BuiltInCatalogue.bubbleBindings)
         )
+    }
+
+    @Test fun panelStartsEmptyUntilBubbleAccessIsExplicitlyGranted() {
+        val bindings = mapOf("dev.example.notes" to "notes")
+        assertEquals(emptyList<String>(), BubbleUiPolicy.panelServices(emptySet(), emptySet(), bindings))
+        assertEquals(emptyList<String>(), BubbleUiPolicy.panelServices(setOf("dev.example.notes"), emptySet(), bindings))
+        assertEquals(emptyList<String>(), BubbleUiPolicy.panelServices(emptySet(), setOf("notes"), bindings))
+        assertEquals(listOf("notes"), BubbleUiPolicy.panelServices(setOf("dev.example.notes"), setOf("notes"), bindings))
+    }
+
+    @Test fun eachPluginRequiresItsOwnBubbleAccessAndDisabledPluginsAreFiltered() {
+        val bindings = mapOf("dev.example.notes" to "notes", "dev.example.tasks" to "tasks")
+        assertEquals(listOf("tasks"), BubbleUiPolicy.panelServices(setOf("dev.example.notes", "dev.example.tasks"), setOf("tasks"), bindings))
+        assertEquals(listOf("notes"), BubbleUiPolicy.panelServices(setOf("dev.example.notes"), setOf("notes", "tasks"), bindings))
+    }
+
+    @Test fun coreCommandManagerIsAlsoOptInAndPanelOrderIsStable() {
+        assertEquals(emptyList<String>(), BubbleUiPolicy.panelServices(emptySet(), emptySet(), emptyMap()))
+        assertEquals(listOf("tasks", "command_manager", "notes"), BubbleUiPolicy.panelServices(
+            setOf("dev.example.notes", "dev.example.tasks"), setOf("command_manager", "notes", "tasks"),
+            mapOf("dev.example.notes" to "notes", "dev.example.tasks" to "tasks"), listOf("tasks", "removed", "command_manager", "tasks")
+        ))
+    }
+
+    @Test fun productionPanelUsesTheTestedPolicyAndRetainsEmptyStateControls() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val source = File(dir, "FloatingBubbleService.kt").readText()
+        assertTrue(source.contains("BubbleUiPolicy.panelServices("))
+        assertTrue(source.contains("No services enabled. Choose services in ONE AI Settings."))
+        assertTrue(source.contains("addButton(box, \"Resize bubble\")"))
+        assertTrue(source.contains("addButton(box, \"Hide bubble for 1 minute\")"))
+        assertTrue(source.contains("addButton(box, \"Close panel\")"))
     }
 
     @Test fun anyDeclaredBindingWorksWithoutCoreChanges() {

@@ -37,6 +37,18 @@ object BubbleUiPolicy {
     fun visibleServices(savedServices: Set<String>, availableServices: Set<String>): Set<String> =
         savedServices.intersect(availableServices)
 
+    /** Both plugin enablement and explicit Bubble access are required for a service to appear. */
+    fun panelServices(
+        enabledPluginIds: Set<String>,
+        selectedBubbleServices: Set<String>,
+        bindings: Map<String, String>,
+        savedOrder: List<String> = emptyList()
+    ): List<String> {
+        val available = availableServices(enabledPluginIds, bindings)
+        val visible = visibleServices(selectedBubbleServices, available)
+        return orderedServices(savedOrder, visible)
+    }
+
     fun orderedServices(savedOrder: List<String>, enabledServices: Set<String>): List<String> {
         val ordered = savedOrder.filter { it in enabledServices }.distinct()
         return ordered + (enabledServices - ordered.toSet()).sorted()
