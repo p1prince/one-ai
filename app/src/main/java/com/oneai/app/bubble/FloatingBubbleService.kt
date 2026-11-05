@@ -245,7 +245,7 @@ class FloatingBubbleService : Service() {
         }
     }
 
-    private fun showCommandApproval(commandId: String, pluginId: String, input: com.oneai.app.plugins.PluginActionInput, title: String) {
+    private fun showCommandApproval(commandId: String, pluginId: String, input: com.oneai.app.core.PluginActionInput, title: String) {
         val services = AppServices.get(application)
         val box = basePanel()
         addLabel(box, "Approval required", 16f)

@@ -74,6 +74,13 @@ class BubbleContractTest {
         assertTrue(shell.contains("commandRegistry.list()"))
     }
 
+    @Test fun productionBubbleShellUsesCoreActionTypesNotPluginImplementationAliases() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val source = File(dir, "FloatingBubbleService.kt").readText()
+        assertFalse(source.contains("com.oneai.app.plugins"))
+        assertTrue(source.contains("input: com.oneai.app.core.PluginActionInput"))
+    }
+
     @Test fun bubbleSdkContractUsesOnlyCoreSdkAndAndroidTypes() {
         val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
         val source = File(dir, "BubbleContract.kt").readText()

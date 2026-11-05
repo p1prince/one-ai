@@ -83,7 +83,7 @@ data class BubbleView(val elements: List<BubbleElement>)
 /** Offered when a result carries a private image the user may choose to act on. */
 data class BubbleFollowUp(val note: String, val label: String, val action: BubbleAction)
 
-/** Contributes one service to the Bubble. A null [pluginId] would mean a core service. */
+/** Contributes one optional plugin service; core Command Manager is rendered by the shell itself. */
 interface BubbleServiceProvider {
     val serviceId: String
     val pluginId: String
@@ -101,8 +101,7 @@ interface BubbleServiceProvider {
     fun ensureReady(host: BubbleHost): Result<Unit> = Result.success(Unit)
 
     /**
-     * Called when the Bubble service stops, with the process-wide runtime. A contributor that registered
-     * an adapter in [ensureReady] holding the Bubble's Context drops it here so that Context is not kept alive.
+     * Called when the Bubble service stops. A contributor releases any host-scoped resources it owns here.
      */
     fun releaseReady() {}
 
