@@ -72,3 +72,5 @@ Known defects and open items: see findings F1–F21 in `docs/STAGE_2_AUDIT.md`.
 
 | 2026-11-05 | `8894a9f` | Tracker reconciliation: record `ea7573a`, CI #493 and the D4/Stage 2 documentation state | **CI #494 failed before runner/validation steps were recorded**; job `validate` had no steps or usable logs. No source/test failure is established; infrastructure cause unknown. |
 | 2026-11-05 | `43ae07f` | Stage 2 audit Update 5: class-level dependency map, source/test review, final migration order | **CI #495 failed before runner/validation steps were recorded**; job `validate` had no steps or usable logs. No source/test failure is established; infrastructure cause unknown. No APK/emulator/device run. |
+
+| 2026-11-05 | `83eb406` | Tracker: record completed Stage 2 audit commit `43ae07f` and current Stage 2 disposition | **CI #496 failed before validation steps were recorded**; job `validate` had no steps or usable logs. No source/test failure is established; infrastructure cause unknown. |
