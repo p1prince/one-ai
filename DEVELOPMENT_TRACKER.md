@@ -59,3 +59,4 @@ Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 Novemb
 Fixed defects: Sixth "Commands" navigation tab removed (`bf56dd3`). Settings omitted Bubble toggles for App Control and Device Control (`53844df`).
 
 Known defects and open items: see findings F1–F21 in `docs/STAGE_2_AUDIT.md`.
+| 2026-11-04 | `6999052` | Tracker/decisions: record owner decision O4 resolution and Stage 9.4a (CI #486 failure and `0c8d1ab` fix) | **CI #488 (push) passed** for exact head SHA `6999052ea331de899cc7a56d42c9b43444fabe34` (Android Validation). This is compile + JVM unit tests + lint + compile-only emulator-test checks; no APK, emulator or device run. The earlier CI #486 compile failure was corrected in `0c8d1ab` and CI #487 passed. |
