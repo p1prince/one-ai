@@ -28,6 +28,12 @@ data class BubbleApproval(
 
 data class BubbleMessage(val title: String, val content: String)
 
+/** Generic host-owned confirmation surface; contributors decide policy, the Bubble only renders it. */
+interface BubbleHostApprovalPresenter {
+    fun showApproval(title: String, details: String, warning: String, approve: () -> String, reject: () -> Unit)
+    fun showResult(title: String, message: String)
+}
+
 data class BubbleHostActionRequest(val pluginId: String, val actionId: String, val capability: String, val description: String)
 
 /** How a plugin call's outcomes are titled. Returning null from [successTitle] shows nothing. */

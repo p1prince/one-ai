@@ -20,6 +20,7 @@ import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
 import com.oneai.app.plugins.PluginDiscovery
 import com.oneai.app.plugins.PluginLaunchApprovalBroker
+import com.oneai.app.plugins.PluginLaunchApprovalController
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.plugins.PluginTrustRegistry
 import com.oneai.app.plugins.SharedPrefsTrustStore
@@ -61,6 +62,7 @@ class AppServices private constructor(app: Application) {
     val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), AndroidPackageSignatureSource(app.packageManager)) { store.log(it) }
     /** Process-scoped, host-only queue; Stage 9.4c connects it to the Bubble confirmation surface. */
     val pluginLaunchApprovals = PluginLaunchApprovalBroker()
+    val pluginLaunchApprovalController = PluginLaunchApprovalController(app, pluginLaunchApprovals, trust, store)
 
     val registrar = ExternalPluginRegistrar(
         store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app, launchBroker = pluginLaunchApprovals),
