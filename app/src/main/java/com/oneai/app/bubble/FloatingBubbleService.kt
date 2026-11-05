@@ -206,7 +206,10 @@ class FloatingBubbleService : Service() {
     private fun renderCommandManager(box: LinearLayout) {
         val services = AppServices.get(application)
         val saved = services.store.commands().filter { it.enabled }
-        val extensions = services.commandRegistry.list().filterNot { it.isCore }
+        val bubbleEnabledServices = services.store.bubbleServices()
+        val bubbleEnabledOwners = BubbleProviders.registry.bindings()
+            .filterValues { serviceId -> serviceId in bubbleEnabledServices }.keys
+        val extensions = services.commandRegistry.list().filter { !it.isCore && it.owner in bubbleEnabledOwners }
         if (saved.isEmpty() && extensions.isEmpty()) {
             addLabel(box, "No enabled commands are available. Create commands or enable an extension that contributes commands.")
         }
