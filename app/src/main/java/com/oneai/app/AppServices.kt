@@ -58,9 +58,11 @@ class AppServices private constructor(app: Application) {
     )
 
     val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), AndroidPackageSignatureSource(app.packageManager)) { store.log(it) }
+    /** Process-scoped, host-only queue; Stage 9.4c connects it to the Bubble confirmation surface. */
+    val pluginLaunchApprovals = PluginLaunchApprovalBroker()
 
     val registrar = ExternalPluginRegistrar(
-        store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app),
+        store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app, launchBroker = pluginLaunchApprovals),
         reservedIds = BuiltInCatalogue.templates.map { it.id }.toSet(),
         onBubbleService = { manifest, viewSource ->
             // A refused registration (reserved or duplicate service name) simply leaves the plugin out of the Bubble.

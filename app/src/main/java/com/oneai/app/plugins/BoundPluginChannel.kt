@@ -28,7 +28,8 @@ import kotlin.coroutines.resumeWithException
  */
 class BoundPluginChannelFactory(
     private val context: Context,
-    private val connectTimeoutMs: Long = 5_000
+    private val connectTimeoutMs: Long = 5_000,
+    private val launchBroker: PluginLaunchApprovalBroker = PluginLaunchApprovalBroker()
 ) : PluginChannelFactory {
 
     override suspend fun open(packageName: String, verify: () -> Boolean): PluginChannel {
@@ -74,7 +75,7 @@ class BoundPluginChannelFactory(
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
                 val plugin = service?.let { IOneAiPlugin.Stub.asInterface(it) }
                 if (plugin == null || !continuation.isActive) { binding.unbind(); return }
-                channel = AidlPluginChannel(plugin, binding)
+                channel = AidlPluginChannel(plugin, binding, context, intent.component?.packageName.orEmpty(), launchBroker)
                 continuation.resume(channel!!)
             }
 
@@ -110,7 +111,13 @@ class BoundPluginChannelFactory(
         }
     }
 
-    private class AidlPluginChannel(private val plugin: IOneAiPlugin, private val binding: Binding) : PluginChannel {
+    private class AidlPluginChannel(
+        private val plugin: IOneAiPlugin,
+        private val binding: Binding,
+        private val context: Context,
+        private val pluginPackage: String,
+        private val launchBroker: PluginLaunchApprovalBroker
+    ) : PluginChannel {
         @Volatile private var dead = false
         @Volatile private var pending: CancellableContinuation<PluginActionOutput>? = null
 
@@ -132,20 +139,38 @@ class BoundPluginChannelFactory(
             }
             pending = continuation
             val callback = object : IPluginCallback.Stub() {
+                private val terminal = AtomicBoolean(false)
+                private val launchDelivered = AtomicBoolean(false)
+
                 override fun onResult(id: String?, title: String?, content: String?) {
-                    if (id == requestId && continuation.isActive) continuation.resume(PluginActionOutput(title.orEmpty(), content.orEmpty()))
+                    if (id == requestId && continuation.isActive && terminal.compareAndSet(false, true)) {
+                        continuation.resume(PluginActionOutput(title.orEmpty(), content.orEmpty()))
+                    }
                 }
 
                 override fun onError(id: String?, code: String?, message: String?) {
-                    if (id == requestId && continuation.isActive) {
+                    if (id == requestId && continuation.isActive && terminal.compareAndSet(false, true)) {
                         continuation.resumeWithException(
                             PluginChannelException(PluginBounds.safeErrorCode(code), PluginBounds.bound(message, PluginBounds.MAX_ERROR_MESSAGE))
                         )
                     }
                 }
 
-                // Plugin API 2. Not handled yet (Stage 9.4c): the request is dropped, never launched.
-                override fun onLaunch(id: String?, label: String?, screen: android.app.PendingIntent?) = Unit
+                // Stage 9.4b: capture only a plugin-created, identity-matched PendingIntent.
+                // Stage 9.4c will surface it in the host Bubble approval UI; this code never sends it.
+                override fun onLaunch(id: String?, label: String?, screen: android.app.PendingIntent?) {
+                    if (id != requestId || screen == null || !continuation.isActive || terminal.get()) return
+                    if (!launchDelivered.compareAndSet(false, true)) return
+                    val expectedUid = runCatching {
+                        context.packageManager.getApplicationInfo(pluginPackage, 0).uid
+                    }.getOrNull() ?: return
+                    val immutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) screen.isImmutable else null
+                    if (!PluginLaunchIdentityPolicy.accepts(
+                            pluginPackage, expectedUid, screen.creatorPackage, screen.creatorUid, immutable
+                        )
+                    ) return
+                    launchBroker.offer(PluginLaunchRequest(requestId, pluginPackage, label.orEmpty(), screen))
+                }
 
                 override fun onActivity(id: String?, message: String?) {
                     if (id == requestId && continuation.isActive) activity(PluginBounds.bound(message, PluginBounds.MAX_ACTIVITY))
