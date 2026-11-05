@@ -4,8 +4,6 @@ import android.content.Context
 import com.oneai.app.core.PluginActionInput
 import com.oneai.app.core.PluginActionOutput
 import com.oneai.app.core.PluginInvocationResult
-import com.oneai.app.plugins.PluginAdapterRegistrar
-import com.oneai.app.security.ActionRequest
 
 /**
  * Generic contract between the Floating Bubble and whatever contributes services to it.
@@ -29,6 +27,8 @@ data class BubbleApproval(
 )
 
 data class BubbleMessage(val title: String, val content: String)
+
+data class BubbleHostActionRequest(val pluginId: String, val actionId: String, val capability: String, val description: String)
 
 /** How a plugin call's outcomes are titled. Returning null from [successTitle] shows nothing. */
 data class BubbleOutcomes(
@@ -64,7 +64,7 @@ sealed interface BubbleAction {
 
     /** An action the gateway gates but the contributor performs itself after approval. */
     data class GatedHostAction(
-        val request: ActionRequest,
+        val request: BubbleHostActionRequest,
         val approval: BubbleApproval,
         val blockedTitle: String,
         val onApproved: () -> Unit
@@ -98,13 +98,13 @@ interface BubbleServiceProvider {
     suspend fun loadView(host: BubbleHost): BubbleView = view(host)
 
     /** Prepares the plugin runtime before an action (for example registering its adapter). */
-    fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost): Result<Unit> = Result.success(Unit)
+    fun ensureReady(host: BubbleHost): Result<Unit> = Result.success(Unit)
 
     /**
      * Called when the Bubble service stops, with the process-wide runtime. A contributor that registered
      * an adapter in [ensureReady] holding the Bubble's Context drops it here so that Context is not kept alive.
      */
-    fun releaseReady(runtime: PluginAdapterRegistrar) {}
+    fun releaseReady() {}
 
     fun followUp(imagePath: String, host: BubbleHost): BubbleFollowUp? = null
 

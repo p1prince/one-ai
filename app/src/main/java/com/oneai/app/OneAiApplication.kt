@@ -11,8 +11,9 @@ import com.oneai.app.bubble.BubbleProviders
 class OneAiApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        BuiltInBubbleProviders.registerAll(BubbleProviders.registry)
+        val services = AppServices.get(this)
+        BuiltInBubbleProviders.registerAll(BubbleProviders.registry, services.pluginRuntime)
         // Plugins that are separate apps are restored here, so the Bubble also sees them after Android restarts its service.
-        AppServices.get(this).restorePlugins()
+        services.restorePlugins()
     }
 }

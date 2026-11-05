@@ -26,7 +26,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.oneai.app.AppServices
 import com.oneai.app.core.PluginInvocationResult
-import com.oneai.app.plugins.PluginAdapterRegistrar
 import com.oneai.app.core.PluginActionExecutor
 import com.oneai.app.security.PluginActionApprovalGateway
 import com.oneai.app.security.ActionGateResult
@@ -312,8 +311,7 @@ class FloatingBubbleService : Service() {
     private fun runPluginCall(call: BubbleAction.PluginCall, provider: BubbleServiceProvider) {
         val services = AppServices.get(application)
         val executor: PluginActionExecutor = services.pluginExecution.executor
-        val registrar: PluginAdapterRegistrar = services.pluginRuntime
-        provider.ensureReady(registrar, host).onFailure {
+        provider.ensureReady(host).onFailure {
             showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
             return
         }
@@ -352,7 +350,8 @@ class FloatingBubbleService : Service() {
     /** The gateway issues and consumes the approval; the contributor then performs the action. */
     private fun runGatedHostAction(action: BubbleAction.GatedHostAction) {
         val gateway: PluginActionApprovalGateway = AppServices.get(application).approvalGateway
-        when (val decision = gateway.check(action.request)) {
+        val request = com.oneai.app.security.ActionRequest(action.request.pluginId, action.request.actionId, action.request.capability, action.request.description)
+        when (val decision = gateway.check(request)) {
             is ActionGateResult.Rejected -> {
                 showHandoffResult(action.blockedTitle, decision.authorization.reason)
                 return
@@ -370,8 +369,8 @@ class FloatingBubbleService : Service() {
         addButton(box, "Cancel") { showPanel() }
         addButton(box, action.approval.confirmLabel) {
             runCatching {
-                val ticket = gateway.confirmUserApproval(action.request)
-                when (val approved = gateway.check(action.request, ticket)) {
+                val ticket = gateway.confirmUserApproval(request)
+                when (val approved = gateway.check(request, ticket)) {
                     is ActionGateResult.Permitted -> {
                         hidePanel()
                         action.onApproved()
@@ -468,8 +467,7 @@ class FloatingBubbleService : Service() {
     override fun onDestroy() {
         registry.providers().forEach { runCatching { it.onHostStopped() } }
         runCatching {
-            val runtime = AppServices.get(application).pluginRuntime
-            registry.providers().forEach { runCatching { it.releaseReady(runtime) } }
+            registry.providers().forEach { runCatching { it.releaseReady() } }
         }
         serviceJob.cancel()
         uiHandler.removeCallbacksAndMessages(null)

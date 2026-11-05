@@ -14,7 +14,10 @@ internal fun ensureRegistered(runtime: PluginAdapterRegistrar, pluginId: String,
     return runtime.register(adapter())
 }
 
-/** Shared by the interim in-app providers: their adapter holds the Bubble's Context, so it goes when the Bubble stops. */
-abstract class BuiltInBubbleProvider : BubbleServiceProvider {
-    override fun releaseReady(runtime: PluginAdapterRegistrar) { runtime.unregister(pluginId) }
+/** Runtime coupling stays inside this interim provider module, outside the core Bubble contract. */
+abstract class BuiltInBubbleProvider(protected val runtime: PluginAdapterRegistrar) : BubbleServiceProvider {
+    protected fun ensureRegistered(pluginId: String, adapter: () -> PluginAdapter): Result<Unit> =
+        ensureRegistered(runtime, pluginId, adapter)
+
+    override fun releaseReady() { runtime.unregister(pluginId) }
 }

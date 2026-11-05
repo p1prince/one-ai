@@ -5,7 +5,6 @@ import com.oneai.app.plugins.ExternalView
 import com.oneai.app.plugins.ExternalViewElement
 import com.oneai.app.plugins.ExternalViewParser
 import com.oneai.app.plugins.PluginActionInput
-import com.oneai.app.plugins.PluginAdapterRegistrar
 
 /**
  * Shows the Bubble service of a trusted, independently installed plugin. The plugin supplies only a
@@ -59,10 +58,6 @@ class ExternalBubbleProvider(
         val text = args.entries.joinToString("\n") { (key, value) -> "$key: ${value.take(MAX_REVIEW_VALUE)}" }
         return text.take(MAX_REVIEW_TOTAL)
     }
-
-    override fun ensureReady(runtime: PluginAdapterRegistrar, host: BubbleHost): Result<Unit> =
-        if (runtime.isRegistered(pluginId)) Result.success(Unit)
-        else Result.failure(IllegalStateException("This plugin is not available right now."))
 
     private companion object {
         const val MAX_DESCRIPTION = 300
