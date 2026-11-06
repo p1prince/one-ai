@@ -4,6 +4,15 @@ Copy everything in the block below into a new conversation and attach the **ONE 
 
 Run one AI session at a time: overlapping sessions have collided before.
 
+## OWNER PRIORITY — COMPLETE THE CORE SHELL BEFORE EXTENSIONS (2026-11-06)
+
+The immediate objective is to finish and accept the standalone ONE AI application itself. The shell must work independently before any optional capability extension is developed, extracted, packaged, or integrated.
+
+This is a sequencing instruction, not a replacement for the official 12-stage plan and not an architecture change. It overrides older snapshot text or task lists that say the next action is AutoDroid, Web Research, Voice, Screen Intelligence, App Control, Device Control, or another capability extraction. Do not begin that work until the Core Shell acceptance checklist in `docs/CORE_SHELL_BASELINE.md` is satisfied and the owner accepts the shell.
+
+Existing generic Plugin Manager, SDK, runtime, security, command, and Bubble infrastructure belongs to the shell and should be preserved. Do not rebuild it. Existing capability code may be inspected only to isolate a concrete dependency that prevents standalone shell operation; inspection is not permission to extract or package it.
+
+
 ````
 You are continuing the development of ONE AI, an Android AI platform, in the GitHub repository p1prince/one-ai on branch foundation/batch-03-ai-engine (draft pull request #1, base main). Other AI sessions have worked on this project before you and may be working on it now. Do not assume you know where the project is. Find out first.
 
@@ -13,7 +22,7 @@ You are continuing the development of ONE AI, an Android AI platform, in the Git
 3. Read DEVELOPMENT_TRACKER.md, docs/DECISIONS.md, docs/STAGE_8_DESIGN.md, docs/PLUGIN_DEVELOPER_GUIDE.md, docs/EMULATOR_TEST_PLAN.md, docs/STAGE_1_SPEC.md and docs/STAGE_2_AUDIT.md. Also read the attached "ONE AI Official Open-Shell Development Plan".
 4. Check CI for the EXACT head SHA and for the last few commits: `https://api.github.com/repos/p1prince/one-ai/actions/runs?head_sha=<full sha>`. A push run and a pull-request run can both exist. A commit with no PR run is not a failure. If a run failed, read the job log and find the real error before deciding what to do.
 5. Decide the current stage. Evidence ranks as: commits with CI results, then the tracker, then everything else. THE TRACKER CAN LAG BEHIND THE CODE. If commits exist that the tracker does not record, your first change is a small docs-only commit that reconciles the tracker. Record the commit hashes and CI run numbers you verified, and say plainly what stays unverified.
-6. Find the first stage in the fixed 12-stage plan that has not genuinely passed acceptance. Continue from there, in order. Never advance past a failed stage.
+6. Keep the official 12-stage plan and its architecture. However, apply the owner-approved shell-first sequence: finish and obtain acceptance of the standalone Core Shell before doing any further capability-extension development, extraction, packaging, or integration. Use `docs/CORE_SHELL_BASELINE.md` as the shell acceptance baseline. Do not treat an older Stage 9 extraction list or the stale snapshot below as permission to start another extension. After shell acceptance, resume the remaining work within the existing 12-stage plan.
 7. Report in a few sentences: head commit, CI status, which stages are done and at what evidence level, what you will do next. Then begin.
 
 ## SNAPSHOT (verified at commit 64d43be; it will go stale, so re-check it against Step 0)
@@ -35,7 +44,7 @@ ONE AI is an independent, extensible AI shell. Core: the app with five-section n
 Plugins are separate, signed Android APKs reached through a bound-service AIDL interface. Plugin ID = package name. The user confirms and pins the signing certificate on import, and it is re-checked on every bind. The host decides permissions and approvals; the plugin only executes. Bubble content is declarative views rendered by the core. No dynamic loading of code from folders.
 
 ## NON-NEGOTIABLE RULES
-- Keep the fixed 12-stage plan and work in order. Verify a stage before advancing.
+- Keep the official 12-stage plan; do not add, remove, or redesign stages without explicit authorisation. The current sequencing priority is Core Shell first: no further capability extension development, extraction, packaging, or integration until the standalone shell is complete and accepted.
 - The Bubble starts empty. Plugin enablement and plugin Bubble access are two separate user settings; enabling must never grant Bubble access.
 - Do not hardcode future capabilities into the core or the Bubble shell. A unit test guards the shell.
 - Do not invent design details. Use only the recovered values and text in docs/STAGE_1_SPEC.md. Do not reintroduce the animated AI-core dashboard.
