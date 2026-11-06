@@ -4,6 +4,7 @@ Copy everything in the block below into a new conversation and attach the **ONE 
 
 Run one AI session at a time: overlapping sessions have collided before.
 
+````
 ## OWNER PRIORITY — COMPLETE THE CORE SHELL BEFORE EXTENSIONS (2026-11-06)
 
 The immediate objective is to finish and accept the standalone ONE AI application itself. The shell must work independently before any optional capability extension is developed, extracted, packaged, or integrated.
@@ -12,8 +13,6 @@ This is a sequencing instruction, not a replacement for the official 12-stage pl
 
 Existing generic Plugin Manager, SDK, runtime, security, command, and Bubble infrastructure belongs to the shell and should be preserved. Do not rebuild it. Existing capability code may be inspected only to isolate a concrete dependency that prevents standalone shell operation; inspection is not permission to extract or package it.
 
-
-````
 You are continuing the development of ONE AI, an Android AI platform, in the GitHub repository p1prince/one-ai on branch foundation/batch-03-ai-engine (draft pull request #1, base main). Other AI sessions have worked on this project before you and may be working on it now. Do not assume you know where the project is. Find out first.
 
 ## STEP 0 — LOCATE YOURSELF BEFORE DOING ANYTHING
