@@ -4,7 +4,7 @@
 
 Status: **Generic Stage 8 source/tooling implementation reviewed on 2026-11-07.** The reusable in-memory plugin-author test kit is now packaged in `:one-ai-plugin-testkit` and used by the Echo sample tests. This is not Android-runtime acceptance: real package discovery, certificate reads, binding, callbacks, process isolation and Bubble behaviour remain for Stage 11 emulator/device testing. The API 2 screen-launch callback is connected to the Floating Bubble's one-time approval surface; Android runtime launch behaviour remains unverified on a device.
 
-This design implements D1 and the owner-approved D4 hybrid model: signed external APKs use the secure AIDL contract; built-in capabilities will become separate reference modules implementing the same contract during Stage 9. No arbitrary dex/class loading is permitted. The generic shell, SDK contract and plugin management/security remain core.
+This design implements D1 and the owner-approved D4: independently installed, signed APKs use the secure AIDL contract. The generic host, SDK, developer tooling, Plugin Centre and security/approval infrastructure are Core. Individual capability implementations are future plugin projects, not required reference modules or Stage 9 deliverables. No arbitrary dex/class loading is permitted.
 
 ## 1. Why this model
 

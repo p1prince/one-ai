@@ -80,7 +80,7 @@ The in-memory fake host exercises the SDK command runner, bounds, progress, laun
 
 | Guarantee | Detail |
 |---|---|
-| Only ONE AI may call | Caller package and signing certificate are checked on every call (section 6) |
+| Only ONE AI may call | Caller package and signing certificate are checked on every call (section 7) |
 | Bounded input | up to 32 arguments; names 1–80 characters; values up to 4,000 |
 | Bounded output | title up to 120, content up to 20,000. Oversized output fails the call with `OUTPUT_TOO_LARGE`; it is never truncated silently |
 | One request at a time | a second concurrent request gets `BUSY` |
@@ -123,14 +123,14 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - Pressing a button runs the command through the normal path: the user's approval (drawn by ONE AI, showing the exact arguments) when the capability needs it, then your `onCommand`.
 - Two separate user settings apply: enabling the plugin, and giving it Bubble access. The Bubble starts empty; nothing appears until the user turns both on.
 
-## 6. Who may call you (host verification)
+## 7. Who may call you (host verification)
 
 `hostVerifier()` decides which caller counts as ONE AI. The default trusts only ONE AI's **release** certificates, and that list is **empty until a release signing key exists** (Stage 12), so a release plugin built with the default currently rejects every caller (it fails closed). Options:
 
 - Development: `HostVerifier(allowAnyCertificate = true)` accepts the ONE AI package under any certificate. Use it only in debuggable builds (the sample enables it only when the app is debuggable). **Never ship it in a release.**
 - A plugin may also list ONE AI's certificate digests itself: `HostVerifier(trustedCertificates = setOf("<sha256 hex>"))`.
 
-## 7. Trust, updates and removal (user's view)
+## 8. Trust, updates and removal (user's view)
 
 1. The user installs your APK like any app. ONE AI lists it as *available, not trusted*; nothing is bound or run.
 2. On import, ONE AI shows your name, package, version, declared capabilities and your **signing certificate SHA-256**, and the user must confirm it. ONE AI stores that pin. Plugins signed with more than one certificate are not supported.
@@ -138,14 +138,14 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 4. **Updates:** an update that adds capabilities, commands, a different capability for a command, Bubble access or dependencies is held: the plugin is taken out of service until the user approves the new declaration, and it then stays disabled until they enable it again. An update signed with a different certificate, or with a lower `versionCode`, is refused.
 5. Removing the plugin from ONE AI deletes its pin, commands and Bubble service. Uninstalling the APK is done through Android.
 
-## 8. Testing your plugin
+## 9. Testing your plugin
 
 - Put behaviour in plain Kotlin and unit-test it on the JVM (see `EchoCommandsTest`).
 - `PluginCallRunner` and `ReplySink` are plain classes: run your handler through the real runner with a fake sink to verify bounds and the exactly-one-reply rule.
 - Check that your manifest XML and view JSON are acceptable to ONE AI. `EchoSamplePluginContractTest` (in the app's tests) shows how: it feeds both through the host's real parsers.
 - Real binding, signature checks and the Bubble need an emulator or device: `docs/EMULATOR_TEST_PLAN.md`.
 
-## 9. Known limits (API level 2)
+## 10. Known limits (API level 2)
 
 - No streaming results; one result per request.
 - Arguments and results are text only.
