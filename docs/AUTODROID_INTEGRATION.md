@@ -1,3 +1,5 @@
+> **HISTORICAL / FUTURE-PLUGIN CONTEXT — NOT AN ACTIVE FOUNDATION TASK (2026-11-07):** AutoDroid and the old `one.automation.engine` built-in adapter are examples of a possible separate future plugin project. Do not extract, package, build, integrate, or prioritise them under the current 12-stage foundation roadmap. This document records prior exploration only; the owner-approved generic plugin scope in `docs/PROJECT_CONTINUATION_RULES.md` is authoritative.
+
 > **Scope note (plan reconciliation):** AutoDroid is a **future plugin**, not core. The built-in `one.automation.engine` adapter described here is slated for extraction (see `docs/STAGE_2_AUDIT.md`). AutoDroid itself stays an independent project.
 
 # AutoDroid integration boundary
