@@ -2,17 +2,14 @@ package com.oneai.sample.echo
 
 import com.oneai.plugin.sdk.CallContext
 import com.oneai.plugin.sdk.PluginBounds
-import com.oneai.plugin.sdk.PluginCallRunner
 import com.oneai.plugin.sdk.PluginException
-import com.oneai.plugin.sdk.ReplySink
+import com.oneai.plugin.testkit.FakePluginHost
+import com.oneai.plugin.testkit.PluginTestEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class EchoCommandsTest {
     private val noActivity = CallContext { }
@@ -35,7 +32,7 @@ class EchoCommandsTest {
         for (args in listOf(emptyMap<String, String>(), mapOf("text" to ""), mapOf("text" to "   "))) {
             assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", args, noActivity) }.code)
         }
-        assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT + 1)), noActivity) }.code)
+        assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT + 1)), noActivity).code)
         // The largest accepted input must still fit the SDK's output bounds.
         val largest = commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT)), noActivity)
         assertNull(PluginBounds.outputProblem(largest.title, largest.content))
@@ -81,33 +78,18 @@ class EchoCommandsTest {
         }
     }
 
-    // --- through the real SDK runner, with a fake reply sink ---
-
-    private class RecordingSink : ReplySink {
-        val replies = CopyOnWriteArrayList<String>()
-        val done = CountDownLatch(1)
-        override fun result(requestId: String, title: String, content: String) { replies += "result:$requestId:$title:$content"; done.countDown() }
-        override fun error(requestId: String, code: String, message: String) { replies += "error:$requestId:$code"; done.countDown() }
-        override fun activity(requestId: String, message: String) { replies += "activity:$requestId:$message" }
-    }
-
-    private fun runThroughSdk(command: String, keys: List<String>, values: List<String>): List<String> {
-        val runner = PluginCallRunner(timeoutMs = 5_000, handler = commands::run)
-        val sink = RecordingSink()
-        try {
-            runner.execute("req-1", command, keys, values, sink)
-            assertTrue("no reply within 5 s", sink.done.await(5, TimeUnit.SECONDS))
-        } finally {
-            runner.shutdown()
+    @Test fun echoRunsThroughTheReusableFakeHostWithExactlyOneReply() {
+        val events = FakePluginHost(timeoutMs = 5_000, handler = commands::run).use { host ->
+            host.execute("req-1", "echo", mapOf("text" to "hi")).await()
         }
-        return sink.replies.toList()
+        assertEquals(listOf(PluginTestEvent.Completed("req-1", "Echo", "hi")), events)
     }
 
-    @Test fun echoRunsThroughTheSdkRunnerWithExactlyOneReply() {
-        assertEquals(listOf("result:req-1:Echo:hi"), runThroughSdk("echo", listOf("text"), listOf("hi")))
-    }
-
-    @Test fun invalidInputRunsThroughTheSdkRunnerAsACleanError() {
-        assertEquals(listOf("error:req-1:INVALID_ARGUMENT"), runThroughSdk("echo", emptyList(), emptyList()))
+    @Test fun invalidInputRunsThroughTheReusableFakeHostAsACleanError() {
+        val events = FakePluginHost(timeoutMs = 5_000, handler = commands::run).use { host ->
+            host.execute("req-2", "echo").await()
+        }
+        assertTrue(events.single() is PluginTestEvent.Failed)
+        assertEquals("INVALID_ARGUMENT", (events.single() as PluginTestEvent.Failed).code)
     }
 }

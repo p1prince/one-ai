@@ -2,7 +2,7 @@
 
 # Stage 8 — Plugin Architecture and Developer SDK: Design and implementation review
 
-Status: **Reviewed against owner-approved D1/D4 on 2026-11-05.** The six implementation steps in §11 exist in source and are CI-validated. This is not Android-runtime acceptance: real package discovery, certificate reads, binding, callbacks and process isolation remain for Stage 11 emulator/device testing. The API 2 screen-launch callback is captured by the host channel and connected to the Floating Bubble's one-time approval surface (Stage 9.4c source implementation); the standalone plugin-author fake-host test kit listed in §8 is not yet packaged as a reusable deliverable. Android runtime launch behaviour remains unverified on a device.
+Status: **Generic Stage 8 source/tooling implementation reviewed on 2026-11-07.** The reusable in-memory plugin-author test kit is now packaged in `:one-ai-plugin-testkit` and used by the Echo sample tests. This is not Android-runtime acceptance: real package discovery, certificate reads, binding, callbacks, process isolation and Bubble behaviour remain for Stage 11 emulator/device testing. The API 2 screen-launch callback is connected to the Floating Bubble's one-time approval surface; Android runtime launch behaviour remains unverified on a device.
 
 This design implements D1 and the owner-approved D4 hybrid model: signed external APKs use the secure AIDL contract; built-in capabilities will become separate reference modules implementing the same contract during Stage 9. No arbitrary dex/class loading is permitted. The generic shell, SDK contract and plugin management/security remain core.
 
@@ -97,7 +97,7 @@ All strings and maps use hard bounds (keys up to 80, values up to 4,000, output 
 
 1. `one-ai-plugin-sdk` Android library module: AIDL, `OneAiPluginService` base class (host verification, threading, size/timeout enforcement, safe error mapping), manifest XML schema, helper builders for views and results.
 2. A **sample plugin** module (`samples/echo-plugin`) used as the reference and as the integration test target.
-3. A **test kit** with an in-memory fake host so plugin authors can unit-test without a device. **Outstanding:** current tests expose runner and fake reply/channel seams, but there is not yet a packaged, reusable plugin-author fake-host test kit.
+3. A **test kit** with an in-memory fake host so plugin authors can unit-test without a device. Implemented in `:one-ai-plugin-testkit`: `FakePluginHost` runs the same SDK request runner, captures progress/launch/result/error events, and exposes timeout/cancellation behaviour. It does not simulate Android Binder, package signatures, process isolation or host trust/approval UI.
 4. Developer guide replacing the current `PLUGIN_SDK.md` (manifest v1 stays readable for migration).
 
 ## 9. Host work
@@ -106,7 +106,7 @@ All strings and maps use hard bounds (keys up to 80, values up to 4,000, output 
 - Manifest v2 parser/validator, plugin API level constant, compatibility and dependency checks.
 - Adapter bridging: an `ExternalPluginAdapter` implementing the existing `PluginAdapter`, so `PluginRuntime`, the gateway, the command registry (`registerExtension`) and the Bubble contract work without changes to their callers.
 - Bubble: a generic provider that fetches `view()` JSON and maps it to `BubbleView`.
-- Replace the hard-coded `BuiltInCatalogue` and built-in providers progressively (Stage 9).
+- Provide the generic Kodi-inspired Plugin Centre, configuration, dependency/lifecycle/status and permission/approval visibility. The former instruction to replace/extract built-in capability modules is superseded by the owner-approved 2026-11-07 scope correction; no individual capability plugins are Stage 9 deliverables.
 
 ## 10. Threat model (summary)
 

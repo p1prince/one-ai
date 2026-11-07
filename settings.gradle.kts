@@ -3,6 +3,7 @@ dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_P
 rootProject.name = "ONE AI"
 include(":app")
 include(":one-ai-plugin-sdk")
+include(":one-ai-plugin-testkit")
 include(":samples:echo-plugin")
 include(":reference-plugins:app-control")
 include(":reference-plugins:device-control")

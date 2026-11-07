@@ -24,5 +24,6 @@ android {
 
 dependencies {
     implementation(project(":one-ai-plugin-sdk"))
+    testImplementation(project(":one-ai-plugin-testkit"))
     testImplementation("junit:junit:4.13.2")
 }

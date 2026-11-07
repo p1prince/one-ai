@@ -55,7 +55,26 @@ Supported: `commands`, `internet`, `screen_capture`, `microphone`, `audio`, `dev
 
 ONE AI asks the user to approve each use (one-use, for the exact action) for every capability **except `commands` and `audio`**. Declaring a capability grants no Android permission: request any Android permission your plugin needs (for example `RECORD_AUDIO`) in your own app. Keep secrets such as API keys inside your plugin app; ONE AI never sends its own credentials to plugins.
 
-## 4. Running commands
+## 4. Test commands without a device
+
+Add the reusable test kit to your plugin module's test dependencies:
+
+```kotlin
+testImplementation(project(":one-ai-plugin-testkit"))
+```
+
+Use the same command handler that your `OneAiPluginService` delegates to:
+
+```kotlin
+FakePluginHost(handler = commands::run).use { host ->
+    val events = host.execute("test-1", "echo", mapOf("text" to "Hello")).await()
+    assertEquals(PluginTestEvent.Completed("test-1", "Echo", "Hello"), events.last())
+}
+```
+
+The in-memory fake host exercises the SDK command runner, bounds, progress, launch/result ordering, cancellation, timeout and terminal error handling. It does **not** emulate Android Binder, package-signature verification, process isolation, the host's trust/approval decisions or the actual Bubble UI. Those require host integration and Stage 11 emulator/device acceptance. See `:one-ai-plugin-testkit` for the reusable API.
+
+## 5. Running commands
 
 `onCommand(command, args, context)` runs on a worker thread. Return `PluginOutput(title, content)` or throw `PluginException(code, message)` for a clean failure. The SDK enforces:
 
@@ -85,7 +104,7 @@ Create the PendingIntent with `FLAG_IMMUTABLE`. For plugins targeting Android 15
 
 On Android 14/API 34+, the host explicitly opts in when it sends the PendingIntent after the user's tap. On Android 16/API 36+, the host uses `MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE`, the least-privilege visible-sender mode. A Floating Bubble overlay is not equivalent to a visible Activity on every Android release/device, so the request can still be blocked by Android; handle that outcome and test on the supported device matrix. Never rely on a plugin's own background activity launch.
 
-## 5. Bubble views (declarative)
+## 6. Bubble views (declarative)
 
 If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. It must be fast (ONE AI waits 5 seconds) and at most 20,000 characters. The core draws it; plugins never draw overlays.
 

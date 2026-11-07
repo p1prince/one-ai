@@ -8,7 +8,7 @@ import com.oneai.plugin.sdk.IPluginCallback;
  * (and no Bundle) crosses the boundary. All sizes are bounded (see PluginBounds).
  */
 interface IOneAiPlugin {
-    /** Protocol handshake, JSON such as {"sdkApi":1}. The manifest XML stays the source of truth. */
+    /** Protocol handshake, JSON such as {"sdkApi":2}. The manifest XML stays the source of truth. */
     String describe();
 
     /** Runs a declared command asynchronously; the answer arrives on [callback] exactly once. */
