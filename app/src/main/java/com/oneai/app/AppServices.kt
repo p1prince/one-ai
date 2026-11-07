@@ -67,7 +67,8 @@ class AppServices private constructor(app: Application) {
         { store.log(it) }
     )
 
-    val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), AndroidPackageSignatureSource(app.packageManager)) { store.log(it) }
+    private val packageSignatures = AndroidPackageSignatureSource(app.packageManager)
+    val trust = PluginTrustRegistry(SharedPrefsTrustStore(app), packageSignatures) { store.log(it) }
     /** Process-scoped, host-only queue; Stage 9.4c connects it to the Bubble confirmation surface. */
     val pluginLaunchApprovals = PluginLaunchApprovalBroker()
     val pluginLaunchApprovalController = PluginLaunchApprovalController(app, pluginLaunchApprovals, trust, store)
@@ -109,7 +110,8 @@ class AppServices private constructor(app: Application) {
         center = ExternalPluginCenter(
             discover = PluginDiscovery(app)::discover, trust = trust, registrar = registrar, manager = plugins,
             reservedBubbleServices = CoreReservedNames.bubbleServices + BubbleUiPolicy.COMMAND_MANAGER,
-            configuration = pluginConfiguration
+            configuration = pluginConfiguration,
+            installedSigners = packageSignatures::currentSigners
         )
         commandRegistry.registerCore("run_saved", "Run saved command", "Runs one of your saved commands through the AI engine.") { args ->
             val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "A command ID is required.")

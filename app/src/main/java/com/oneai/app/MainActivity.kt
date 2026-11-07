@@ -1,5 +1,6 @@
 package com.oneai.app
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -26,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -42,6 +44,10 @@ import com.oneai.app.bubble.FloatingBubbleService
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.commands.CommandStatus
 import com.oneai.app.core.*
+import com.oneai.app.plugins.CatalogueListing
+import com.oneai.app.plugins.CatalogueRefreshGate
+import com.oneai.app.plugins.CatalogueSources
+import com.oneai.app.plugins.CatalogueView
 import com.oneai.app.plugins.CertificateFingerprint
 import com.oneai.app.plugins.Compatibility
 import com.oneai.app.plugins.DiscoveredPlugin
@@ -71,7 +77,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val services=AppServices.get(application)
         store=services.store; plugins=services.plugins; commandRouter=services.commandRouter
-        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,services.pluginRestoration,
+        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,services.pluginRestoration,services.catalogueSources,services.catalogueRefreshGate,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { services.aiOrchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
@@ -100,6 +106,7 @@ internal enum class Page(val title:String) {
 
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter, restoration:PluginRestorationGate,
+                     catalogueSources:CatalogueSources, catalogueRefreshGate:CatalogueRefreshGate,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
@@ -121,7 +128,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,refreshNow)
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,catalogueSources,catalogueRefreshGate,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
@@ -191,7 +198,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
 }
 
-@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,refresh:()->Unit) {
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,sources:CatalogueSources,refreshGate:CatalogueRefreshGate,refresh:()->Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var operationMessage by remember { mutableStateOf("") }
     var snapshot by remember { mutableStateOf(PluginCenterSnapshot.EMPTY) }
@@ -202,6 +209,16 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var configuring by remember { mutableStateOf<String?>(null) }
     val updateCheckGate = remember { PluginUpdateCheckGate() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    // Catalogue listings are read from storage and re-validated off the main thread; they never touch the network.
+    var listings by remember { mutableStateOf<List<CatalogueListing>>(emptyList()) }
+    var catalogueTick by remember { mutableIntStateOf(0) }
+    var showSources by remember { mutableStateOf(false) }
+    var refreshingCatalogue by remember { mutableStateOf(false) }
+    var viewing by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(catalogueTick) {
+        listings=withContext(Dispatchers.IO) { runCatching { sources.listings() }.getOrDefault(emptyList()) }
+    }
     // Screen redraws only refresh the snapshot; update checks are one-shot user actions.
     LaunchedEffect(tick) {
         scanning=true
@@ -214,6 +231,22 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
     val installed=manager.installed(); val available=manager.catalogue.filterNot { t->installed.any{it.id==t.id} }
     val candidates=snapshot.candidates.filterNot { it.imported }
+    val rows=remember(listings,snapshot) { CatalogueView.available(listings,snapshot.catalogueFacts,snapshot.enabledPluginIds) }
+    // Only an explicit Refresh reaches the network, and only once per request.
+    val refreshCatalogue:()->Unit={
+        if(!refreshingCatalogue) {
+            refreshGate.request()
+            scope.launch {
+                refreshingCatalogue=true
+                val outcomes=withContext(Dispatchers.IO) {
+                    if(refreshGate.consume()) runCatching{ sources.refreshAll() }.getOrNull() else null
+                }
+                catalogueTick++
+                operationMessage=CatalogueView.refreshMessage(outcomes)
+                refreshingCatalogue=false
+            }
+        }
+    }
     val changed:(Result<*>,String)->Unit={ result,success -> result.onFailure { error -> operationMessage=error.message ?: "That change failed" }.onSuccess { operationMessage=success };tick++;refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {
@@ -280,6 +313,25 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 }
             }
         }
+        item { Row(verticalAlignment=Alignment.CenterVertically){
+            Text("CATALOGUE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+            TextButton(onClick={showSources=true}){Text("Sources",color=Gold,fontSize=12.sp)}
+            TextButton(onClick=refreshCatalogue,enabled=!refreshingCatalogue && listings.isNotEmpty()){Text(if(refreshingCatalogue)"Refreshing…" else "Refresh",color=Gold,fontSize=12.sp)}
+        } }
+        if(listings.isEmpty()) item { CardBox { Text("No catalogue sources",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI ships with none. Add an https source to browse what plugin developers list. A listing never installs, trusts or turns on anything.",color=Muted,fontSize=12.sp) } }
+        else if(rows.isEmpty()) item { CardBox { Text("Nothing listed yet",color=White,fontWeight=FontWeight.SemiBold);Text("Tap Refresh to load your sources.",color=Muted,fontSize=12.sp) } }
+        items(rows,key={it.key}) { row ->
+            val notes=CatalogueView.notes(row.status)
+            CardBox {
+                Text(CatalogueView.clean(row.entry.name,CatalogueView.MAX_SHOWN_NAME),color=White,fontWeight=FontWeight.SemiBold)
+                Text("from ${row.sourceName}",color=Muted,fontSize=11.sp)
+                if(row.entry.summary.isNotBlank()) Text(CatalogueView.clean(row.entry.summary,CatalogueView.MAX_SHOWN_SUMMARY),color=Muted,fontSize=12.sp)
+                Text(CatalogueView.summaryLine(row.entry),color=Gold,fontSize=10.sp)
+                Text(CatalogueView.stateLabel(row.status),color=White,fontSize=12.sp)
+                notes.firstOrNull()?.let { Text(it,color=Color(0xFFFFD27A),fontSize=11.sp) }
+                TextButton(onClick={viewing=row.key}){Text("Details",color=Gold)}
+            }
+        }
         item { Text("AVAILABLE CAPABILITIES",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
         items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={ changed(manager.install(t),"Installed ${t.name}; it remains disabled.") },enabled=restored,modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
         if(operationMessage.isNotBlank()) item { Text(operationMessage,color=Gold,fontSize=12.sp) }
@@ -312,6 +364,39 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             dismissButton={TextButton(onClick={reviewing=null}){Text("Cancel")}}
         )
     }
+    if(showSources) SourcesDialog(sources,listings,onChanged={catalogueTick++},onClose={showSources=false})
+    viewing?.let { key ->
+        val row=rows.firstOrNull { it.key==key }
+        // A listing that disappeared after a refresh or a removed source simply shows no dialog.
+        if(row!=null) {
+            val notes=CatalogueView.notes(row.status)
+            val pageUrl=CatalogueView.openableUrl(row.entry)
+            val importCandidate=CatalogueView.importable(row,snapshot.candidates)
+            AlertDialog(
+                onDismissRequest={viewing=null},
+                title={Text(CatalogueView.clean(row.entry.name,CatalogueView.MAX_SHOWN_NAME))},
+                text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Text("Listed by ${row.sourceName}. Everything below is the source's claim, shown as plain text. A listing is not trust: only the app on your device, and the certificate you confirm, decide that.",fontSize=12.sp)
+                    if(row.entry.summary.isNotBlank()) Text(CatalogueView.clean(row.entry.summary,CatalogueView.MAX_SHOWN_SUMMARY),fontSize=13.sp)
+                    Text("Plugin ID: ${row.entry.id}",fontSize=12.sp,fontFamily=FontFamily.Monospace)
+                    Text("Version ${CatalogueView.clean(row.entry.versionName,40)} (build ${row.entry.versionCode})",fontSize=12.sp)
+                    Text("Needs plugin API ${row.entry.minCoreApi}, built for ${row.entry.targetCoreApi}",fontSize=12.sp)
+                    if(row.entry.capabilities.isNotEmpty()) Text("Capabilities: ${row.entry.capabilities.joinToString()}",fontSize=12.sp)
+                    if(row.entry.dependencies.isNotEmpty()) Text("Depends on: ${row.entry.dependencies.joinToString()}",fontSize=12.sp)
+                    Text("Signing certificate(s) the source lists (SHA-256, not verified by ONE AI):",fontSize=12.sp)
+                    row.entry.signerSha256.forEach { Text(CertificateFingerprint.display(it),fontSize=11.sp,fontFamily=FontFamily.Monospace) }
+                    Text("On this device: ${CatalogueView.stateLabel(row.status)}",fontSize=12.sp)
+                    notes.forEach { Text(it,color=Color(0xFFFF8A80),fontSize=12.sp) }
+                    Text(if(pageUrl!=null) "Get opens ${row.entry.getUrl} in your browser or store. ONE AI never downloads or installs it. After you install it, it appears under Found on this device, and you review and trust it there." else "This listing has no page ONE AI can open.",fontSize=12.sp)
+                } },
+                confirmButton={ Row {
+                    if(importCandidate!=null) TextButton(enabled=restored,onClick={ viewing=null; reviewing=importCandidate }){Text("Review and import",color=Gold)}
+                    if(pageUrl!=null) TextButton(onClick={ viewing=null; if(!openListedPage(context,pageUrl)) operationMessage="No app could open that page." }){Text("Get",color=Gold)}
+                } },
+                dismissButton={TextButton(onClick={viewing=null}){Text("Close")}}
+            )
+        }
+    }
     configuring?.let { id ->
         val schema=snapshot.configurable[id]
         // A plugin that stopped being configurable (for example after a signer change) simply shows no dialog.
@@ -338,6 +423,51 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             dismissButton={TextButton(onClick={reviewingUpdate=null}){Text("Not now")}}
         )
     }
+}
+
+/** Opens a listed https page in the user's browser or store. Returns false when nothing could open it. */
+private fun openListedPage(context:Context,url:String):Boolean = try {
+    context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+    true
+} catch(e:Exception) { false }
+
+/**
+ * The user's catalogue sources (Stage 9.7d). Adding or removing a source never contacts it; only Refresh does. Storage
+ * work runs off the main thread. Text from a source is cleaned by [CatalogueView] and drawn as plain text.
+ */
+@Composable private fun SourcesDialog(sources:CatalogueSources,listings:List<CatalogueListing>,onChanged:()->Unit,onClose:()->Unit) {
+    var address by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    val scope=rememberCoroutineScope()
+    AlertDialog(
+        onDismissRequest=onClose,
+        title={Text("Catalogue sources")},
+        text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("A source is an https address that lists plugins. ONE AI contacts it only when you tap Refresh, and a listing never installs, trusts or turns on a plugin.",fontSize=12.sp)
+            if(listings.isEmpty()) Text("No sources added.",fontSize=12.sp)
+            listings.forEach { listing ->
+                val line=CatalogueView.sourceLine(listing)
+                Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                    Text(line.title,fontSize=13.sp,fontWeight=FontWeight.SemiBold)
+                    Text(line.url,fontSize=11.sp,fontFamily=FontFamily.Monospace)
+                    Text(line.detail,fontSize=11.sp,color=if(line.isError) Color(0xFFFF8A80) else Muted)
+                    TextButton(onClick={ scope.launch { withContext(Dispatchers.IO){ sources.remove(line.url) }; message="Source removed. Installed plugins are not affected.";onChanged() } }){Text("Remove",color=Color(0xFFFF8A80))}
+                }
+            }
+            OutlinedTextField(value=address,onValueChange={address=it},singleLine=true,label={Text("https://…")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),modifier=Modifier.fillMaxWidth())
+            TextButton(enabled=address.isNotBlank(),onClick={
+                val typed=address
+                scope.launch {
+                    val result=withContext(Dispatchers.IO){ sources.add(typed) }
+                    result.onSuccess { address="" }
+                    message=result.fold({ "Source added. Tap Refresh to load it." },{ CatalogueView.problem(it) })
+                    onChanged()
+                }
+            }){Text("Add source",color=Gold)}
+            if(message.isNotBlank()) Text(message,fontSize=12.sp)
+        } },
+        confirmButton={TextButton(onClick=onClose){Text("Done",color=Gold)}}
+    )
 }
 
 /**

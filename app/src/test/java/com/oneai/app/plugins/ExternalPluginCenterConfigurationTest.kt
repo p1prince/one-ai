@@ -87,7 +87,8 @@ class ExternalPluginCenterConfigurationTest {
         init {
             center = ExternalPluginCenter(
                 discover = { listOfNotNull(installed?.let { DiscoveredPlugin(it.packageName, "Notes app", "svc", Result.success(it)) }) },
-                trust = trust, registrar = registrar, manager = manager, configuration = configuration
+                trust = trust, registrar = registrar, manager = manager, configuration = configuration,
+                installedSigners = { signatures.currentSigners(it) }
             )
         }
     }
@@ -192,5 +193,47 @@ class ExternalPluginCenterConfigurationTest {
         val plain = ExternalPluginCenter(discover = { emptyList() }, trust = f.trust, registrar = f.registrar, manager = f.manager)
         assertTrue(plain.snapshot().configurable.isEmpty())
         assertTrue(plain.saveSettings(pkg, mapOf("mode" to "plain")).isFailure)
+    }
+
+    // ---- Stage 9.7d: what a catalogue listing is compared with ----
+
+    @Test fun theSnapshotReportsInstalledFactsForCatalogueMatching() {
+        val f = Fixture()
+        val facts = f.center.snapshot().catalogueFacts.getValue(pkg)
+        assertEquals(1L, facts.versionCode)
+        assertEquals(listOf(cert), facts.signerSha256)
+        assertTrue("seeded as imported", facts.imported)
+    }
+
+    @Test fun theFactsFollowTheInstalledCertificate() {
+        val f = Fixture()
+        f.signatures.signers[pkg] = listOf("b".repeat(64))
+        assertEquals(listOf("b".repeat(64)), f.center.snapshot().catalogueFacts.getValue(pkg).signerSha256)
+    }
+
+    @Test fun aPackageWithoutAReadableManifestHasNoFactsAndANotInstalledListing() {
+        val f = Fixture()
+        f.installed = null
+        assertTrue(f.center.snapshot().catalogueFacts.isEmpty())
+    }
+
+    @Test fun aCenterWithoutASignerSourceReportsNoSignersSoAListingReadsAsASignerMismatch() {
+        val f = Fixture()
+        val plain = ExternalPluginCenter(
+            discover = { listOfNotNull(f.installed?.let { DiscoveredPlugin(it.packageName, "Notes app", "svc", Result.success(it)) }) },
+            trust = f.trust, registrar = f.registrar, manager = f.manager
+        )
+        assertTrue(plain.snapshot().catalogueFacts.getValue(pkg).signerSha256.isEmpty())
+    }
+
+    @Test fun enabledPluginIdsListOnlyEnabledPluginsAndTakingTheSnapshotChangesNothing() {
+        val f = Fixture()
+        assertTrue(f.center.snapshot().enabledPluginIds.isEmpty())
+        f.configuration.update(pkg, mapOf("mode" to "plain")).getOrThrow()
+        assertTrue(f.center.setEnabled(pkg, true).isSuccess)
+        assertEquals(setOf(pkg), f.center.snapshot().enabledPluginIds)
+        assertTrue("reading the snapshot grants no Bubble access", f.store.bubbleServices().isEmpty())
+        assertTrue(f.center.setEnabled(pkg, false).isSuccess)
+        assertTrue(f.center.snapshot().enabledPluginIds.isEmpty())
     }
 }

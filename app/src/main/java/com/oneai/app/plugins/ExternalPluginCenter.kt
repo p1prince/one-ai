@@ -47,7 +47,15 @@ data class PluginCenterSnapshot(
     /** Trusted plugins that declare settings, with the schema the Configure screen renders (Stage 9.6d). */
     val configurable: Map<String, PluginSettingsSchema> = emptyMap(),
     /** Titles of required settings that have no value, per plugin. Non-empty means "Needs configuration". */
-    val needsConfiguration: Map<String, List<String>> = emptyMap()
+    val needsConfiguration: Map<String, List<String>> = emptyMap(),
+    /**
+     * What a catalogue listing is compared with (Stage 9.7d): plugin apps found on the device with a readable manifest,
+     * by package name. A package without a readable manifest has no entry here and so reads as "not installed" in the
+     * catalogue view; the Found on this device list still shows it with its error.
+     */
+    val catalogueFacts: Map<String, InstalledPluginFacts> = emptyMap(),
+    /** Plugins that are installed and enabled, for dependency reporting in the catalogue view. */
+    val enabledPluginIds: Set<String> = emptySet()
 ) {
     companion object { val EMPTY = PluginCenterSnapshot(emptyList(), emptyMap(), emptyMap()) }
 }
@@ -67,7 +75,9 @@ class ExternalPluginCenter(
     /** Bubble service names that already belong to the core or to built-in plugins; no other plugin may take them. */
     private val reservedBubbleServices: Set<String> = emptySet(),
     /** Per-plugin configuration (Stage 9.6b). Null means this center applies no configuration rules. */
-    private val configuration: PluginConfiguration? = null
+    private val configuration: PluginConfiguration? = null,
+    /** Current signing certificates (SHA-256) of an installed package, or null when it is not installed. Used only to compare catalogue listings. */
+    private val installedSigners: (String) -> List<String>? = { null }
 ) {
     /** Read-only view: rendering must never mutate plugin lifecycle. */
     fun snapshot(): PluginCenterSnapshot {
@@ -83,12 +93,23 @@ class ExternalPluginCenter(
         val missing = configuration?.let { config ->
             schemas.keys.mapNotNull { id -> config.missingRequired(id).map { it.title }.takeIf { it.isNotEmpty() }?.let { id to it } }.toMap()
         }.orEmpty()
+        val facts = found.mapNotNull { discovered ->
+            discovered.manifest.getOrNull()?.let { manifest ->
+                discovered.packageName to InstalledPluginFacts(
+                    versionCode = manifest.versionCode,
+                    signerSha256 = installedSigners(discovered.packageName).orEmpty(),
+                    imported = discovered.packageName in importedIds
+                )
+            }
+        }.toMap()
         return PluginCenterSnapshot(
             candidates = found.map { PluginCandidate(it, it.packageName in importedIds) },
             statuses = statuses,
             pendingUpdates = entries.mapNotNull { entry -> entry.pendingUpdate?.let { entry.packageName to it } }.toMap(),
             configurable = schemas,
-            needsConfiguration = missing
+            needsConfiguration = missing,
+            catalogueFacts = facts,
+            enabledPluginIds = manager.installed().filter { it.enabled }.map { it.id }.toSet()
         )
     }
 
