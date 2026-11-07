@@ -20,12 +20,15 @@ class CoreShellProductionBoundaryTest {
         val appServices = source("com/oneai/app/AppServices.kt")
         assertTrue(
             "The real production host must start with an empty optional plugin catalogue.",
-            Regex("""PluginHostComposition\\s*\\(\\s*store,\\s*emptyList\\(\\),\\s*BubbleProviders\\.registry""")
-                .containsMatchIn(appServices)
+            assertTrue(
+            "The real production host must start with an empty optional plugin catalogue.",
+            appServices.contains("PluginHostComposition(") &&
+                appServices.contains("store, emptyList(), BubbleProviders.registry")
+        )
         )
         assertTrue(
             "The generic saved-command entry point must remain a core command.",
-            appServices.contains("""commandRegistry.registerCore("run_saved"""")
+            appServices.contains("commandRegistry.registerCore(\\\"run_saved\\\"")
         )
     }
 
