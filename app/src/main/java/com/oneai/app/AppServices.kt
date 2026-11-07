@@ -40,7 +40,7 @@ class AppServices private constructor(app: Application) {
 
     /** Production host composition; the same type is exercised with an empty catalogue in JVM tests. */
     val pluginHost = PluginHostComposition(
-        store, BuiltInCatalogue.templates, BubbleProviders.registry,
+        store, emptyList(), BubbleProviders.registry,
         onPluginRemoved = { id -> center.onRemoved(id); commandRegistry.unregisterOwner(id) },
         bubbleBindings = { center.bubbleBindings() }
     )

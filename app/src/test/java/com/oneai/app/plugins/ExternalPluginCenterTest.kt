@@ -179,6 +179,7 @@ class ExternalPluginCenterTest {
         f.center.setEnabled(pkg, true)
         f.installed = manifest(versionCode = 2, extraCommand = true)
 
+        f.center.checkForUpdates()
         val snapshot = f.center.snapshot()
         val status = snapshot.statuses[pkg]
         assertTrue(status is ExternalStatus.UpdatePending)
@@ -199,6 +200,7 @@ class ExternalPluginCenterTest {
         f.import()
         f.center.setEnabled(pkg, true)
         f.installed = manifest(versionCode = 2)
+        f.center.checkForUpdates()
         assertEquals(ExternalStatus.Ready, f.center.snapshot().statuses[pkg])
         assertEquals(2L, f.trust.trusted().single().trustedManifest.versionCode)
         assertEquals("1.0.2", f.store.plugins().single().version)
@@ -211,6 +213,7 @@ class ExternalPluginCenterTest {
         f.center.import(pkg, 3, cert)
         f.center.setEnabled(pkg, true)
         f.installed = manifest(versionCode = 2)
+        f.center.checkForUpdates()
         f.center.snapshot()
         assertFalse(f.store.plugins().single().enabled)
         assertEquals(3L, f.trust.trusted().single().trustedManifest.versionCode)

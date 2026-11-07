@@ -203,7 +203,12 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     val candidates=snapshot.candidates.filterNot { it.imported }
     val changed:(Result<*>,String)->Unit={ result,success -> result.onFailure { error -> operationMessage=error.message ?: "That change failed" }.onSuccess { operationMessage=success };tick++;refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
+        item {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
+                TextButton(onClick={ center.checkForUpdates(); tick++ }) { Text("Check updates",color=Gold) }
+            }
+        }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
         if(installed.isEmpty()) item { CardBox { Text("No plugins installed",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI starts empty. Install only the capabilities you want.",color=Muted,fontSize=12.sp) } }
         items(installed,key={it.id}) { p ->
