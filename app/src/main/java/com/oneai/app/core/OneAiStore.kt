@@ -3,62 +3,82 @@ package com.oneai.app.core
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import com.oneai.app.ai.AiActivityLogger
+import com.oneai.app.commands.CommandRepository
+import com.oneai.app.security.ActionAuditLogger
 
 data class PluginRecord(
     val id: String, val name: String, val version: String, val description: String,
-    val capabilities: List<String>, val enabled: Boolean, val developerCreated: Boolean = false
+    val capabilities: List<String>, val enabled: Boolean, val developerCreated: Boolean = false,
+    val manifestVersion: Int = 1, val dependencies: List<String> = emptyList()
 )
 
-data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = true)
+data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
+data class ActivityEntry(val timestamp: Long, val message: String)
 
-class OneAiStore(context: Context) {
-    private val prefs = context.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore {
+    // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
+    private val appContext: Context = context.applicationContext ?: context
+    private val prefs = appContext.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
 
-    fun plugins(): List<PluginRecord> = readArray("plugins").mapNotNull {
+    override fun plugins(): List<PluginRecord> {
+        val saved = readArray("plugins")
+        return (0 until saved.length()).mapNotNull { index ->
+        val it = saved.optJSONObject(index) ?: return@mapNotNull null
         runCatching {
             PluginRecord(it.getString("id"), it.getString("name"), it.optString("version", "1.0"),
                 it.optString("description", ""), it.getJSONArray("capabilities").toStringList(),
-                it.optBoolean("enabled", false), it.optBoolean("developerCreated", false))
+                it.optBoolean("enabled", false), it.optBoolean("developerCreated", false),
+                it.optInt("manifestVersion", 1), it.optJSONArray("dependencies")?.toStringList() ?: emptyList())
         }.getOrNull()
+        }
     }
 
-    fun savePlugin(plugin: PluginRecord) {
+    override fun savePlugin(plugin: PluginRecord) {
         val all = plugins().filterNot { it.id == plugin.id } + plugin
         writeArray("plugins", JSONArray().apply { all.forEach { put(JSONObject().apply {
             put("id", it.id); put("name", it.name); put("version", it.version)
             put("description", it.description); put("capabilities", JSONArray(it.capabilities))
             put("enabled", it.enabled); put("developerCreated", it.developerCreated)
+            put("manifestVersion", it.manifestVersion); put("dependencies", JSONArray(it.dependencies))
         }) } })
     }
 
-    fun removePlugin(id: String) {
+    override fun removePlugin(id: String) {
         writeArray("plugins", JSONArray().apply { plugins().filterNot { it.id == id }.forEach { p ->
             put(JSONObject().apply {
                 put("id", p.id); put("name", p.name); put("version", p.version)
                 put("description", p.description); put("capabilities", JSONArray(p.capabilities))
                 put("enabled", p.enabled); put("developerCreated", p.developerCreated)
+                put("manifestVersion", p.manifestVersion); put("dependencies", JSONArray(p.dependencies))
             })
         } })
     }
 
-    fun commands(): List<CommandRecord> = readArray("commands").mapNotNull {
+    override fun commands(): List<CommandRecord> {
+        val saved = readArray("commands")
+        return (0 until saved.length()).mapNotNull { index ->
+        val it = saved.optJSONObject(index) ?: return@mapNotNull null
         runCatching { CommandRecord(it.getString("id"), it.getString("title"), it.getString("prompt"), it.optBoolean("enabled", true)) }.getOrNull()
+        }
     }
 
-    fun saveCommand(command: CommandRecord) {
+    override fun saveCommand(command: CommandRecord) {
         val all = commands().filterNot { it.id == command.id } + command
         writeArray("commands", JSONArray().apply { all.forEach { put(JSONObject().apply {
             put("id", it.id); put("title", it.title); put("prompt", it.prompt); put("enabled", it.enabled)
         }) } })
     }
 
-    fun removeCommand(id: String) {
+    override fun removeCommand(id: String) {
         writeArray("commands", JSONArray().apply { commands().filterNot { it.id == id }.forEach {
             put(JSONObject().put("id", it.id).put("title", it.title).put("prompt", it.prompt).put("enabled", it.enabled))
         } })
     }
 
-    fun log(message: String) {
+    override fun record(event: String) { log(event) }
+
+    override fun log(message: String) {
         val logs = readArray("activity")
         logs.put(0, JSONObject().put("time", System.currentTimeMillis()).put("message", message))
         val trimmed = JSONArray()
@@ -66,14 +86,22 @@ class OneAiStore(context: Context) {
         writeArray("activity", trimmed)
     }
 
-    fun activity(): List<String> = readArray("activity").let { a ->
-        (0 until a.length()).map { i -> a.getJSONObject(i).optString("message") }
+    fun activityEntries(): List<ActivityEntry> = readArray("activity").let { a ->
+        (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            ActivityEntry(item.optLong("time", 0L), item.optString("message"))
+        }
     }
+
+    /** Backward-compatible message-only view for existing callers. */
+    fun activity(): List<String> = activityEntries().map { it.message }
+
+    fun clearActivity() { writeArray("activity", JSONArray()) }
 
     fun setBubbleEnabled(enabled: Boolean) { prefs.edit().putBoolean("bubble_enabled", enabled).apply() }
     fun bubbleEnabled() = prefs.getBoolean("bubble_enabled", false)
-    fun setBubbleServices(services: Set<String>) { prefs.edit().putStringSet("bubble_services", services).apply() }
-    fun bubbleServices(): Set<String> = prefs.getStringSet("bubble_services", emptySet())?.toSet() ?: emptySet()
+    override fun setBubbleServices(services: Set<String>) { prefs.edit().putStringSet("bubble_services", services).apply() }
+    override fun bubbleServices(): Set<String> = prefs.getStringSet("bubble_services", emptySet())?.toSet() ?: emptySet()
     fun bubbleServiceOrder(): List<String> = prefs.getString("bubble_service_order", "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     fun setBubbleServiceOrder(order: List<String>) { prefs.edit().putString("bubble_service_order", order.distinct().joinToString(",")).apply() }
 
@@ -84,7 +112,7 @@ class OneAiStore(context: Context) {
     fun setAiProviderName(value: String) { prefs.edit().putString("ai_provider", value).apply() }
     fun aiProviderName() = prefs.getString("ai_provider", "OpenAI-compatible") ?: "OpenAI-compatible"
 
-    fun developerMode() = prefs.getBoolean("developer_mode", false)
+    override fun developerMode() = prefs.getBoolean("developer_mode", false)
     fun setDeveloperMode(value: Boolean) { prefs.edit().putBoolean("developer_mode", value).apply() }
 
     private fun readArray(key: String): JSONArray = runCatching { JSONArray(prefs.getString(key, "[]")) }.getOrElse { JSONArray() }

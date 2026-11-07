@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 2 is required because App Control returns an immutable PendingIntent for host approval. -->
+<one-ai-plugin manifestVersion="2" minCoreApi="2" targetCoreApi="2">
+    <info
+        name="App Control"
+        description="Find launcher-visible Android apps and request a user-approved launch." />
+    <capability name="app_launch" />
+    <command
+        name="launch_app"
+        title="Open installed app"
+        description="Request that ONE AI open one selected launcher-visible app after confirmation."
+        capability="app_launch" />
+    <bubble service="app_control" title="App control" />
+</one-ai-plugin>

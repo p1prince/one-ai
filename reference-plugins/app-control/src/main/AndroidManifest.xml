@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Package visibility is limited to apps that expose a launcher activity. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+    <application
+        android:allowBackup="false"
+        android:label="ONE AI App Control">
+        <!-- Access control is enforced by the SDK base class and the host's certificate pin. -->
+        <service
+            android:name=".AppControlPluginService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.oneai.plugin.action.PLUGIN" />
+            </intent-filter>
+            <meta-data
+                android:name="com.oneai.plugin.manifest"
+                android:resource="@xml/one_ai_plugin" />
+        </service>
+    </application>
+</manifest>
