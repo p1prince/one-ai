@@ -76,6 +76,19 @@ class ExternalPluginCenterTest {
         fun blockedEvents() = store.logs.count { it.startsWith("Blocked ") }
     }
 
+    @Test fun updateCheckRequestsAreConsumedExactlyOnce() {
+        val gate = PluginUpdateCheckGate()
+        assertFalse("no implicit update check on initial render", gate.consume())
+
+        gate.request()
+        assertTrue("the explicit request is consumed", gate.consume())
+        assertFalse("recomposition or refresh cannot replay it", gate.consume())
+
+        gate.request()
+        assertTrue("a new explicit click can request another check", gate.consume())
+        assertFalse(gate.consume())
+    }
+
     @Test fun aPluginFoundOnTheDeviceIsListedAsNotImportedAndNothingIsTrusted() {
         val f = Fixture()
         f.extras = listOf(DiscoveredPlugin("dev.example.broken", "Broken", "svc", Result.failure(IllegalArgumentException("bad manifest"))))
