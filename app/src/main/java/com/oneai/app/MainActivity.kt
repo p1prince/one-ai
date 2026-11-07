@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val services=AppServices.get(application)
         store=services.store; plugins=services.plugins; commandRouter=services.commandRouter
-        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,
+        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,services.pluginRestoration,
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { services.aiOrchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
@@ -96,7 +96,7 @@ internal enum class Page(val title:String) {
 }
 
 @Composable
-private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter,
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter, restoration:PluginRestorationGate,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
@@ -116,7 +116,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,services.pluginRestoration,refreshNow)
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
