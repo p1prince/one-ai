@@ -48,6 +48,7 @@ import com.oneai.app.plugins.DiscoveredPlugin
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalStatus
 import com.oneai.app.plugins.PluginCenterSnapshot
+import com.oneai.app.plugins.PluginUpdateCheckGate
 import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.security.SecretVault
