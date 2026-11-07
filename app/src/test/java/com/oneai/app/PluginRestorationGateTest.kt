@@ -1,5 +1,6 @@
 package com.oneai.app
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
@@ -10,7 +11,7 @@ class PluginRestorationGateTest {
     @Test fun pluginWorkWaitsUntilRestorationCompletes() = runBlocking {
         val gate = PluginRestorationGate()
         var operationStarted = false
-        val operation = async {
+        val operation = async(start = CoroutineStart.UNDISPATCHED) {
             gate.awaitReady()
             operationStarted = true
         }
