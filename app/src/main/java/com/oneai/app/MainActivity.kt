@@ -101,6 +101,8 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
+    var pluginRestored by remember { mutableStateOf(restoration.isReady) }
+    LaunchedEffect(restoration) { restoration.awaitReady(); pluginRestored=true }
     val refreshNow: () -> Unit = { refresh++; Unit }
     MaterialTheme(colorScheme=darkColorScheme(primary=Gold,background=Ink,surface=Panel,onPrimary=Ink,onBackground=White,onSurface=White)) {
         Scaffold(containerColor=Ink, bottomBar={
@@ -120,7 +122,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
-                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },onBubbleToggle,refreshNow)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },pluginRestored,onBubbleToggle,refreshNow)
             }
         }
     }
@@ -381,7 +383,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     )
 }
 
-@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
     var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
@@ -409,17 +411,17 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
         item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
-            Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
+            Text(if(restorationReady) "Services appear only after you explicitly enable them below. Newly available services start off." else "Restoring trusted plugin services… service controls will unlock when startup restoration finishes.",color=Muted,fontSize=11.sp)
             val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, externalBindings()).toList()
+            val availableOptions = if(restorationReady) BubbleUiPolicy.availableServices(installedAndEnabled, externalBindings()).toList() else emptyList()
             val savedOrder = store.bubbleServiceOrder().filter { it in availableOptions }
             val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
             orderedOptions.forEachIndexed { index, id ->
                 Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)) {
                     Text(com.oneai.app.bubble.BubbleProviders.registry.provider(id)?.title ?: id.replace('_',' '),color=White,modifier=Modifier.weight(1f))
-                    IconButton(onClick={ if(index>0){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index-1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index>0){Icon(Icons.Default.ArrowUpward,"Move up",tint=Gold)}
-                    IconButton(onClick={ if(index<orderedOptions.lastIndex){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index+1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=index<orderedOptions.lastIndex){Icon(Icons.Default.ArrowDownward,"Move down",tint=Gold)}
-                    Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)})
+                    IconButton(onClick={ if(index>0){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index-1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=restorationReady && index>0){Icon(Icons.Default.ArrowUpward,"Move up",tint=Gold)}
+                    IconButton(onClick={ if(index<orderedOptions.lastIndex){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index+1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=restorationReady && index<orderedOptions.lastIndex){Icon(Icons.Default.ArrowDownward,"Move down",tint=Gold)}
+                    Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)},enabled=restorationReady)
                 }
             }
             if (availableOptions.size == 1) Text("Install and enable optional plugins in Plugin Centre to expose their bubble services here.",color=Muted,fontSize=11.sp)
