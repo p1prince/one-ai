@@ -32,7 +32,7 @@ class EchoCommandsTest {
         for (args in listOf(emptyMap<String, String>(), mapOf("text" to ""), mapOf("text" to "   "))) {
             assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", args, noActivity) }.code)
         }
-        assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT + 1)), noActivity).code)
+        assertEquals("INVALID_ARGUMENT", failure { commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT + 1)), noActivity) }.code)
         // The largest accepted input must still fit the SDK's output bounds.
         val largest = commands.run("echo", mapOf("text" to "x".repeat(EchoCommands.MAX_TEXT)), noActivity)
         assertNull(PluginBounds.outputProblem(largest.title, largest.content))
