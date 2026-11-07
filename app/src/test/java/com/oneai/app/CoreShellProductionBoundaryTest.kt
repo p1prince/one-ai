@@ -26,6 +26,7 @@ class CoreShellProductionBoundaryTest {
         assertTrue(
             "The generic saved-command entry point must remain a core command.",
             appServices.contains("commandRegistry.registerCore(" + '"' + "run_saved" + '"')
+        )
     }
 
     @Test
