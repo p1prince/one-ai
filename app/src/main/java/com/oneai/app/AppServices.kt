@@ -12,10 +12,10 @@ import com.oneai.app.commands.CommandExecutor
 import com.oneai.app.commands.CommandOutput
 import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
+import com.oneai.app.core.CoreReservedNames
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.plugins.AndroidPackageSignatureSource
 import com.oneai.app.plugins.BoundPluginChannelFactory
-import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
 import com.oneai.app.plugins.PluginConfiguration
@@ -78,7 +78,7 @@ class AppServices private constructor(app: Application) {
 
     val registrar = ExternalPluginRegistrar(
         store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app, launchBroker = pluginLaunchApprovals),
-        reservedIds = BuiltInCatalogue.templates.map { it.id }.toSet(),
+        reservedIds = CoreReservedNames.pluginIds,
         onBubbleService = { manifest, viewSource ->
             // A refused registration (reserved or duplicate service name) simply leaves the plugin out of the Bubble.
             BubbleProviders.registry.register(ExternalBubbleProvider(manifest, viewSource))
@@ -98,7 +98,7 @@ class AppServices private constructor(app: Application) {
     init {
         center = ExternalPluginCenter(
             discover = PluginDiscovery(app)::discover, trust = trust, registrar = registrar, manager = plugins,
-            reservedBubbleServices = BuiltInCatalogue.bubbleBindings.values.toSet() + BubbleUiPolicy.COMMAND_MANAGER,
+            reservedBubbleServices = CoreReservedNames.bubbleServices + BubbleUiPolicy.COMMAND_MANAGER,
             configuration = pluginConfiguration
         )
         commandRegistry.registerCore("run_saved", "Run saved command", "Runs one of your saved commands through the AI engine.") { args ->
