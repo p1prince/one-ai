@@ -192,15 +192,13 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var scanning by remember { mutableStateOf(true) }
     var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
     var reviewingUpdate by remember { mutableStateOf<String?>(null) }
-    var updateCheckRequested by remember { mutableIntStateOf(0) }
-    // Discovery, signature checks and explicit update checks run off the main thread.
-    LaunchedEffect(tick, updateCheckRequested) {
+    val updateCheckGate = remember { PluginUpdateCheckGate() }
+    val scope = rememberCoroutineScope()
+    // Screen redraws only refresh the snapshot; update checks are one-shot user actions.
+    LaunchedEffect(tick) {
         scanning=true
         snapshot=withContext(Dispatchers.IO) {
-            runCatching {
-                if (updateCheckRequested > 0) center.checkForUpdates()
-                center.snapshot()
-            }.getOrDefault(PluginCenterSnapshot.EMPTY)
+            runCatching { center.snapshot() }.getOrDefault(PluginCenterSnapshot.EMPTY)
         }
         scanning=false
     }
@@ -211,7 +209,21 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
         item {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
-                TextButton(onClick={ updateCheckRequested++ },enabled=!scanning) { Text("Check updates",color=Gold) }
+                TextButton(onClick={
+                    if (!scanning) {
+                        updateCheckGate.request()
+                        scope.launch {
+                            scanning=true
+                            snapshot=withContext(Dispatchers.IO) {
+                                runCatching {
+                                    if (updateCheckGate.consume()) center.checkForUpdates()
+                                    center.snapshot()
+                                }.getOrDefault(PluginCenterSnapshot.EMPTY)
+                            }
+                            scanning=false
+                        }
+                    }
+                },enabled=!scanning) { Text("Check updates",color=Gold) }
             }
         }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
