@@ -23,6 +23,22 @@ sealed interface ExternalStatus {
     data object NotInstalled : ExternalStatus
 }
 
+/**
+ * One-shot gate for explicit update checks. A screen redraw cannot replay a consumed request.
+ * Kept as a small pure state holder so the event semantics are covered by JVM tests.
+ */
+class PluginUpdateCheckGate {
+    private var pending = false
+
+    @Synchronized fun request() { pending = true }
+
+    @Synchronized fun consume(): Boolean {
+        if (!pending) return false
+        pending = false
+        return true
+    }
+}
+
 /** Everything the Plugins screen draws, computed together so it can be built off the main thread. */
 data class PluginCenterSnapshot(
     val candidates: List<PluginCandidate>,
