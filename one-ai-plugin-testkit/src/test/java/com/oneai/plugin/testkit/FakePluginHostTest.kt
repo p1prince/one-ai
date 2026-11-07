@@ -6,7 +6,6 @@ import com.oneai.plugin.sdk.PluginOutput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.concurrent.TimeUnit
 
 class FakePluginHostTest {
     @Test fun capturesProgressAndTheFinalResultInOrder() {
@@ -35,7 +34,7 @@ class FakePluginHostTest {
     @Test fun rejectsMalformedArgumentsBeforeCallingTheHandler() {
         var invoked = false
         FakePluginHost(handler = { _, _, _ -> invoked = true; PluginOutput("x", "y") }).use { host ->
-            val call = host.execute("request-3", "run", mapOf("bad key" to "value"))
+            val call = host.execute("request-3", "run", mapOf("k".repeat(81) to "value"))
             val event = call.await().single()
             assertTrue(event is PluginTestEvent.Failed)
             assertEquals("INVALID_ARGUMENTS", (event as PluginTestEvent.Failed).code)
