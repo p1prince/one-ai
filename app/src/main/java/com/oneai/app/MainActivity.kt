@@ -146,7 +146,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
         item { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(18.dp)).padding(16.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically){
                 Icon(Icons.Default.AutoAwesome,null,tint=Gold,modifier=Modifier.size(25.dp));Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)){Text("Command ONE",color=White,fontWeight=FontWeight.SemiBold);Text("Your AI command interface is being prepared.",color=Muted,fontSize=12.sp)}
+                Column(Modifier.weight(1f)){Text("Command ONE",color=White,fontWeight=FontWeight.SemiBold);Text("Ask ONE AI to help with your next task.",color=Muted,fontSize=12.sp)}
                 Icon(Icons.Default.ArrowForward,null,tint=Gold)
             }
             Spacer(Modifier.height(10.dp))
