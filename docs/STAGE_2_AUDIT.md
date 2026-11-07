@@ -362,3 +362,27 @@ The Stage 8 implementation was reviewed against owner-approved D4 and the six-st
 - Already implemented in Stage 9: Plugins discovery/import UI, fingerprint review, enabled and independent Bubble-access switches, update consent/removal, process-wide restoration and Settings listing. These are not to be rebuilt; they remain visually and device unverified.
 - Still outstanding: the host currently drops API 2 onLaunch callbacks; Stage 9.4c must implement user confirmation and PendingIntent creator/identity validation. The standalone plugin-author fake-host test kit listed in design §8 is not packaged yet. Real Android binding/discovery/signature/process-isolation and Bubble rendering remain Stage 11 acceptance work. OneAiHost.RELEASE_CERTIFICATES remains empty until the release key is configured in Stage 12.
 - Disposition: the Stage 8 source/design review is reconciled; this does not mark Stage 8 Android acceptance complete, does not close Stage 9, and does not authorize APK builds or PR merge.
+
+
+# OWNER-APPROVED SCOPE CORRECTION — 2026-11-07 (AUTHORITATIVE)
+
+This section supersedes any conflicting migration sequence or recommendation earlier in this historical audit. The owner approved the corrected roadmap and clarified that individual capability plugins are not current deliverables.
+
+## Binding interpretation
+
+- Stage 8 is the generic plugin architecture, secure contract, SDK, and developer tooling. It does not require built-in reference capability modules.
+- Stage 9 is the generic Kodi-inspired Plugin Centre and generic integration with the ONE AI host and Floating Bubble. It includes discovery/catalogue, import/install, installed-plugin information, trust, compatibility, dependencies, enable/disable, configuration, updates, removal, lifecycle, status, permissions, approvals, and independent Bubble access.
+- Browser/Web Research, Voice, Screen Intelligence, App Control, Device Control, AutoDroid, automation, and any other named capabilities are illustrative future plugin ideas only. They are not current tasks, milestones, acceptance criteria, or foundation-release dependencies.
+- Do not extract, migrate, package, build, integrate, or prioritise individual capability plugins. Do not resume the old capability-extraction sequence.
+- Existing capability code may be inspected only where needed to identify a concrete dependency preventing standalone Core operation. Preserve code/history and avoid speculative deletion or migration.
+- Existing generic SDK, trust, AIDL, plugin lifecycle, Bubble, and security work should be reused; do not rebuild completed work.
+
+## Audit disposition correction
+
+The previous audit's sections describing six reference capability modules, a named capability extraction sequence, and capability-specific permission/credential migration are historical proposals and are **superseded**. They are not authorized work. Existing reference modules are not current priorities or acceptance dependencies. Any future removal/exclusion from the foundation build must be justified by a focused dependency audit and remain within the approved stage and branch boundaries.
+
+## Required next audit action
+
+Reconcile the actual repository against the corrected 12-stage roadmap. Report concrete generic Core/Plugin Centre requirements as retain, correct, remove, or implement, with file/dependency evidence and existing test/CI evidence. Do not make application-code changes until that reconciliation is complete and the relevant implementation scope is authorized under the project rules.
+
+See `docs/PROJECT_CONTINUATION_RULES.md` for mandatory cross-AI handoff rules and source-of-truth hierarchy.

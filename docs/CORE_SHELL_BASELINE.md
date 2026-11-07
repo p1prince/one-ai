@@ -27,20 +27,17 @@ The permanent Core includes:
 
 These are platform facilities, not implementations of individual optional capabilities.
 
-## 3. Optional capabilities — deferred until shell acceptance
+## 3. Plugin scope — generic infrastructure is Core; individual plugins are future projects
 
-Voice, Screen Intelligence / screen capture, Web Research, App Control, Device Control, AutoDroid, advanced automation, and future capabilities are optional extensions.
+The generic plugin ecosystem is a permanent part of ONE AI Core and a foundation-release requirement. The Plugins section is a full, usable management centre inspired by the add-on management experience in Kodi.
 
-During the shell-first phase:
+Current Core work includes generic discovery/catalogue, import or installation, installed-plugin details, trust, signer verification, compatibility, dependencies, enable/disable, configuration, update handling, removal, lifecycle/status, permissions and approvals, plus generic integration with ONE AI and the Floating Bubble.
 
-- Do not develop new capability extensions.
-- Do not extract existing capability implementations into new extension modules.
-- Do not package, integrate, or prioritise reference capability APKs.
-- Do not make AutoDroid or any other individual extension the next milestone.
-- Do not add capability-specific behaviour to permanent Core merely to make the shell appear complete.
-- Existing capability code may be inspected only when needed to identify and isolate a dependency that prevents the shell from operating independently. Preserve working code and its history; do not delete or migrate it speculatively.
+The Developer section and versioned SDK are generic infrastructure for independent plugin authors.
 
-After the Core Shell is complete and accepted, extension work may resume under the existing approved SDK and hybrid extension architecture.
+Individual capability implementations—including Browser/Web Research, Voice, Screen Intelligence, App Control, Device Control, AutoDroid, automation, and any other named examples—are future plugin projects only. They are not current milestones, reference-module requirements, acceptance criteria, or dependencies for the first foundation release. Do not extract, package, build, or integrate them unless the owner explicitly requests a separate plugin project.
+
+Existing capability-specific source may be inspected only to identify a concrete dependency that prevents standalone Core operation. Preserve existing code/history; do not delete, migrate, or restructure it speculatively.
 
 ## 4. Shell navigation and Home
 
@@ -95,7 +92,7 @@ Preserve the owner-approved decisions in `docs/DECISIONS.md`:
 - D1: independently installed extensions use separately signed Android APKs and the secure bound-service AIDL boundary; no arbitrary folder/dex loading.
 - D2: Command Manager is a Home module, not a sixth tab.
 - D3: proceed without routine approval prompts; PR merge, APK build, and architecture or 12-stage plan changes still require explicit owner authorisation.
-- D4: stable, versioned core Plugin SDK/contract; reference modules exercise the same contract; external plugins remain separately installed signed APKs.
+- D4: the generic, versioned Plugin SDK and secure external extension contract are Core; individual capability reference modules are not required foundation deliverables.
 
 Existing generic plugin infrastructure is part of the shell. Keep and reuse the SDK, plugin management, runtime, security, approval, command, and Bubble contracts already implemented. Do not rebuild completed infrastructure or create duplicate execution paths.
 
@@ -135,3 +132,8 @@ Preserve existing files and history. Make focused changes only after inspecting 
 ## 9. Definition of a successful Core Shell
 
 ONE AI can start, operate its general AI interface, navigate, manage settings and activity, manage extensions, and provide an empty generic Floating Bubble without depending on any optional capability being installed or enabled.
+
+
+## 10. Mandatory scope lock and handoff
+
+All contributors and future AI assistants must read `docs/PROJECT_CONTINUATION_RULES.md` before working. It is the binding owner-approved clarification of the current scope and how to continue without repeating completed work. Older documents that schedule capability extraction or reference capability APKs are superseded historical records. The generic Plugin Centre is current Core work; individual capability plugins are not.
