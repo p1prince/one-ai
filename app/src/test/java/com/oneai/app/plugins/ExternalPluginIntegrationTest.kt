@@ -110,14 +110,18 @@ class ExternalPluginIntegrationTest {
         assertFalse(record.enabled)
         assertFalse(record.developerCreated)
         assertTrue(f.store.bubbleServices().isEmpty())
+        assertTrue("disabled metadata must not register runtime adapters", f.runtime.registeredPluginIds().isEmpty())
+        assertTrue("disabled plugin's commands must be absent", f.commands.list().isEmpty())
+        f.store.savePlugin(record.copy(enabled = true))
+        assertTrue(f.registrar().activate(pkg).isSuccess)
         assertEquals(setOf(pkg), f.runtime.registeredPluginIds())
-        assertTrue("disabled plugin's commands must be hidden", f.commands.list().isEmpty())
     }
 
     @Test fun enabledPluginRunsItsCommandThroughTheGatewayAndTheChannel() = runBlocking {
         val f = Fixture(pkg, cert)
         f.registrar().register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(f.registrar().activate(pkg).isSuccess)
         assertEquals(listOf("$pkg/add_note"), f.commands.list().map { it.id })
         f.behaviour = { _, command, args, activity -> activity("saving"); PluginActionOutput("Saved", "$command:${args["text"]}") }
         val unapproved = f.executor.execute("$pkg/add_note", mapOf("text" to "hello"))
@@ -135,6 +139,7 @@ class ExternalPluginIntegrationTest {
         f.registrar().register(imported(f))
         assertEquals(CommandStatus.NOT_FOUND, f.executor.execute("$pkg/add_note").status)
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(f.registrar().activate(pkg).isSuccess)
         f.registrar().deactivate(pkg, "test")
         assertFalse(f.store.plugins().single().enabled)
         assertEquals(CommandStatus.NOT_FOUND, f.executor.execute("$pkg/add_note").status)
@@ -145,6 +150,7 @@ class ExternalPluginIntegrationTest {
         val f = Fixture(pkg, cert)
         f.registrar().register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(f.registrar().activate(pkg).isSuccess)
         f.behaviour = { _, _, _, _ -> throw IllegalStateException("password=hunter2 /data/secret") }
         val crashed = runApproved(f, "$pkg/add_note")
         assertEquals(CommandStatus.FAILED, crashed.status)
@@ -160,6 +166,7 @@ class ExternalPluginIntegrationTest {
         val f = Fixture(pkg, cert)
         f.registrar(timeoutMs = 100).register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(f.registrar(timeoutMs = 100).activate(pkg).isSuccess)
         f.behaviour = { _, _, _, _ -> delay(5_000); PluginActionOutput("Late", "late") }
         val result = runApproved(f, "$pkg/add_note")
         assertEquals(CommandStatus.FAILED, result.status)
@@ -190,6 +197,7 @@ class ExternalPluginIntegrationTest {
         val registrar = f.registrar()
         registrar.register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(registrar.activate(pkg).isSuccess)
         assertEquals(1, f.commands.list().size)
 
         val decision = registrar.applyUpdate(manifest(versionCode = 2, extraCommand = true))
@@ -202,6 +210,7 @@ class ExternalPluginIntegrationTest {
         assertFalse("approval must not silently re-enable", record.enabled)
         assertEquals("1.0.2", record.version)
         f.store.savePlugin(record.copy(enabled = true))
+        assertTrue(registrar.activate(pkg).isSuccess)
         assertEquals(setOf("$pkg/add_note", "$pkg/find_note"), f.commands.list().map { it.id }.toSet())
     }
 
@@ -210,6 +219,7 @@ class ExternalPluginIntegrationTest {
         val registrar = f.registrar()
         registrar.register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(registrar.activate(pkg).isSuccess)
         assertEquals(UpdateDecision.Accepted, registrar.applyUpdate(manifest(versionCode = 2)))
         assertTrue(f.store.plugins().single().enabled)
         assertEquals("1.0.2", f.store.plugins().single().version)
@@ -220,6 +230,7 @@ class ExternalPluginIntegrationTest {
         val registrar = f.registrar()
         registrar.register(imported(f))
         f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(registrar.activate(pkg).isSuccess)
         f.runtime.unregister(pkg) // simulate a process restart
         f.commands.unregisterOwner(pkg)
         registrar.restoreAll()
@@ -268,13 +279,16 @@ class ExternalPluginIntegrationTest {
             onBubbleRemoved = { removed += it }
         )
         registrar.register(imported(f))
+        assertTrue("disabled metadata registration must not publish Bubble services", added.isEmpty())
+        f.store.savePlugin(f.store.plugins().single().copy(enabled = true))
+        assertTrue(registrar.activate(pkg).isSuccess)
         assertEquals(listOf(pkg), added)
         assertNotNull(fetched)
         // Registering first clears any stale service, so a re-registration replaces rather than duplicates.
-        assertEquals(listOf(pkg), removed)
-        registrar.deactivate(pkg, "test")
         assertEquals(listOf(pkg, pkg), removed)
-        registrar.onRemoved(pkg)
+        registrar.deactivate(pkg, "test")
         assertEquals(listOf(pkg, pkg, pkg), removed)
+        registrar.onRemoved(pkg)
+        assertEquals(listOf(pkg, pkg, pkg, pkg), removed)
     }
 }

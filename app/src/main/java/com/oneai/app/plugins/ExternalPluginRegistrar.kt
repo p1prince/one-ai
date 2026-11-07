@@ -26,7 +26,7 @@ class ExternalPluginRegistrar(
     /** Called whenever a plugin's Bubble service must disappear (deactivation, removal, failed registration). */
     private val onBubbleRemoved: (String) -> Unit = {}
 ) {
-    /** Registers (or refreshes) a trusted plugin. An existing enabled flag is kept. */
+    /** Persist trusted metadata. Disabled plugins have no runtime adapter, commands or Bubble provider. */
     @Synchronized
     fun register(entry: TrustEntry): Result<PluginRecord> {
         val manifest = entry.trustedManifest
@@ -34,43 +34,74 @@ class ExternalPluginRegistrar(
         if (id in reservedIds) return Result.failure(IllegalStateException("That plugin ID is reserved"))
         val existing = store.plugins().firstOrNull { it.id == id }
         if (existing?.developerCreated == true) return Result.failure(IllegalStateException("That plugin ID is already used by a developer plugin"))
-        val record = PluginRecord(
-            id, manifest.name, manifest.versionName, manifest.description, manifest.capabilities,
+        val record = PluginRecord(id, manifest.name, manifest.versionName, manifest.description, manifest.capabilities,
             enabled = existing?.enabled ?: false, developerCreated = false,
-            manifestVersion = PluginManifest.CURRENT_VERSION, dependencies = manifest.dependencies
-        )
-        runtime.unregister(id)
-        commands.unregisterOwner(id)
-        onBubbleRemoved(id)
+            manifestVersion = PluginManifest.CURRENT_VERSION, dependencies = manifest.dependencies)
+        clearRuntime(id)
         store.savePlugin(record)
-        val adapter = ExternalPluginAdapter(manifest, trust, channels, timeoutMs, { pluginId, message -> store.log("[$pluginId] $message") })
-        val failure = runtime.register(adapter).exceptionOrNull() ?: registerCommands(manifest)
-        if (failure != null) {
-            runtime.unregister(id)
-            commands.unregisterOwner(id)
-            onBubbleRemoved(id)
-            if (existing == null) store.removePlugin(id)
-            return Result.failure(failure)
+        if (!record.enabled) {
+            store.log("Imported external plugin metadata: ${manifest.name} (disabled)")
+            return Result.success(record)
         }
-        if (manifest.bubble != null) onBubbleService(manifest) { serviceId -> adapter.view(serviceId) }
-        store.log("Registered external plugin: ${manifest.name} ${manifest.versionName}")
+        val activated = registerRuntime(manifest)
+        if (activated.isFailure) {
+            store.savePlugin(record.copy(enabled = false))
+            if (existing == null) store.removePlugin(id)
+            return Result.failure(activated.exceptionOrNull()!!)
+        }
+        store.log("Registered enabled external plugin: ${manifest.name} ${manifest.versionName}")
         return Result.success(record)
     }
 
+    /** Runtime activation is permitted only after the stored record has been explicitly enabled. */
+    @Synchronized
+    fun activate(pluginId: String): Result<Unit> {
+        val record = store.plugins().firstOrNull { it.id == pluginId }
+            ?: return Result.failure(IllegalStateException("Plugin metadata is missing"))
+        if (!record.enabled) return Result.failure(IllegalStateException("Enable the plugin before activating it"))
+        val entry = (trust.check(pluginId) as? TrustCheck.Trusted)?.entry
+            ?: return Result.failure(IllegalStateException("The plugin is no longer trusted"))
+        if (entry.trustedManifest.id != pluginId) return Result.failure(IllegalStateException("Plugin identity mismatch"))
+        return registerRuntime(entry.trustedManifest)
+    }
+
+    private fun registerRuntime(manifest: ExternalPluginManifest): Result<Unit> {
+        val id = manifest.id
+        clearRuntime(id)
+        val adapter = ExternalPluginAdapter(
+            manifest, trust, channels, timeoutMs,
+            report = { pluginId, message -> store.log("[$pluginId] $message") }
+        )
+        val failure = runtime.register(adapter).exceptionOrNull() ?: registerCommands(manifest)
+        if (failure != null) {
+            clearRuntime(id)
+            return Result.failure(failure)
+        }
+        if (manifest.bubble != null) onBubbleService(manifest) { serviceId -> adapter.view(serviceId) }
+        return Result.success(Unit)
+    }
+
+    /** Register only the commands declared by this trusted manifest. */
     private fun registerCommands(manifest: ExternalPluginManifest): Throwable? {
         manifest.commands.forEach { command ->
-            commands.registerExtension(manifest.id, command.name, command.title, command.description, command.capability)
-                .exceptionOrNull()?.let { return it }
+            val result = commands.registerExtension(
+                manifest.id, command.name, command.title, command.description, command.capability
+            )
+            result.exceptionOrNull()?.let { return it }
         }
         return null
+    }
+
+    private fun clearRuntime(pluginId: String) {
+        runtime.unregister(pluginId)
+        commands.unregisterOwner(pluginId)
+        onBubbleRemoved(pluginId)
     }
 
     /** Takes a plugin out of service (adapter, commands, pending approvals) and disables it. The pin is kept. */
     @Synchronized
     fun deactivate(pluginId: String, reason: String) {
-        runtime.unregister(pluginId)
-        commands.unregisterOwner(pluginId)
-        onBubbleRemoved(pluginId)
+        clearRuntime(pluginId)
         lifecycle.revokePendingApprovals()
         store.plugins().firstOrNull { it.id == pluginId }?.takeIf { it.enabled }?.let { store.savePlugin(it.copy(enabled = false)) }
         store.log("Deactivated external plugin $pluginId: $reason")
@@ -107,7 +138,10 @@ class ExternalPluginRegistrar(
     fun restoreAll() {
         trust.trusted().forEach { entry ->
             when (val check = trust.check(entry.packageName)) {
-                is TrustCheck.Trusted -> register(check.entry)
+                is TrustCheck.Trusted -> {
+                    val record = store.plugins().firstOrNull { it.id == entry.packageName }
+                    if (record?.enabled == true) register(check.entry) else clearRuntime(entry.packageName)
+                }
                 is TrustCheck.UpdatePending -> deactivate(entry.packageName, "update needs your approval")
                 TrustCheck.SignatureMismatch -> deactivate(entry.packageName, "signing certificate changed")
                 TrustCheck.NotInstalled -> deactivate(entry.packageName, "the plugin app is not installed")

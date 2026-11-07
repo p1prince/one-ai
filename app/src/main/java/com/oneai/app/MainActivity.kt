@@ -37,7 +37,6 @@ import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProviderClient
 import com.oneai.app.ai.AiConversation
-import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
 import com.oneai.app.commands.CommandRouter
@@ -193,17 +192,28 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var scanning by remember { mutableStateOf(true) }
     var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
     var reviewingUpdate by remember { mutableStateOf<String?>(null) }
-    // Looking at installed apps and their signatures happens off the main thread.
-    LaunchedEffect(tick) {
+    var updateCheckRequested by remember { mutableIntStateOf(0) }
+    // Discovery, signature checks and explicit update checks run off the main thread.
+    LaunchedEffect(tick, updateCheckRequested) {
         scanning=true
-        snapshot=withContext(Dispatchers.IO) { runCatching { center.snapshot() }.getOrDefault(PluginCenterSnapshot.EMPTY) }
+        snapshot=withContext(Dispatchers.IO) {
+            runCatching {
+                if (updateCheckRequested > 0) center.checkForUpdates()
+                center.snapshot()
+            }.getOrDefault(PluginCenterSnapshot.EMPTY)
+        }
         scanning=false
     }
     val installed=manager.installed(); val available=manager.catalogue.filterNot { t->installed.any{it.id==t.id} }
     val candidates=snapshot.candidates.filterNot { it.imported }
     val changed:(Result<*>,String)->Unit={ result,success -> result.onFailure { error -> operationMessage=error.message ?: "That change failed" }.onSuccess { operationMessage=success };tick++;refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
+        item {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
+                TextButton(onClick={ updateCheckRequested++ },enabled=!scanning) { Text("Check updates",color=Gold) }
+            }
+        }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
         if(installed.isEmpty()) item { CardBox { Text("No plugins installed",color=White,fontWeight=FontWeight.SemiBold);Text("ONE AI starts empty. Install only the capabilities you want.",color=Muted,fontSize=12.sp) } }
         items(installed,key={it.id}) { p ->
@@ -385,7 +395,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text("Services appear only after you explicitly enable them below. Newly available services start off.",color=Muted,fontSize=11.sp)
             val installedAndEnabled = store.plugins().filter { it.enabled }.map { it.id }.toSet()
-            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, BuiltInCatalogue.bubbleBindings + externalBindings()).toList()
+            val availableOptions = BubbleUiPolicy.availableServices(installedAndEnabled, externalBindings()).toList()
             val savedOrder = store.bubbleServiceOrder().filter { it in availableOptions }
             val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
             orderedOptions.forEachIndexed { index, id ->

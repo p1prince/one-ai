@@ -47,10 +47,9 @@ class ExternalPluginCenter(
     /** Bubble service names that already belong to the core or to built-in plugins; no other plugin may take them. */
     private val reservedBubbleServices: Set<String> = emptySet()
 ) {
-    /** Looks at what is installed, applies updates of plugins the user already trusts, and reports the result. */
+    /** Read-only view: rendering must never mutate plugin lifecycle. */
     fun snapshot(): PluginCenterSnapshot {
         val found = discover()
-        applyUpdates(found)
         val entries = trust.trusted()
         val importedIds = entries.map { it.packageName }.toSet()
         return PluginCenterSnapshot(
@@ -59,6 +58,9 @@ class ExternalPluginCenter(
             pendingUpdates = entries.mapNotNull { entry -> entry.pendingUpdate?.let { entry.packageName to it } }.toMap()
         )
     }
+
+    /** Explicit user-initiated update check; opening or redrawing Plugin Centre is read-only. */
+    fun checkForUpdates() { applyUpdates(discover()) }
 
     /** An installed update is judged by the trust rules: same or fewer powers is accepted, more waits for the user. */
     private fun applyUpdates(found: List<DiscoveredPlugin>) {
@@ -105,6 +107,11 @@ class ExternalPluginCenter(
         registrar.register(entry).onFailure { return Result.failure(it) }
         manager.setEnabled(id, true).onFailure {
             registrar.deactivate(id, "could not be turned on")
+            return Result.failure(it)
+        }
+        registrar.activate(id).onFailure {
+            manager.setEnabled(id, false)
+            registrar.deactivate(id, "activation failed")
             return Result.failure(it)
         }
         return Result.success(Unit)
