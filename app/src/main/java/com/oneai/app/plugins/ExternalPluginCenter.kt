@@ -43,7 +43,11 @@ class PluginUpdateCheckGate {
 data class PluginCenterSnapshot(
     val candidates: List<PluginCandidate>,
     val statuses: Map<String, ExternalStatus>,
-    val pendingUpdates: Map<String, PendingUpdate>
+    val pendingUpdates: Map<String, PendingUpdate>,
+    /** Trusted plugins that declare settings, with the schema the Configure screen renders (Stage 9.6d). */
+    val configurable: Map<String, PluginSettingsSchema> = emptyMap(),
+    /** Titles of required settings that have no value, per plugin. Non-empty means "Needs configuration". */
+    val needsConfiguration: Map<String, List<String>> = emptyMap()
 ) {
     companion object { val EMPTY = PluginCenterSnapshot(emptyList(), emptyMap(), emptyMap()) }
 }
@@ -70,12 +74,34 @@ class ExternalPluginCenter(
         val found = discover()
         val entries = trust.trusted()
         val importedIds = entries.map { it.packageName }.toSet()
+        val statuses = entries.mapNotNull { entry -> statusOf(trust.peek(entry.packageName))?.let { entry.packageName to it } }.toMap()
+        // Settings exist only for a currently trusted plugin; a blocked or update-pending one shows none.
+        val trustedIds = statuses.filterValues { it == ExternalStatus.Ready }.keys
+        val schemas = configuration?.let { config ->
+            trustedIds.mapNotNull { id -> config.schema(id)?.let { id to it } }.toMap()
+        }.orEmpty()
+        val missing = configuration?.let { config ->
+            schemas.keys.mapNotNull { id -> config.missingRequired(id).map { it.title }.takeIf { it.isNotEmpty() }?.let { id to it } }.toMap()
+        }.orEmpty()
         return PluginCenterSnapshot(
             candidates = found.map { PluginCandidate(it, it.packageName in importedIds) },
-            statuses = entries.mapNotNull { entry -> statusOf(trust.peek(entry.packageName))?.let { entry.packageName to it } }.toMap(),
-            pendingUpdates = entries.mapNotNull { entry -> entry.pendingUpdate?.let { entry.packageName to it } }.toMap()
+            statuses = statuses,
+            pendingUpdates = entries.mapNotNull { entry -> entry.pendingUpdate?.let { entry.packageName to it } }.toMap(),
+            configurable = schemas,
+            needsConfiguration = missing
         )
     }
+
+    /** The values a plugin currently has in effect (stored, otherwise default); empty for a plugin without settings. */
+    fun effectiveSettings(id: String): Map<String, String> = configuration?.effective(id).orEmpty()
+
+    /** Validates and saves [changes]. Configuration is not authority: enabled state and Bubble access are untouched. */
+    fun saveSettings(id: String, changes: Map<String, String>): Result<Map<String, String>> =
+        configuration?.update(id, changes) ?: Result.failure(IllegalStateException("This plugin has no settings you can change"))
+
+    /** Forgets every stored value so each setting returns to its declared default. */
+    fun resetSettings(id: String): Result<Unit> =
+        configuration?.reset(id) ?: Result.failure(IllegalStateException("This plugin has no settings you can change"))
 
     /** Explicit user-initiated update check; opening or redrawing Plugin Centre is read-only. */
     fun checkForUpdates() { applyUpdates(discover()) }

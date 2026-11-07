@@ -48,6 +48,9 @@ import com.oneai.app.plugins.DiscoveredPlugin
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalStatus
 import com.oneai.app.plugins.PluginCenterSnapshot
+import com.oneai.app.plugins.PluginConfigureForm
+import com.oneai.app.plugins.PluginSettingType
+import com.oneai.app.plugins.PluginSettingsSchema
 import com.oneai.app.plugins.PluginUpdateCheckGate
 import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
@@ -196,6 +199,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var restored by remember { mutableStateOf(restoration.isReady) }
     var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
     var reviewingUpdate by remember { mutableStateOf<String?>(null) }
+    var configuring by remember { mutableStateOf<String?>(null) }
     val updateCheckGate = remember { PluginUpdateCheckGate() }
     val scope = rememberCoroutineScope()
     // Screen redraws only refresh the snapshot; update checks are one-shot user actions.
@@ -247,6 +251,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                     ExternalStatus.NotInstalled -> Text("The plugin app is not installed.",color=Color(0xFFFF8A80),fontSize=11.sp)
                     else -> Unit
                 }
+                PluginConfigureForm.needsConfigurationNote(snapshot.needsConfiguration[p.id].orEmpty(),p.enabled)?.let { Text(it,color=Color(0xFFFFD27A),fontSize=11.sp) }
                 Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{ changed(center.setEnabled(p.id,it),"") },enabled=restored)}
                 if(bubbleService!=null) Row(verticalAlignment=Alignment.CenterVertically){
                     Column(Modifier.weight(1f)){Text("Show in Floating Bubble",color=White);Text(if(p.enabled)"Separate from Enabled. Off until you allow it." else "Enable the plugin first.",color=Muted,fontSize=11.sp)}
@@ -254,6 +259,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
                 Row {
                     if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id},enabled=restored){Text("Review update",color=Gold)}
+                    if(snapshot.configurable.containsKey(p.id)) TextButton(onClick={configuring=p.id},enabled=restored){Text("Configure",color=Gold)}
                     TextButton(onClick={ changed(manager.remove(p.id),"") },enabled=restored){Text("Remove",color=Color(0xFFFF8A80))}
                 }
             }
@@ -306,6 +312,18 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             dismissButton={TextButton(onClick={reviewing=null}){Text("Cancel")}}
         )
     }
+    configuring?.let { id ->
+        val schema=snapshot.configurable[id]
+        // A plugin that stopped being configurable (for example after a signer change) simply shows no dialog.
+        if(schema!=null) ConfigureDialog(
+            title=manager.installed().firstOrNull { it.id==id }?.name ?: id,
+            schema=schema,
+            effective=remember(id) { center.effectiveSettings(id) },
+            onSave={ values -> center.saveSettings(id,values).also { r -> r.onSuccess { operationMessage="Settings saved. Enabled state and Bubble access are unchanged." };tick++;refresh() } },
+            onReset={ center.resetSettings(id).map { center.effectiveSettings(id) }.also { tick++;refresh() } },
+            onClose={configuring=null}
+        )
+    }
     reviewingUpdate?.let { id ->
         val pending=snapshot.pendingUpdates[id]
         AlertDialog(
@@ -320,6 +338,52 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             dismissButton={TextButton(onClick={reviewingUpdate=null}){Text("Not now")}}
         )
     }
+}
+
+/**
+ * Host-rendered settings form (Stage 9.6d). Field labels and descriptions come from the plugin and are drawn as plain
+ * text. Validation and the values to save come from [PluginConfigureForm]; saving never enables the plugin or grants
+ * Bubble access.
+ */
+@Composable private fun ConfigureDialog(title:String,schema:PluginSettingsSchema,effective:Map<String,String>,onSave:(Map<String,String>)->Result<*>,onReset:()->Result<Map<String,String>>,onClose:()->Unit) {
+    var baseline by remember { mutableStateOf(effective) }
+    var draft by remember { mutableStateOf(PluginConfigureForm.initialDraft(schema,effective)) }
+    var showErrors by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    val errors=PluginConfigureForm.errors(schema,draft)
+    AlertDialog(
+        onDismissRequest=onClose,
+        title={Text("Configure $title")},
+        text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text("These settings are defined by the plugin and shown as plain text. Saving them does not turn the plugin on or give it Bubble access.",fontSize=12.sp)
+            schema.settings.forEach { s ->
+                val value=draft[s.key].orEmpty(); val error=if(showErrors) errors[s.key] else null
+                val label=s.title+if(s.required) " *" else ""
+                Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    when(s.type) {
+                        PluginSettingType.TOGGLE -> Row(verticalAlignment=Alignment.CenterVertically){Text(label,modifier=Modifier.weight(1f));Switch(value=="true",{ draft=draft+(s.key to it.toString()) })}
+                        PluginSettingType.TEXT -> OutlinedTextField(value,{ draft=draft+(s.key to it) },label={Text(label)},singleLine=true,isError=error!=null,modifier=Modifier.fillMaxWidth())
+                        PluginSettingType.NUMBER -> OutlinedTextField(value,{ draft=draft+(s.key to it) },label={Text(label)},singleLine=true,isError=error!=null,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth())
+                        PluginSettingType.CHOICE -> Column {
+                            Text(label)
+                            s.options.forEach { o -> Row(Modifier.fillMaxWidth().clickable { draft=draft+(s.key to o.value) },verticalAlignment=Alignment.CenterVertically){RadioButton(value==o.value,{ draft=draft+(s.key to o.value) });Text(o.label)} }
+                        }
+                    }
+                    if(s.description.isNotBlank()) Text(s.description,color=Muted,fontSize=11.sp)
+                    error?.let { Text(it,color=Color(0xFFFF8A80),fontSize=11.sp) }
+                }
+            }
+            if(message.isNotBlank()) Text(message,color=Gold,fontSize=12.sp)
+        } },
+        confirmButton={TextButton(enabled=PluginConfigureForm.hasChanges(schema,baseline,draft),onClick={
+            if(errors.isNotEmpty()) showErrors=true
+            else onSave(PluginConfigureForm.valuesToSave(schema,draft)).onSuccess{onClose()}.onFailure{message=it.message ?: "Could not save these settings"}
+        }){Text("Save",color=Gold)}},
+        dismissButton={ Row {
+            TextButton(onClick={ onReset().onSuccess { fresh -> baseline=fresh;draft=PluginConfigureForm.initialDraft(schema,fresh);showErrors=false;message="Back to the defaults." }.onFailure { message=it.message ?: "Could not reset" } }){Text("Reset to defaults")}
+            TextButton(onClick=onClose){Text("Close")}
+        } }
+    )
 }
 
 @Composable private fun DeveloperPage(modifier:Modifier,store:OneAiStore,manager:PluginManager,restorationReady:Boolean,refresh:()->Unit) {

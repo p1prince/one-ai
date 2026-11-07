@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -235,5 +236,62 @@ class ExternalPluginConfigDeliveryTest {
         val f = Fixture()
         f.trustStore.remove(pkg)
         assertTrue("a plugin declaring settings can now be imported", f.trust.import(manifest(withSettings = true), cert).isSuccess)
+    }
+
+    // ---- Stage 9.6d: an enabled plugin whose required setting has no value does not run ----
+
+    @Test fun anEnabledPluginWithAMissingRequiredSettingIsNotRunAndNoConnectionIsOpened() {
+        runBlocking {
+            val f = Fixture()
+            f.enable() // as if it was enabled before an update added the required setting
+            assertTrue(f.configuration.missingRequired(pkg).isNotEmpty())
+            assertFalse("a blocked command never completes", f.runCommand() == CommandStatus.COMPLETED)
+            assertTrue("no binder connection was opened and nothing was sent", f.calls.isEmpty() && f.channels.isEmpty())
+            assertTrue("Activity says why, naming the command and no values", f.store.logs.any { it.contains("needs configuration") })
+        }
+    }
+
+    @Test fun theAdapterRefusesWithAClearCodeAndNamesTheSettingToSet() {
+        runBlocking {
+            val f = Fixture()
+            val adapter = ExternalPluginAdapter(f.manifest, f.trust, f.factory, missingRequired = { f.configuration.missingRequired(pkg).map { it.title } })
+            try {
+                adapter.execute(PluginActionInput("add_note", "files", "x"))
+                fail("expected the command to be refused")
+            } catch (e: PluginChannelException) {
+                assertEquals("NEEDS_CONFIGURATION", e.code)
+                assertTrue(e.message!!.contains("Mode"))
+            }
+            assertTrue(f.channels.isEmpty())
+        }
+    }
+
+    @Test fun aMissingRequiredSettingAlsoKeepsTheBubbleViewEmptyWithoutBinding() {
+        runBlocking {
+            val f = Fixture()
+            val adapter = ExternalPluginAdapter(f.manifest, f.trust, f.factory, missingRequired = { f.configuration.missingRequired(pkg).map { it.title } })
+            assertNull(adapter.view("notes"))
+            assertTrue(f.channels.isEmpty())
+        }
+    }
+
+    @Test fun savingTheRequiredSettingLetsTheSamePluginRunAgainWithoutReEnabling() {
+        runBlocking {
+            val f = Fixture()
+            f.enable()
+            assertFalse(f.runCommand() == CommandStatus.COMPLETED)
+            f.configuration.update(pkg, mapOf("mode" to "plain")).getOrThrow()
+            assertEquals(CommandStatus.COMPLETED, f.runCommand())
+            assertEquals(listOf("applyConfig", "execute", "close"), f.calls)
+            assertTrue("it is still enabled; saving never changed that", f.store.plugins().single { it.id == pkg }.enabled)
+        }
+    }
+
+    @Test fun aPluginWithNoRequiredSettingsIsNeverGated() {
+        runBlocking {
+            val f = Fixture(withSettings = false)
+            f.enable()
+            assertEquals(CommandStatus.COMPLETED, f.runCommand())
+        }
     }
 }

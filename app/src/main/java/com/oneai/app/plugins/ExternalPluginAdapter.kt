@@ -65,7 +65,12 @@ class ExternalPluginAdapter(
     private val report: (pluginId: String, message: String) -> Unit = { _, _ -> },
     private val newRequestId: () -> String = { UUID.randomUUID().toString() },
     /** Null when the plugin declares no settings. Read at every bind, so the plugin always gets the latest values. */
-    private val settings: () -> PluginConfigSnapshot? = { null }
+    private val settings: () -> PluginConfigSnapshot? = { null },
+    /**
+     * Titles of required settings that have no value (Stage 9.6d, decision D5 follow-up). While this is non-empty the
+     * plugin is not run and serves no Bubble view, even if it was enabled before an update added the setting.
+     */
+    private val missingRequired: () -> List<String> = { emptyList() }
 ) : PluginAdapter {
     override val manifest: PluginManifest = trusted.toRecordManifest()
 
@@ -74,6 +79,7 @@ class ExternalPluginAdapter(
             ?: throw IllegalArgumentException("The plugin does not declare that command")
         require(declared.capability == input.capability) { "Capability does not match the command's declaration" }
         requireStillTrusted()
+        requireConfigured(declared.name)
 
         val packageName = trusted.packageName
         val channel = channels.open(packageName) { isStillTrusted() }
@@ -101,6 +107,10 @@ class ExternalPluginAdapter(
     /** Bubble view JSON for a service the plugin declared, or null. Same trust rules as a command. */
     suspend fun view(serviceId: String): String? {
         if (trusted.bubble?.service != serviceId || !isStillTrusted()) return null
+        if (missingRequired().isNotEmpty()) {
+            report(trusted.id, "Bubble view not shown: required settings have no value")
+            return null
+        }
         val channel = channels.open(trusted.packageName) { isStillTrusted() }
         return try {
             withTimeout(VIEW_TIMEOUT_MS) {
@@ -136,6 +146,14 @@ class ExternalPluginAdapter(
             throw PluginChannelException("INVALID_CONFIG", "The plugin's settings could not be delivered")
         }
         channel.applyConfig(snapshot.schemaVersion, snapshot.values)
+    }
+
+    /** Fails before any connection is opened, naming the settings (never values) the user still has to set. */
+    private fun requireConfigured(command: String) {
+        val missing = missingRequired()
+        if (missing.isEmpty()) return
+        report(trusted.id, "Not run (needs configuration): $command")
+        throw PluginChannelException("NEEDS_CONFIGURATION", "Set the required settings first: ${missing.joinToString()}")
     }
 
     private fun isStillTrusted(): Boolean =

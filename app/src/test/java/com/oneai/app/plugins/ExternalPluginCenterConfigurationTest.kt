@@ -153,4 +153,44 @@ class ExternalPluginCenterConfigurationTest {
         )
         assertTrue("without a configuration object the center does not gate enabling", plain.setEnabled(pkg, true).isSuccess)
     }
+
+    // ---- Stage 9.6d: what the Plugins screen is told ----
+
+    @Test fun theSnapshotOffersASchemaToConfigureAndNamesMissingRequiredSettings() {
+        val f = Fixture()
+        val snapshot = f.center.snapshot()
+        assertEquals(setOf(pkg), snapshot.configurable.keys)
+        assertEquals(listOf("Mode"), snapshot.needsConfiguration[pkg])
+
+        f.configuration.update(pkg, mapOf("mode" to "plain")).getOrThrow()
+        assertTrue("nothing is missing once the value is saved", f.center.snapshot().needsConfiguration.isEmpty())
+    }
+
+    @Test fun aBlockedPluginOffersNoSettingsToChange() {
+        val f = Fixture()
+        f.signatures.signers[pkg] = listOf("b".repeat(64))
+        val snapshot = f.center.snapshot()
+        assertTrue(snapshot.configurable.isEmpty())
+        assertTrue(snapshot.needsConfiguration.isEmpty())
+    }
+
+    @Test fun savingAndResettingGoThroughTheCenterAndNeverChangeEnabledStateOrBubbleAccess() {
+        val f = Fixture()
+        assertTrue(f.center.saveSettings(pkg, mapOf("mode" to "fancy", "repeat" to "3")).isSuccess)
+        assertEquals("fancy", f.center.effectiveSettings(pkg)["mode"])
+        assertTrue(f.center.saveSettings(pkg, mapOf("repeat" to "99")).isFailure)
+        assertEquals("a rejected save changes nothing", "3", f.center.effectiveSettings(pkg)["repeat"])
+
+        assertTrue(f.center.resetSettings(pkg).isSuccess)
+        assertEquals("1", f.center.effectiveSettings(pkg)["repeat"])
+        assertTrue(f.store.plugins().none { it.enabled })
+        assertTrue(f.store.bubbleServices().isEmpty())
+    }
+
+    @Test fun aCenterWithoutConfigurationOffersNothingToConfigure() {
+        val f = Fixture()
+        val plain = ExternalPluginCenter(discover = { emptyList() }, trust = f.trust, registrar = f.registrar, manager = f.manager)
+        assertTrue(plain.snapshot().configurable.isEmpty())
+        assertTrue(plain.saveSettings(pkg, mapOf("mode" to "plain")).isFailure)
+    }
 }

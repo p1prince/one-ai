@@ -73,7 +73,8 @@ class ExternalPluginRegistrar(
         val adapter = ExternalPluginAdapter(
             manifest, trust, channels, timeoutMs,
             report = { pluginId, message -> store.log("[$pluginId] $message") },
-            settings = { settingsSnapshot(manifest) }
+            settings = { settingsSnapshot(manifest) },
+            missingRequired = { missingRequiredTitles(manifest) }
         )
         val failure = runtime.register(adapter).exceptionOrNull() ?: registerCommands(manifest)
         if (failure != null) {
@@ -89,6 +90,15 @@ class ExternalPluginRegistrar(
         val schema = manifest.settings ?: return null
         val values = configuration?.effective(manifest.id) ?: PluginSettingsValidator.effectiveValues(schema, emptyMap())
         return PluginConfigSnapshot(schema.version, values)
+    }
+
+    /** Titles of required settings with no usable value; read fresh on every call so a Save takes effect at once. */
+    private fun missingRequiredTitles(manifest: ExternalPluginManifest): List<String> {
+        val schema = manifest.settings ?: return emptyList()
+        val configured = configuration
+        if (configured != null) return configured.missingRequired(manifest.id).map { it.title }
+        val missing = PluginSettingsValidator.missingRequired(schema, emptyMap()).toSet()
+        return schema.settings.filter { it.key in missing }.map { it.title }
     }
 
     /** Register only the commands declared by this trusted manifest. */
