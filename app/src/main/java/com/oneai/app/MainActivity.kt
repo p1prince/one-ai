@@ -119,7 +119,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
                 Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,refreshNow)
-                Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
+                Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
                 Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },pluginRestored,onBubbleToggle,refreshNow)
@@ -250,7 +250,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{ changed(center.setEnabled(p.id,it),"") },enabled=restored)}
                 if(bubbleService!=null) Row(verticalAlignment=Alignment.CenterVertically){
                     Column(Modifier.weight(1f)){Text("Show in Floating Bubble",color=White);Text(if(p.enabled)"Separate from Enabled. Off until you allow it." else "Enable the plugin first.",color=Muted,fontSize=11.sp)}
-                    Switch(manager.hasBubbleAccess(p.id),{ changed(manager.setBubbleAccess(p.id,it),"") },enabled=p.enabled)
+                    Switch(manager.hasBubbleAccess(p.id),{ changed(manager.setBubbleAccess(p.id,it),"") },enabled=PluginStartupAccessPolicy.canChangeBubbleAccess(restored,p.enabled))
                 } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
                 Row {
                     if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id},enabled=restored){Text("Review update",color=Gold)}
@@ -322,7 +322,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
 }
 
-@Composable private fun DeveloperPage(modifier:Modifier,store:OneAiStore,manager:PluginManager,refresh:()->Unit) {
+@Composable private fun DeveloperPage(modifier:Modifier,store:OneAiStore,manager:PluginManager,restorationReady:Boolean,refresh:()->Unit) {
     var id by remember{mutableStateOf("")};var name by remember{mutableStateOf("")};var description by remember{mutableStateOf("")};var message by remember{mutableStateOf("")}
     var dev by remember{mutableStateOf(store.developerMode())}
     Column(modifier.fillMaxSize().padding(20.dp)) {
@@ -334,7 +334,8 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 OutlinedTextField(name,{name=it},modifier=Modifier.fillMaxWidth(),label={Text("Plugin name")})
                 OutlinedTextField(description,{description=it},modifier=Modifier.fillMaxWidth(),label={Text("Description")})
                 Spacer(Modifier.height(8.dp))
-                Button(onClick={val r=manager.create(id,name,description,listOf("commands"));message=r.fold({"Created ${it.name}. It is disabled until you enable it."},{it.message?:"Could not create plugin"});refresh()},modifier=Modifier.fillMaxWidth(),enabled=id.isNotBlank()&&name.isNotBlank()){Text("Create plugin descriptor")}
+                if(!restorationReady) Text("Plugin creation will unlock when startup restoration finishes.",color=Muted,fontSize=11.sp)
+                Button(onClick={val r=manager.create(id,name,description,listOf("commands"));message=r.fold({"Created ${it.name}. It is disabled until you enable it."},{it.message?:"Could not create plugin"});refresh()},modifier=Modifier.fillMaxWidth(),enabled=PluginStartupAccessPolicy.canCreateDeveloperPlugin(restorationReady,dev,id,name)){Text("Create plugin descriptor")}
                 Text("Generated plugins are declarative descriptors. ONE AI does not load arbitrary executable code into its core process.",color=Muted,fontSize=11.sp)
             } else Text("Turn on Developer Mode to access plugin creation tools.",color=Muted)
             if(message.isNotBlank())Text(message,color=Gold)
