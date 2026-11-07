@@ -199,7 +199,64 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - Check that your manifest XML and view JSON are acceptable to ONE AI. `EchoSamplePluginContractTest` (in the app's tests) shows how: it feeds both through the host's real parsers.
 - Real binding, signature checks and the Bubble need an emulator or device: `docs/EMULATOR_TEST_PLAN.md`.
 
-## 10. Known limits (API level 3)
+## 10. Publishing a catalogue document
+
+ONE AI can show a browsable list of plugins from **sources the user adds**: each source is one HTTPS URL that serves one JSON catalogue document. None are preconfigured, and nothing is fetched until the user presses Refresh. A catalogue is a *listing, never authority*: an entry cannot make a plugin installed, trusted, enabled or visible in the Bubble. ONE AI never downloads or installs your APK; "Get" opens your entry's HTTPS page in the user's browser, the user installs the app the normal Android way, and it then goes through the same fingerprint-confirmed import as any plugin (section 8).
+
+A complete, valid example is `app/src/test/resources/catalogue/sample_catalogue.json`. It is parsed by the real `CatalogueParser` in `SampleCatalogueFixtureTest`, so it cannot drift from the host. Copy it and replace the values.
+
+```json
+{
+  "catalogueVersion": 1,
+  "name": "Example plugin source",
+  "entries": [
+    {
+      "id": "com.example.notes",
+      "name": "Example Notes",
+      "summary": "A sample plugin that stores short notes.",
+      "versionName": "1.2.0",
+      "versionCode": 12,
+      "minCoreApi": 2,
+      "targetCoreApi": 3,
+      "capabilities": ["commands"],
+      "dependencies": [],
+      "signerSha256": ["AB:CD:..."],
+      "getUrl": "https://plugins.example.com/notes",
+      "homepage": "https://example.com/notes"
+    }
+  ]
+}
+```
+
+| Field | Rule |
+|---|---|
+| `catalogueVersion` | Integer `1`. Any other version rejects the whole document. |
+| `name` | Document name, 1-60 characters. |
+| `entries` | At most 200. |
+| `id` | Your package name, the same rules as the manifest. Unique in the document; a repeated id rejects the whole document. |
+| `name` / `summary` | 1-60 / at most 200 characters. `summary` is optional. |
+| `versionName` / `versionCode` | Semantic version (at most 40 characters) / integer of at least 1. |
+| `minCoreApi` / `targetCoreApi` | Integers, `targetCoreApi` not lower than `minCoreApi`. |
+| `capabilities` | Optional, at most 12 lowercase identifiers. |
+| `dependencies` | Optional, at most 16 plugin ids, no duplicates, not yourself. |
+| `signerSha256` | Required, 1-4 SHA-256 certificate digests (hex, with or without colons). |
+| `getUrl` / `homepage` | `https` only, no credentials, at most 500 characters. `homepage` is optional. |
+
+Behaviour to design for:
+
+- The whole document is at most **256 KB**. Too large, not JSON, wrong version or duplicate ids: the document is rejected whole and the user keeps the last good listing.
+- One invalid entry is **skipped and counted**; the others still load. Nothing is truncated.
+- Unknown fields are ignored, so a newer document stays readable by an older ONE AI. Types are strict: a number written as a string makes that entry invalid.
+- Redirects are followed only to `https`. There is no cleartext fallback and no certificate pinning in v1.
+- The document is **not signed** in v1, and `signerSha256` is advisory. If the installed app's certificate is not among your listed digests, ONE AI shows a warning and does not offer import from the catalogue view. The real trust anchor stays the user comparing the fingerprint of the installed package.
+- All catalogue text is shown as untrusted text, with control and bidirectional characters removed. It is never used for identity, commands, permissions or Bubble service names; those come only from the installed, trusted manifest. If the two disagree, the installed manifest wins.
+- A listed `versionCode` above the installed one only shows "newer version listed". Updates still arrive through the platform and the existing update review.
+- An entry whose `minCoreApi` is above the host's plugin API level is shown as incompatible and cannot be imported from the catalogue view. The sample's third entry demonstrates this and needs updating if the host's API level reaches 4.
+
+Not verified yet: `HttpsCatalogueTransport` has never made a real request, and the catalogue screens have never been rendered on an emulator or device (`docs/EMULATOR_TEST_PLAN.md`, M20-M28).
+
+
+## 11. Known limits (API level 3)
 
 - No streaming results; one result per request.
 - Arguments and results are text only.

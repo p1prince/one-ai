@@ -1,0 +1,60 @@
+{
+  "catalogueVersion": 1,
+  "name": "Example plugin source",
+  "entries": [
+    {
+      "id": "com.example.notes",
+      "name": "Example Notes",
+      "summary": "A sample plugin that stores short notes.",
+      "versionName": "1.2.0",
+      "versionCode": 12,
+      "minCoreApi": 2,
+      "targetCoreApi": 3,
+      "capabilities": [
+        "commands"
+      ],
+      "dependencies": [],
+      "signerSha256": [
+        "AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB"
+      ],
+      "getUrl": "https://plugins.example.com/notes",
+      "homepage": "https://example.com/notes"
+    },
+    {
+      "id": "com.example.notes.extras",
+      "name": "Example Notes Extras",
+      "summary": "Optional add-on that needs Example Notes.",
+      "versionName": "0.4.1-beta",
+      "versionCode": 5,
+      "minCoreApi": 3,
+      "targetCoreApi": 3,
+      "capabilities": [
+        "commands",
+        "settings"
+      ],
+      "dependencies": [
+        "com.example.notes"
+      ],
+      "signerSha256": [
+        "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+      ],
+      "getUrl": "https://plugins.example.com/notes-extras",
+      "futureField": {
+        "ignored": true
+      }
+    },
+    {
+      "id": "com.example.future",
+      "name": "Example Future Tool",
+      "versionName": "2.0.0",
+      "versionCode": 20,
+      "minCoreApi": 4,
+      "targetCoreApi": 4,
+      "signerSha256": [
+        "1212121212121212121212121212121212121212121212121212121212121212"
+      ],
+      "getUrl": "https://plugins.example.com/future"
+    }
+  ]
+}

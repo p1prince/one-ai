@@ -166,3 +166,8 @@ Plugins built as separate signed APKs (decision D1) are documented in `docs/PLUG
 ## Plugin API level 3: settings (`applyConfig`)
 
 Level 3 adds `IOneAiPlugin.applyConfig(int schemaVersion, String[] keys, String[] values)`, declared last so earlier transaction codes are unchanged. ONE AI calls it after every bind and before any `execute`/`view`, only on plugins that declare `<settings>` and whose handshake reports `sdkApi` 3 or higher; a settings plugin reporting less is refused (`INCOMPATIBLE`). The SDK base service keeps the latest valid snapshot (`PluginConfigHolder`) and exposes it as `config`; an out-of-bounds snapshot is rejected whole and the previous one stays. See `docs/PLUGIN_DEVELOPER_GUIDE.md` and `docs/STAGE_9_CONFIG_DESIGN.md`.
+
+
+## Publishing a catalogue document (Stage 9)
+
+A catalogue is a user-added HTTPS source that lists plugins; it is a listing, never authority, and does not install, trust, enable or grant Bubble access to anything. The document format, bounds and behaviour are in section 10 of `docs/PLUGIN_DEVELOPER_GUIDE.md`; a valid example that is parsed by `CatalogueParser` in a JVM test is `app/src/test/resources/catalogue/sample_catalogue.json`. The design is in `docs/STAGE_9_CATALOGUE_DESIGN.md`.

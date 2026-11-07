@@ -63,8 +63,17 @@ Record pass/fail per row. "Expected" is what the design requires, not an observe
 | M17 | In Configure, type a 41-character prefix and press Save | Inline error naming Prefix, nothing saved; the dialog stays open |
 | M18 | In Configure, press Reset to defaults, then run Echo with `hi` | Reply is `hi`; fields show the defaults |
 | M19 | With a test plugin variant that declares a required setting with no default, try to enable it, then (after setting it) enable it and update to a variant adding a second required setting | Enabling is refused naming the setting; after the update the plugin stays enabled but does not run and shows "Needs configuration" until saved |
+| M20 | Fresh install; open Plugins and look at the CATALOGUE section | A "No catalogue sources" card is shown, Refresh is disabled, and no network request is made (check with a proxy or `adb logcat`) |
+| M21 | Open Sources; try `http://example.com/c.json`, then a valid `https://` URL | The http URL is refused with a message; the https source is added; still no request until Refresh |
+| M22 | Host `app/src/test/resources/catalogue/sample_catalogue.json` over HTTPS; add it and press Refresh; then rotate the screen and reopen Plugins | Three rows, all "Not installed"; the third shows an incompatible warning; rotating or reopening does not fetch again |
+| M23 | Point a source at an unreachable host, at invalid JSON, at a document over 256 KB, and at a URL that redirects to `http://` | Each refresh fails with a safe message, "The last good listings are kept." shows, and Core and installed plugins keep working |
+| M24 | Open an entry and press **Get** | The entry's validated https page opens in the browser; nothing is downloaded or installed by ONE AI |
+| M25 | Install the matching plugin APK the normal way, press Refresh, open the entry | "Installed, not imported"; **Review and import** opens the same fingerprint-confirmed dialog as M2 and the fingerprint matches `apksigner` |
+| M26 | Serve a document whose `signerSha256` does not list the installed plugin's certificate | A prominent signer warning and no import offered from the catalogue view; the on-device import path (M1-M2) is unchanged |
+| M27 | Serve an entry with a `versionCode` above the installed one, and an entry with a `minCoreApi` above the host's API level | "A newer version is listed" with no change to enabled state; the second entry is incompatible and cannot be imported |
+| M28 | Remove the source in Sources | Its listing disappears; installed and imported plugins, their enablement and Bubble access are untouched |
 
-M13, M14 and M19 need a small extra test app or plugin variant that does not exist yet.
+M13, M14 and M19 need a small extra test app or plugin variant that does not exist yet. M20-M28 need an HTTPS server you control to host catalogue documents (the sample and variants of it) and a second device-installed plugin APK for M25-M27; none of these has been run.
 
 ## 4. Recording results
 
