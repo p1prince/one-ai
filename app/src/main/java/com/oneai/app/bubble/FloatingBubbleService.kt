@@ -155,10 +155,13 @@ class FloatingBubbleService : Service() {
         addLabel(loading, "Restoring trusted plugins…")
         addButton(loading, "Close panel") { hidePanel() }
         attachPanel(loading)
+        val loadingPanelToken = panelToken
         serviceScope.launch {
             services.pluginRestoration.awaitReady()
             if (serviceJob.isActive) uiHandler.post {
-                if (serviceJob.isActive) showPanelWhenReady(services)
+                if (serviceJob.isActive && panel != null && panelToken == loadingPanelToken) {
+                    showPanelWhenReady(services)
+                }
             }
         }
     }
