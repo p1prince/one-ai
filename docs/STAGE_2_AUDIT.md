@@ -1,5 +1,7 @@
 # ONE AI — Stage 2 Repository Audit and Proposed Correction Plan
 
+> **IMPORTANT — HISTORICAL AUDIT / SCOPE LOCK:** This file contains older recommendations written under a mistaken interpretation of plugin scope. The owner-approved 2026-11-07 correction in the final section and `docs/PROJECT_CONTINUATION_RULES.md` supersedes every older capability-extraction/reference-module sequence in this file. Do not execute the old Stage 9 extraction plan. Stage 8 is the generic SDK; Stage 9 is the generic Kodi-inspired Plugin Centre and generic Bubble integration. Named capability plugins are future examples only.
+
 Status: **Hybrid extension model approved by the owner (D4); Stage 2 audit completion remains in progress. No application code was changed.**
 Source of truth: *ONE AI Official Open-Shell Development Plan* (revised 3 November 2026).
 Initial audit baseline: repository `p1prince/one-ai`, branch `foundation/batch-03-ai-engine`, commit `1cdfd117c986ed0ae275c150720d19164c79e5af`. The audit was reconciled against branch head `6433404d5c272714405dd32c65af07bdcef838f8` on 2026-11-05; the initial findings below are historical until the remaining file-by-file checks are completed.
@@ -333,7 +335,7 @@ The repository tree at the audited SHA contains **41 test source files**: 40 JVM
 
 CI definition remains compile + JVM unit tests + lint + compile-only Android-test sources. No APK, emulator or device run is implied by a green CI result.
 
-### 12.7 Final migration order (preserves the official 12-stage plan)
+### 12.7 HISTORICAL / SUPERSEDED migration order — DO NOT EXECUTE (2026-11-07 owner scope correction)
 
 The order below is a correction sequence mapped to the existing stages, not a replacement plan or a new stage.
 
@@ -352,7 +354,7 @@ The order below is a correction sequence mapped to the existing stages, not a re
 The requested source review, class-level dependency map, test inventory and final migration sequence are now documented. **Stage 2 audit is ready for owner review/acceptance; it is not an implementation-complete milestone.** No application source, test, manifest, Gradle configuration or runtime behaviour was changed. No APK was built, no emulator/device test was run, and PR #1 remains unmerged.
 
 
-### 12.9 Stage 8 SDK review reconciliation (2026-11-05)
+### 12.9 Historical Stage 8 SDK review notes (2026-11-05; capability-extraction recommendations superseded)
 
 The Stage 8 implementation was reviewed against owner-approved D4 and the six-step breakdown in docs/STAGE_8_DESIGN.md §11.
 
