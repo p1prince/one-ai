@@ -46,6 +46,7 @@ class BoundPluginChannelFactory(
                 withTimeout(connectTimeoutMs) { channel.describe() }
             }
             if (!PluginHandshake.isSupported(handshake)) throw PluginChannelException("INCOMPATIBLE", "The plugin speaks an unsupported protocol")
+            channel.sdkApi = PluginHandshake.parse(handshake) ?: 1
         } catch (t: Throwable) {
             channel.close()
             throw t
@@ -119,6 +120,7 @@ class BoundPluginChannelFactory(
         private val launchBroker: PluginLaunchApprovalBroker
     ) : PluginChannel {
         @Volatile private var dead = false
+        @Volatile override var sdkApi: Int = 1
         @Volatile private var pending: CancellableContinuation<PluginActionOutput>? = null
         @Volatile private var pendingRequestId: String? = null
 
@@ -131,6 +133,13 @@ class BoundPluginChannelFactory(
         override suspend fun describe(): String = withContext(Dispatchers.IO) { call { plugin.describe() }.orEmpty() }
 
         override suspend fun view(serviceId: String): String? = withContext(Dispatchers.IO) { call { plugin.view(serviceId) } }
+
+        override suspend fun applyConfig(schemaVersion: Int, values: Map<String, String>) {
+            val entries = values.entries.toList()
+            withContext(Dispatchers.IO) {
+                call { plugin.applyConfig(schemaVersion, entries.map { it.key }.toTypedArray(), entries.map { it.value }.toTypedArray()) }
+            }
+        }
 
         override suspend fun execute(
             requestId: String, command: String, args: Map<String, String>, activity: (String) -> Unit

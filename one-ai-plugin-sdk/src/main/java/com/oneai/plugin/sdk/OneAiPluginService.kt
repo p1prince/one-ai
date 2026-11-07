@@ -32,6 +32,15 @@ abstract class OneAiPluginService : Service() {
 
     protected open val commandTimeoutMs: Long get() = PluginBounds.DEFAULT_TIMEOUT_MS
 
+    private val configHolder = PluginConfigHolder()
+
+    /**
+     * The user's settings, as last delivered by ONE AI (plugin API level 3). Read it inside [onCommand] each time;
+     * it is [PluginConfig.EMPTY] until the host delivers a snapshot. A plugin that declares `<settings>` also
+     * declares `minCoreApi="3"` in its manifest.
+     */
+    protected val config: PluginConfig get() = configHolder.current
+
     private val verifier by lazy { hostVerifier() }
     private val runner by lazy { PluginCallRunner(timeoutMs = commandTimeoutMs, handler = ::onCommand) }
 
@@ -54,6 +63,12 @@ abstract class OneAiPluginService : Service() {
 
         override fun cancel(requestId: String?) {
             if (isHostCaller()) runner.cancel(requestId)
+        }
+
+        override fun applyConfig(schemaVersion: Int, keys: Array<String>?, values: Array<String>?) {
+            if (!isHostCaller()) return
+            // Rejected whole when out of bounds; the previous snapshot stays.
+            configHolder.apply(schemaVersion, keys?.toList(), values?.toList())
         }
     }
 

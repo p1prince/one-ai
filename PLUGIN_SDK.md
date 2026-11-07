@@ -161,3 +161,8 @@ Contributors are registered in `BubbleProviders.registry` from the application c
 ## Independently installed plugins (manifest v2)
 
 Plugins built as separate signed APKs (decision D1) are documented in `docs/PLUGIN_DEVELOPER_GUIDE.md`, with a working reference plugin in `samples/echo-plugin`. Everything above describes manifest v1 and the in-app adapters, which stay readable for migration. A trusted external plugin is wrapped by `ExternalPluginAdapter` so it uses the same `PluginRuntime`, gateway, command registry and Bubble contract described in this file.
+
+
+## Plugin API level 3: settings (`applyConfig`)
+
+Level 3 adds `IOneAiPlugin.applyConfig(int schemaVersion, String[] keys, String[] values)`, declared last so earlier transaction codes are unchanged. ONE AI calls it after every bind and before any `execute`/`view`, only on plugins that declare `<settings>` and whose handshake reports `sdkApi` 3 or higher; a settings plugin reporting less is refused (`INCOMPATIBLE`). The SDK base service keeps the latest valid snapshot (`PluginConfigHolder`) and exposes it as `config`; an out-of-bounds snapshot is rejected whole and the previous one stays. See `docs/PLUGIN_DEVELOPER_GUIDE.md` and `docs/STAGE_9_CONFIG_DESIGN.md`.

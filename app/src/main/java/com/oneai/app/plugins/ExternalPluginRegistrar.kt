@@ -24,7 +24,9 @@ class ExternalPluginRegistrar(
     /** Called when a plugin with a Bubble declaration is (re)registered; receives a view fetcher for its service. */
     private val onBubbleService: (ExternalPluginManifest, suspend (String) -> String?) -> Unit = { _, _ -> },
     /** Called whenever a plugin's Bubble service must disappear (deactivation, removal, failed registration). */
-    private val onBubbleRemoved: (String) -> Unit = {}
+    private val onBubbleRemoved: (String) -> Unit = {},
+    /** Source of the user's settings values (Stage 9.6c). Without it a plugin still gets its declared defaults. */
+    private val configuration: PluginConfiguration? = null
 ) {
     /** Persist trusted metadata. Disabled plugins have no runtime adapter, commands or Bubble provider. */
     @Synchronized
@@ -70,7 +72,8 @@ class ExternalPluginRegistrar(
         clearRuntime(id)
         val adapter = ExternalPluginAdapter(
             manifest, trust, channels, timeoutMs,
-            report = { pluginId, message -> store.log("[$pluginId] $message") }
+            report = { pluginId, message -> store.log("[$pluginId] $message") },
+            settings = { settingsSnapshot(manifest) }
         )
         val failure = runtime.register(adapter).exceptionOrNull() ?: registerCommands(manifest)
         if (failure != null) {
@@ -79,6 +82,13 @@ class ExternalPluginRegistrar(
         }
         if (manifest.bubble != null) onBubbleService(manifest) { serviceId -> adapter.view(serviceId) }
         return Result.success(Unit)
+    }
+
+    /** What to send a plugin on bind: its effective settings, or null when it declares none. Read fresh on every bind. */
+    private fun settingsSnapshot(manifest: ExternalPluginManifest): PluginConfigSnapshot? {
+        val schema = manifest.settings ?: return null
+        val values = configuration?.effective(manifest.id) ?: PluginSettingsValidator.effectiveValues(schema, emptyMap())
+        return PluginConfigSnapshot(schema.version, values)
     }
 
     /** Register only the commands declared by this trusted manifest. */

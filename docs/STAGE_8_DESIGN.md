@@ -69,13 +69,13 @@ The service carries `<meta-data android:name="com.oneai.plugin.manifest" android
 
 The implemented AIDL contract is IOneAiPlugin plus IPluginCallback (see one-ai-plugin-sdk/src/main/aidl). Requests use parallel key/value string arrays rather than a custom parcelable or Bundle:
 
-- describe() returns bounded JSON, currently {"sdkApi":2}.
+- describe() returns bounded JSON, currently {"sdkApi":3}.
 - execute(requestId, commandName, argKeys, argValues, callback) is asynchronous and returns exactly one result/error; progress is a bounded callback.
 - view(serviceId) returns declarative Bubble JSON; cancel(requestId) asks the plugin to stop.
 - API 2 adds `onLaunch(requestId, label, PendingIntent)`. The host captures only a creator-package/UID-matched immutable PendingIntent, queues one request, and surfaces a Bubble confirmation showing the package plus an explicitly untrusted plugin label. The user must tap Allow once; the host consumes the request, rechecks the signing-certificate trust and enabled state, then sends it. Reject, cancellation, plugin removal, stale requests and failed trust checks clear the request. The host uses Android's explicit sender BAL opt-in on API 34+ and `MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE` on API 36+. Device-specific launch acceptance remains pending.
 
 Versioning has two distinct checks:
-1. sdkApi is the AIDL/SDK wire-contract version returned by describe(). The current SDK reports 2; the host accepts compatible wire versions 1 through 2.
+1. sdkApi is the AIDL/SDK wire-contract version returned by describe(). The current SDK reports 3; the host accepts compatible wire versions 1 through 3. Level 3 adds `applyConfig` (Stage 9.6c).
 2. Manifest minCoreApi/targetCoreApi describe the host feature API. API 2 features such as plugin-requested screen launch require minCoreApi="2". A plugin may use the v1 wire contract on a newer host when it does not need newer protocol features.
 
 All strings and maps use hard bounds (keys up to 80, values up to 4,000, output up to 20,000, titles up to 120). Oversized results fail the call. No Android View or Window crosses the boundary. The host parses declarative JSON and renders it itself; button actions go through the normal command registry, gateway and approval path. Calls have deadlines (SDK default 30 s), one in-flight request per plugin, cancellation and exactly-once replies.

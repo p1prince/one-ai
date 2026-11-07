@@ -8,7 +8,7 @@ import com.oneai.plugin.sdk.IPluginCallback;
  * (and no Bundle) crosses the boundary. All sizes are bounded (see PluginBounds).
  */
 interface IOneAiPlugin {
-    /** Protocol handshake, JSON such as {"sdkApi":2}. The manifest XML stays the source of truth. */
+    /** Protocol handshake, JSON such as {"sdkApi":3}. The manifest XML stays the source of truth. */
     String describe();
 
     /** Runs a declared command asynchronously; the answer arrives on [callback] exactly once. */
@@ -19,4 +19,12 @@ interface IOneAiPlugin {
 
     /** Asks the plugin to stop the request. The host has already given up on it. */
     oneway void cancel(String requestId);
+
+    /**
+     * API level 3. Replaces the plugin's configuration snapshot. The host validated the values against the
+     * schema the plugin declared in its manifest. Sent after every bind and before any execute (calls from
+     * one client to one binder are delivered in order), and only to plugins whose handshake reports sdkApi 3
+     * or higher. Declared last so the transaction codes of the older methods do not change.
+     */
+    oneway void applyConfig(int schemaVersion, in String[] keys, in String[] values);
 }

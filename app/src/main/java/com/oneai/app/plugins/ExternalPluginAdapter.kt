@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.plugin.sdk.PluginBounds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -13,6 +14,15 @@ class PluginChannelException(val code: String, message: String) : Exception(mess
  * AIDL interface; tests use a fake. Everything that crosses it is already bounded by the SDK contract.
  */
 interface PluginChannel : AutoCloseable {
+    /**
+     * The wire level the plugin reported in its handshake. Defaults to 1 (the oldest) so an implementation that
+     * does not know it never receives a call that did not exist at that level.
+     */
+    val sdkApi: Int get() = 1
+
+    /** Plugin API level 3. Delivers a validated settings snapshot. Only called when [sdkApi] is at least 3. */
+    suspend fun applyConfig(schemaVersion: Int, values: Map<String, String>) {}
+
     suspend fun describe(): String
     suspend fun execute(requestId: String, command: String, args: Map<String, String>, onActivity: (String) -> Unit): PluginActionOutput
     suspend fun view(serviceId: String): String?
@@ -27,6 +37,9 @@ interface PluginChannel : AutoCloseable {
 fun interface PluginChannelFactory {
     suspend fun open(packageName: String, verify: () -> Boolean): PluginChannel
 }
+
+/** The effective values of a plugin's declared settings, ready to send (plugin API level 3). */
+data class PluginConfigSnapshot(val schemaVersion: Int, val values: Map<String, String>)
 
 object PluginHandshake {
     private val sdkApi = Regex("\"sdkApi\"\\s*:\\s*(\\d{1,4})")
@@ -50,7 +63,9 @@ class ExternalPluginAdapter(
     private val channels: PluginChannelFactory,
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     private val report: (pluginId: String, message: String) -> Unit = { _, _ -> },
-    private val newRequestId: () -> String = { UUID.randomUUID().toString() }
+    private val newRequestId: () -> String = { UUID.randomUUID().toString() },
+    /** Null when the plugin declares no settings. Read at every bind, so the plugin always gets the latest values. */
+    private val settings: () -> PluginConfigSnapshot? = { null }
 ) : PluginAdapter {
     override val manifest: PluginManifest = trusted.toRecordManifest()
 
@@ -65,6 +80,7 @@ class ExternalPluginAdapter(
         val requestId = newRequestId()
         try {
             return withTimeout(timeoutMs) {
+                deliverConfiguration(channel) // always before execute; one-way calls from this client arrive in order
                 channel.execute(requestId, declared.name, input.values) { line -> report(trusted.id, "Plugin: $line") }
             }
         } catch (timeout: TimeoutCancellationException) {
@@ -87,12 +103,39 @@ class ExternalPluginAdapter(
         if (trusted.bubble?.service != serviceId || !isStillTrusted()) return null
         val channel = channels.open(trusted.packageName) { isStillTrusted() }
         return try {
-            withTimeout(VIEW_TIMEOUT_MS) { channel.view(serviceId) }
+            withTimeout(VIEW_TIMEOUT_MS) {
+                val ready = try {
+                    deliverConfiguration(channel)
+                    true
+                } catch (failure: PluginChannelException) {
+                    report(trusted.id, "Settings not delivered (${failure.code})")
+                    false
+                }
+                if (ready) channel.view(serviceId) else null
+            }
         } catch (e: TimeoutCancellationException) {
             null
         } finally {
             runCatching { channel.close() }
         }
+    }
+
+    /**
+     * Stage 9.6c (D5): push the validated settings snapshot right after the bind. Nothing is sent to a plugin that
+     * declares no settings. A plugin that declares settings but whose handshake reports a level below 3 would not
+     * understand the call and could not read its settings, so it is refused rather than run unconfigured. The
+     * snapshot is checked against the SDK bounds before it leaves the host; it is never truncated.
+     */
+    private suspend fun deliverConfiguration(channel: PluginChannel) {
+        val snapshot = settings() ?: return
+        if (channel.sdkApi < PluginBounds.CONFIG_MIN_API) {
+            throw PluginChannelException("INCOMPATIBLE", "The plugin declares settings but does not support them")
+        }
+        val entries = snapshot.values.entries.toList()
+        PluginBounds.parseConfig(snapshot.schemaVersion, entries.map { it.key }, entries.map { it.value }).getOrElse {
+            throw PluginChannelException("INVALID_CONFIG", "The plugin's settings could not be delivered")
+        }
+        channel.applyConfig(snapshot.schemaVersion, snapshot.values)
     }
 
     private fun isStillTrusted(): Boolean =

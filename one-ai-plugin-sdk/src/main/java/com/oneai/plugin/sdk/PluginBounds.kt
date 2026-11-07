@@ -2,7 +2,13 @@ package com.oneai.plugin.sdk
 
 /** Hard limits on everything that crosses the plugin boundary. Oversized data fails the call; it is never truncated silently. */
 object PluginBounds {
-    const val SDK_API = 2
+    const val SDK_API = 3
+
+    /** First wire level that has `applyConfig`. The host never calls it on a plugin that reports less. */
+    const val CONFIG_MIN_API = 3
+    const val MAX_CONFIG_ENTRIES = 24
+    const val MAX_CONFIG_VALUE = 500
+    const val MAX_CONFIG_SNAPSHOT_BYTES = 8 * 1024
     const val MAX_ARGS = 32
     const val MAX_ARG_KEY = 80
     const val MAX_ARG_VALUE = 4_000
@@ -35,6 +41,30 @@ object PluginBounds {
             require(values[i].length <= MAX_ARG_VALUE) { "Argument value is too long" }
             keys[i] to values[i]
         }
+    }
+
+    private val configKey = Regex("[a-z][a-z0-9_]{0,39}")
+
+    /**
+     * Defence in depth for `applyConfig`: the host already validated the snapshot, but a plugin must not
+     * trust that. Same limits as the host (24 entries, key syntax, 500-character values, 8 KB total).
+     * A snapshot that breaks any limit is rejected whole, never truncated.
+     */
+    fun parseConfig(schemaVersion: Int, keys: List<String>?, values: List<String>?): Result<PluginConfig> = runCatching {
+        require(schemaVersion >= 1) { "Configuration version is invalid" }
+        require(keys != null && values != null && keys.size == values.size) { "Configuration is malformed" }
+        require(keys.size <= MAX_CONFIG_ENTRIES) { "Too many settings" }
+        require(keys.distinct().size == keys.size) { "Duplicate setting names" }
+        var bytes = 0
+        val map = LinkedHashMap<String, String>()
+        keys.indices.forEach { i ->
+            require(configKey.matches(keys[i])) { "Setting name is invalid" }
+            require(values[i].length <= MAX_CONFIG_VALUE) { "Setting value is too long" }
+            bytes += keys[i].toByteArray(Charsets.UTF_8).size + values[i].toByteArray(Charsets.UTF_8).size
+            require(bytes <= MAX_CONFIG_SNAPSHOT_BYTES) { "Configuration is too large" }
+            map[keys[i]] = values[i]
+        }
+        PluginConfig(schemaVersion, map)
     }
 
     fun outputProblem(title: String, content: String, launchLabel: String? = null): String? = when {

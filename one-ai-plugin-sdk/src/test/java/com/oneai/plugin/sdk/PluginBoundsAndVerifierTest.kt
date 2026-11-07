@@ -9,7 +9,7 @@ import org.junit.Test
 
 class PluginBoundsAndVerifierTest {
     @Test fun advertisesTheCurrentAidlSdkContractVersion() {
-        assertEquals(2, PluginBounds.SDK_API)
+        assertEquals(3, PluginBounds.SDK_API)
     }
 
     @Test fun validatesIdsAndNames() {

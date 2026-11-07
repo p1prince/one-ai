@@ -14,8 +14,8 @@ import org.junit.Test
  * Stage 9.6b wiring: the enable-time block for missing required settings (D-C), reconciliation after an
  * update, and removal of stored configuration with the plugin.
  *
- * The trust store is seeded directly because a manifest that declares settings needs plugin API level 3,
- * which the host only provides from slice 9.6c, so such a plugin cannot be imported yet (intentional).
+ * The trust store is seeded directly to keep these tests independent of the import flow (a manifest that
+ * declares settings needs plugin API level 3, which the host provides since slice 9.6c).
  */
 class ExternalPluginCenterConfigurationTest {
     private val cert = "a".repeat(64)

@@ -1,6 +1,8 @@
 package com.oneai.plugin.testkit
 
 import com.oneai.plugin.sdk.CallContext
+import com.oneai.plugin.sdk.PluginBounds
+import com.oneai.plugin.sdk.PluginConfig
 import com.oneai.plugin.sdk.PluginException
 import com.oneai.plugin.sdk.PluginOutput
 import org.junit.Assert.assertEquals
@@ -69,6 +71,44 @@ class FakePluginHostTest {
         }).use { host ->
             val event = host.execute("request-6", "wait").await(2_000).single()
             assertEquals("TIMEOUT", (event as PluginTestEvent.Failed).code)
+        }
+    }
+
+    @Test fun commandsSeeTheSnapshotAppliedBeforeExecute() {
+        FakePluginHost.withConfig { command, _, _, config ->
+            PluginOutput("Echo", "$command:${config.string("prefix")}:${config.int("repeat")}")
+        }.use { host ->
+            assertEquals("nothing applied yet", PluginConfig.EMPTY, host.config)
+            assertTrue(host.applyConfig(1, mapOf("prefix" to "Hi", "repeat" to "2")).isSuccess)
+            val event = host.execute("request-10", "echo").await().single()
+            assertEquals(PluginTestEvent.Completed("request-10", "Echo", "echo:Hi:2"), event)
+        }
+    }
+
+    @Test fun aRejectedSnapshotKeepsThePreviousOne() {
+        FakePluginHost.withConfig { _, _, _, config -> PluginOutput("Echo", config.string("prefix")) }.use { host ->
+            assertTrue(host.applyConfig(1, mapOf("prefix" to "Hi")).isSuccess)
+            val tooLong = mapOf("prefix" to "x".repeat(PluginBounds.MAX_CONFIG_VALUE + 1))
+            assertTrue(host.applyConfig(1, tooLong).isFailure)
+            val event = host.execute("request-11", "echo").await().single()
+            assertEquals(PluginTestEvent.Completed("request-11", "Echo", "Hi"), event)
+        }
+    }
+
+    @Test fun aLaterSnapshotReplacesTheEarlierOneForTheNextCommand() {
+        FakePluginHost.withConfig { _, _, _, config -> PluginOutput("Echo", config.string("mode")) }.use { host ->
+            host.applyConfig(1, mapOf("mode" to "plain"))
+            assertEquals("plain", (host.execute("request-12", "echo").await().single() as PluginTestEvent.Completed).content)
+            host.applyConfig(1, mapOf("mode" to "fancy"))
+            assertEquals("fancy", (host.execute("request-13", "echo").await().single() as PluginTestEvent.Completed).content)
+        }
+    }
+
+    @Test fun theOriginalConstructorStillWorksForPluginsWithoutSettings() {
+        FakePluginHost { command, _, _ -> PluginOutput("Echo", command) }.use { host ->
+            assertEquals(PluginConfig.EMPTY, host.config)
+            val event = host.execute("request-14", "ping").await().single()
+            assertEquals(PluginTestEvent.Completed("request-14", "Echo", "ping"), event)
         }
     }
 }

@@ -69,6 +69,13 @@ class AppServices private constructor(app: Application) {
     val pluginLaunchApprovals = PluginLaunchApprovalBroker()
     val pluginLaunchApprovalController = PluginLaunchApprovalController(app, pluginLaunchApprovals, trust, store)
 
+    /** Stage 9.6b: host-owned per-plugin settings. Only a currently trusted plugin has configurable settings. */
+    val pluginConfiguration = PluginConfiguration(
+        store,
+        schemaOf = { pluginId -> (trust.peek(pluginId) as? TrustCheck.Trusted)?.entry?.trustedManifest?.settings },
+        log = { store.log(it) }
+    )
+
     val registrar = ExternalPluginRegistrar(
         store, pluginRuntime, pluginRuntime, trust, commandRegistry, BoundPluginChannelFactory(app, launchBroker = pluginLaunchApprovals),
         reservedIds = BuiltInCatalogue.templates.map { it.id }.toSet(),
@@ -79,14 +86,8 @@ class AppServices private constructor(app: Application) {
         onBubbleRemoved = { pluginId ->
             pluginLaunchApprovals.clearPlugin(pluginId)
             BubbleProviders.registry.unregisterPlugin(pluginId)
-        }
-    )
-
-    /** Stage 9.6b: host-owned per-plugin settings. Only a currently trusted plugin has configurable settings. */
-    val pluginConfiguration = PluginConfiguration(
-        store,
-        schemaOf = { pluginId -> (trust.peek(pluginId) as? TrustCheck.Trusted)?.entry?.trustedManifest?.settings },
-        log = { store.log(it) }
+        },
+        configuration = pluginConfiguration
     )
 
     lateinit var center: ExternalPluginCenter

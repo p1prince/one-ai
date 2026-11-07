@@ -1,7 +1,10 @@
 package com.oneai.plugin.testkit
 
 import com.oneai.plugin.sdk.CallContext
+import com.oneai.plugin.sdk.PluginBounds
 import com.oneai.plugin.sdk.PluginCallRunner
+import com.oneai.plugin.sdk.PluginConfig
+import com.oneai.plugin.sdk.PluginConfigHolder
 import com.oneai.plugin.sdk.PluginOutput
 import com.oneai.plugin.sdk.ReplySink
 import java.util.concurrent.CopyOnWriteArrayList
@@ -17,11 +20,35 @@ import java.util.concurrent.TimeoutException
  * It deliberately does not simulate Binder identity, PackageManager signatures, Android process
  * isolation, host trust/approval policy, or UI. Those require host integration and Stage 11 tests.
  */
-class FakePluginHost(
-    timeoutMs: Long = com.oneai.plugin.sdk.PluginBounds.DEFAULT_TIMEOUT_MS,
-    handler: (command: String, args: Map<String, String>, context: CallContext) -> PluginOutput
+class FakePluginHost private constructor(
+    timeoutMs: Long,
+    private val configHolder: PluginConfigHolder,
+    handler: (command: String, args: Map<String, String>, context: CallContext, config: PluginConfig) -> PluginOutput
 ) : AutoCloseable {
-    private val runner = PluginCallRunner(timeoutMs = timeoutMs, handler = handler)
+    /** For a plugin that does not use settings. */
+    constructor(
+        timeoutMs: Long = PluginBounds.DEFAULT_TIMEOUT_MS,
+        handler: (command: String, args: Map<String, String>, context: CallContext) -> PluginOutput
+    ) : this(timeoutMs, PluginConfigHolder(), { command, args, context, _ -> handler(command, args, context) })
+
+    private val runner = PluginCallRunner(
+        timeoutMs = timeoutMs,
+        handler = { command, args, context -> handler(command, args, context, configHolder.current) }
+    )
+
+    /**
+     * Plugin API level 3. Delivers a configuration snapshot the way ONE AI does: bounded and replaced whole. A
+     * snapshot that breaks a bound (more than 24 settings, a bad key, a value over 500 characters, over 8 KB in
+     * total) is rejected and the previous snapshot stays; the failure is returned so a test can assert it. Call it
+     * before [execute], as the host does.
+     */
+    fun applyConfig(schemaVersion: Int, values: Map<String, String>): Result<PluginConfig> {
+        val entries = values.entries.toList()
+        return configHolder.apply(schemaVersion, entries.map { it.key }, entries.map { it.value })
+    }
+
+    /** The snapshot a command would see right now ([PluginConfig.EMPTY] until one is applied). */
+    val config: PluginConfig get() = configHolder.current
 
     /**
      * Sends one command to the in-memory plugin endpoint. Use a fresh request ID for each call.
@@ -42,6 +69,17 @@ class FakePluginHost(
     fun cancel(requestId: String) = runner.cancel(requestId)
 
     override fun close() = runner.shutdown()
+
+    companion object {
+        /**
+         * For a plugin whose commands read [PluginConfig]. The handler receives the snapshot that was current when
+         * the command started, like a command inside `OneAiPluginService` reading its `config` property.
+         */
+        fun withConfig(
+            timeoutMs: Long = PluginBounds.DEFAULT_TIMEOUT_MS,
+            handler: (command: String, args: Map<String, String>, context: CallContext, config: PluginConfig) -> PluginOutput
+        ): FakePluginHost = FakePluginHost(timeoutMs, PluginConfigHolder(), handler)
+    }
 
     internal class RecordingSink : ReplySink {
         private val terminal = CountDownLatch(1)

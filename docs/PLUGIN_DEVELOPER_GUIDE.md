@@ -39,7 +39,7 @@ ONE AI reads this without running your code, so the user can review it before tr
 | Rule | Limit |
 |---|---|
 | `manifestVersion` | must be `2` |
-| `minCoreApi` / `targetCoreApi` | integers; `minCoreApi` ≥ 1, `targetCoreApi` ≥ `minCoreApi`. This ONE AI provides core API level **2**; a plugin whose `minCoreApi` is higher is refused |
+| `minCoreApi` / `targetCoreApi` | integers; `minCoreApi` ≥ 1, `targetCoreApi` ≥ `minCoreApi`. This ONE AI provides core API level **3**; a plugin whose `minCoreApi` is higher is refused |
 | Name | 1–60 characters |
 | Description | up to 500 characters |
 | Capabilities | 1–12, from the supported list (below) |
@@ -94,7 +94,26 @@ Error codes must look like `[A-Z][A-Z0-9_]{0,39}`; anything else is replaced by 
 
 ONE AI waits slightly longer than the plugin's own deadline (35 seconds) and cancels the request if it gives up.
 
-The `describe()` handshake reports the AIDL SDK wire version (`sdkApi`). The host currently accepts wire versions 1 through 2. This is separate from manifest `minCoreApi`/`targetCoreApi`, which describe host feature compatibility; API 2 features such as the screen-launch callback must be declared with `minCoreApi="2"`.
+The `describe()` handshake reports the AIDL SDK wire version (`sdkApi`). The host currently accepts wire versions 1 through 3. This is separate from manifest `minCoreApi`/`targetCoreApi`, which describe host feature compatibility; API 2 features such as the screen-launch callback must be declared with `minCoreApi="2"`, and plugins that declare `<settings>` must declare `minCoreApi="3"`.
+
+### Plugin settings (API 3)
+
+A plugin may declare user-configurable settings in its manifest (`<settings>`, schema and bounds in `docs/STAGE_9_CONFIG_DESIGN.md`). ONE AI owns, validates and stores the values; the plugin never draws settings UI. A plugin that declares `<settings>` must declare `minCoreApi="3"`.
+
+ONE AI sends the plugin its current settings with `applyConfig` right after every bind, before any command or view request. Each command opens a fresh connection, so a change the user makes reaches the plugin on its next command. Read the snapshot inside your command handler through the `config` property of `OneAiPluginService`:
+
+```kotlin
+override fun onCommand(command: String, args: Map<String, String>, context: CallContext): PluginOutput {
+    val prefix = config.string("greeting_prefix")
+    val repeat = config.int("repeat", fallback = 1)
+    val loud = config.boolean("loud")
+    ...
+}
+```
+
+`config` is `PluginConfig.EMPTY` until a snapshot arrives. Values are plain text: toggles are `"true"`/`"false"`, numbers are whole numbers, choices are the option `value`. The SDK applies the same bounds as ONE AI (at most 24 settings, 500 characters per value, 8 KB in total) and rejects an oversized snapshot whole, keeping the previous one. ONE AI refuses to run a plugin that declares settings but reports a wire level below 3, and it never sends `applyConfig` to a plugin that declares no settings. Settings never grant capabilities or Bubble access, and ONE AI logs which settings changed but never their values.
+
+In tests, use `FakePluginHost.withConfig { command, args, context, config -> ... }` and call `host.applyConfig(1, mapOf("greeting_prefix" to "Hi"))` before `execute`; it mirrors the SDK's bounds and keep-previous behaviour. Real Binder delivery is not simulated.
 
 ### Plugin-requested screens (API 2)
 
@@ -150,5 +169,5 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - No streaming results; one result per request.
 - Arguments and results are text only.
 - A plugin cannot call back into ONE AI beyond progress lines.
-- The AIDL SDK handshake reports wire SDK API **2**. The manifest's `minCoreApi`/`targetCoreApi` independently describe required host features; a plugin that requests the API 2 screen-launch feature must declare `minCoreApi="2"`.
+- The AIDL SDK handshake reports wire SDK API **3**. The manifest's `minCoreApi`/`targetCoreApi` independently describe required host features; a plugin that requests the API 2 screen-launch feature must declare `minCoreApi="2"`.
 - API 2 adds a plugin-requested `PendingIntent` callback. The SDK can emit it, but the current host channel intentionally drops it pending Stage 9.4c (user confirmation, creator/identity validation and host launch handling). Do not rely on screen requests until that host path is implemented and device-tested.

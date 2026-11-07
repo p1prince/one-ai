@@ -71,7 +71,7 @@ On the installed-plugin card, a **Configure** action opens a host-rendered form 
 
 1. **9.6a** — Pure schema types, parser additions, `PluginConfigValidator`, bounds, unit tests (no Android).
 2. **9.6b** — `PluginConfigStore`, `OneAiStore` implementation, `PluginManager` removal hook, update reconciliation, tests.
-3. **9.6c** — API level 3: AIDL method, SDK base-class support, host delivery on bind/change, test-kit support, tests.
+3. **9.6c** — API level 3: AIDL method, SDK base-class support, host delivery on bind/change, test-kit support, tests. *(Implemented 2026-11-07; see the tracker for the exact commit and CI.)* Delivery detail: the adapter opens a fresh connection per command and per view, so "on bind" and "on change" are the same event: the next bind sends the latest values. The host gates on the handshake `sdkApi` (not the manifest) and refuses a settings plugin that reports less than 3.
 4. **9.6d** — Plugin Centre Configure screen and "Needs configuration" status, policy tests (UI itself is not verified until Stage 11).
 5. **9.6e** — Extend the Echo contract sample with one or two generic settings, update `docs/PLUGIN_DEVELOPER_GUIDE.md` and `PLUGIN_SDK.md`, add host/plugin contract tests.
 
