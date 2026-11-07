@@ -43,7 +43,7 @@ class FakePluginHost(
 
     override fun close() = runner.shutdown()
 
-    private class RecordingSink : ReplySink {
+    internal class RecordingSink : ReplySink {
         private val terminal = CountDownLatch(1)
         val events = CopyOnWriteArrayList<PluginTestEvent>()
 
