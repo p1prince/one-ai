@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { services.aiOrchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
-            onRunCommand={ id,done -> lifecycleScope.launch { val r=services.commandExecutor.execute("core/run_saved", mapOf("id" to id)); done(if(r.status==CommandStatus.COMPLETED) r.content else "Error: ${r.error?.message ?: r.content}") } }
+            onRunCommand={ id,done -> lifecycleScope.launch { services.pluginRestoration.awaitReady(); val r=services.commandExecutor.execute("core/run_saved", mapOf("id" to id)); done(if(r.status==CommandStatus.COMPLETED) r.content else "Error: ${r.error?.message ?: r.content}") } }
         ) }
     }
     private fun toggleBubble(enabled:Boolean) {
@@ -116,7 +116,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,refreshNow)
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,services.pluginRestoration,refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
@@ -186,11 +186,12 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
 }
 
-@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,refresh:()->Unit) {
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,refresh:()->Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var operationMessage by remember { mutableStateOf("") }
     var snapshot by remember { mutableStateOf(PluginCenterSnapshot.EMPTY) }
     var scanning by remember { mutableStateOf(true) }
+    var restored by remember { mutableStateOf(restoration.isReady) }
     var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
     var reviewingUpdate by remember { mutableStateOf<String?>(null) }
     val updateCheckGate = remember { PluginUpdateCheckGate() }
@@ -198,6 +199,8 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     // Screen redraws only refresh the snapshot; update checks are one-shot user actions.
     LaunchedEffect(tick) {
         scanning=true
+        restoration.awaitReady()
+        restored=true
         snapshot=withContext(Dispatchers.IO) {
             runCatching { center.snapshot() }.getOrDefault(PluginCenterSnapshot.EMPTY)
         }
@@ -211,7 +214,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Header("Plugin Centre","Optional capabilities. Your shell stays independent.") }
                 TextButton(onClick={
-                    if (!scanning) {
+                    if (!scanning && restored) {
                         updateCheckGate.request()
                         scope.launch {
                             scanning=true
@@ -224,7 +227,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                             scanning=false
                         }
                     }
-                },enabled=!scanning) { Text("Check updates",color=Gold) }
+                },enabled=!scanning && restored) { Text("Check updates",color=Gold) }
             }
         }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
@@ -242,18 +245,18 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                     ExternalStatus.NotInstalled -> Text("The plugin app is not installed.",color=Color(0xFFFF8A80),fontSize=11.sp)
                     else -> Unit
                 }
-                Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{ changed(center.setEnabled(p.id,it),"") })}
+                Row(verticalAlignment=Alignment.CenterVertically){Text(if(p.enabled)"Enabled" else "Disabled",color=White,modifier=Modifier.weight(1f));Switch(p.enabled,{ changed(center.setEnabled(p.id,it),"") },enabled=restored)}
                 if(bubbleService!=null) Row(verticalAlignment=Alignment.CenterVertically){
                     Column(Modifier.weight(1f)){Text("Show in Floating Bubble",color=White);Text(if(p.enabled)"Separate from Enabled. Off until you allow it." else "Enable the plugin first.",color=Muted,fontSize=11.sp)}
                     Switch(manager.hasBubbleAccess(p.id),{ changed(manager.setBubbleAccess(p.id,it),"") },enabled=p.enabled)
                 } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
                 Row {
-                    if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id}){Text("Review update",color=Gold)}
-                    TextButton(onClick={ changed(manager.remove(p.id),"") }){Text("Remove",color=Color(0xFFFF8A80))}
+                    if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id},enabled=restored){Text("Review update",color=Gold)}
+                    TextButton(onClick={ changed(manager.remove(p.id),"") },enabled=restored){Text("Remove",color=Color(0xFFFF8A80))}
                 }
             }
         }
-        item { Row(verticalAlignment=Alignment.CenterVertically){Text("FOUND ON THIS DEVICE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));TextButton(onClick={tick++}){Text(if(scanning)"Scanning…" else "Scan again",color=Gold,fontSize=12.sp)}} }
+        item { Row(verticalAlignment=Alignment.CenterVertically){Text("FOUND ON THIS DEVICE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));TextButton(onClick={tick++},enabled=restored){Text(if(scanning)"Scanning…" else "Scan again",color=Gold,fontSize=12.sp)}} }
         if(candidates.isEmpty()) item { CardBox { Text(if(scanning)"Looking for plugin apps…" else "No new plugin apps found",color=White,fontWeight=FontWeight.SemiBold);Text("Plugins are separate apps you install like any other app. ONE AI never installs or runs them for you, and trusts one only after you review it.",color=Muted,fontSize=12.sp) } }
         items(candidates,key={it.plugin.packageName}) { c ->
             val d=c.plugin; val m=d.manifest.getOrNull(); val compat=m?.let { PluginCompatibility.check(it) }
@@ -265,12 +268,12 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                     Text("v${m.versionName} • ${m.capabilities.joinToString()} • ${m.commands.size} command(s)",color=Gold,fontSize=10.sp)
                     if(m.bubble!=null) Text("Offers a Floating Bubble service. It stays off until you allow it.",color=Muted,fontSize=11.sp)
                     when(compat) { is Compatibility.Incompatible -> Text(compat.reason,color=Color(0xFFFF8A80),fontSize=11.sp); is Compatibility.CompatibleWithWarning -> Text(compat.warning,color=Muted,fontSize=11.sp); else -> Unit }
-                    Button(onClick={reviewing=d},enabled=compat?.usable==true,modifier=Modifier.fillMaxWidth()){Text("Review and import")}
+                    Button(onClick={reviewing=d},enabled=restored && compat?.usable==true,modifier=Modifier.fillMaxWidth()){Text("Review and import")}
                 }
             }
         }
         item { Text("AVAILABLE CAPABILITIES",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }
-        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={ changed(manager.install(t),"Installed ${t.name}; it remains disabled.") },modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
+        items(available,key={it.id}) { t -> CardBox { Text(t.name,color=White,fontWeight=FontWeight.SemiBold);Text(t.description,color=Muted,fontSize=12.sp);Text(t.capabilities.joinToString(" • "),color=Gold,fontSize=10.sp);Button(onClick={ changed(manager.install(t),"Installed ${t.name}; it remains disabled.") },enabled=restored,modifier=Modifier.fillMaxWidth()){Text("Install (starts disabled)")}} }
         if(operationMessage.isNotBlank()) item { Text(operationMessage,color=Gold,fontSize=12.sp) }
     }
     reviewing?.let { d ->
@@ -293,7 +296,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 )
                 Text("Only continue if you installed this app from a developer you trust. ONE AI remembers this certificate and blocks the plugin if it is ever signed with a different one.",fontSize=12.sp)
             } },
-            confirmButton={TextButton(enabled=m!=null && fingerprint.isSuccess,onClick={
+            confirmButton={TextButton(enabled=restored && m!=null && fingerprint.isSuccess,onClick={
                 val fp=fingerprint.getOrNull(); val manifest=d.manifest.getOrNull()
                 reviewing=null
                 if(fp!=null && manifest!=null) changed(center.import(d.packageName,manifest.versionCode,fp),"Imported ${manifest.name}. It is off, and has no Bubble access until you allow them.")
@@ -311,7 +314,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 pending?.reasons?.forEach { Text("• $it",fontSize=12.sp) }
                 Text("After you approve it the plugin stays off until you turn it on again.",fontSize=12.sp)
             } },
-            confirmButton={TextButton(enabled=pending!=null,onClick={ reviewingUpdate=null; changed(center.approveUpdate(id),"Update approved. The plugin is still off.") }){Text("Approve update",color=Gold)}},
+            confirmButton={TextButton(enabled=restored && pending!=null,onClick={ reviewingUpdate=null; changed(center.approveUpdate(id),"Update approved. The plugin is still off.") }){Text("Approve update",color=Gold)}},
             dismissButton={TextButton(onClick={reviewingUpdate=null}){Text("Not now")}}
         )
     }
