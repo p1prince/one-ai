@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ONE AI plugin manifest v2. The plugin ID is the package name; the version is the APK's versionName. -->
+<one-ai-plugin manifestVersion="2" minCoreApi="1" targetCoreApi="1">
+    <info
+        name="Echo"
+        description="Reference plugin that echoes text back. Use it to try the ONE AI plugin contract." />
+
+    <!-- "commands" needs no extra approval. A plugin that declares a sensitive capability makes ONE AI ask the user first. -->
+    <capability name="commands" />
+
+    <command
+        name="echo"
+        title="Echo text"
+        description="Returns the text you send, unchanged."
+        capability="commands" />
+    <command
+        name="reverse"
+        title="Reverse text"
+        description="Returns the text you send, reversed."
+        capability="commands" />
+    <command
+        name="wait"
+        title="Wait, then echo"
+        description="Waits a few seconds (reporting progress), then returns the text. Shows cancellation and deadlines."
+        capability="commands" />
+
+    <!-- Optional. Without this element the plugin can never appear in the Bubble. -->
+    <bubble service="echo" title="Echo" />
+</one-ai-plugin>

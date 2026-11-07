@@ -1,60 +1,106 @@
 package com.oneai.app.plugins
 
-import com.oneai.app.core.OneAiStore
+import com.oneai.app.core.PluginStore
 import com.oneai.app.core.PluginRecord
+import com.oneai.app.core.PluginLifecycleController
+import com.oneai.app.core.NoOpPluginLifecycleController
 
-data class PluginTemplate(
-    val id: String, val name: String, val description: String, val capabilities: List<String>
-)
-
-class PluginManager(private val store: OneAiStore) {
-    val catalogue = listOf(
-        PluginTemplate("one.command.tools", "Command Tools", "Create and run user-defined command shortcuts.", listOf("commands")),
-        PluginTemplate("one.web.research", "Web Research", "A connector slot for approved web search providers.", listOf("internet", "research")),
-        PluginTemplate("one.screen.intelligence", "Screen Intelligence", "A permission-gated screen understanding integration.", listOf("screen_capture")),
-        PluginTemplate("one.voice.interface", "Voice Interface", "A voice input and spoken response integration.", listOf("microphone", "audio")),
-        PluginTemplate("one.device.actions", "Device Actions", "User-approved Android settings and device action integrations.", listOf("device_actions")),
-        PluginTemplate("one.automation.engine", "Automation Engine", "A safe integration point for automation engines such as AutoDroid.", listOf("accessibility", "automation"))
-    )
+class PluginManager(
+    private val store: PluginStore,
+    val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates,
+    private val onPluginRemoved: (String) -> Unit = {},
+    /** Plugin ID to Bubble service ID for plugins that are not in [catalogue], such as installed external plugins. */
+    private val bubbleBindings: () -> Map<String, String> = { emptyMap() },
+    private val lifecycle: PluginLifecycleController = NoOpPluginLifecycleController
+) {
 
     fun installed() = store.plugins()
-    fun install(template: PluginTemplate) {
-        if (installed().any { it.id == template.id }) return
-        store.savePlugin(PluginRecord(template.id, template.name, "1.0.0", template.description, template.capabilities, false))
-        store.log("Installed plugin: ${template.name} (disabled by default)")
-    }
-    fun setEnabled(id: String, enabled: Boolean) {
-        val plugin = installed().firstOrNull { it.id == id } ?: return
-        store.savePlugin(plugin.copy(enabled = enabled))
-        if (!enabled) serviceFor(plugin.id)?.let { service ->
-            store.setBubbleServices(store.bubbleServices() - service)
-        }
-        store.log("${if (enabled) "Enabled" else "Disabled"} plugin: ${plugin.name}")
-    }
-    fun remove(id: String) {
-        val name = installed().firstOrNull { it.id == id }?.name ?: id
-        serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
-        store.removePlugin(id)
-        store.log("Removed plugin: $name")
-    }
-    private fun serviceFor(id: String): String? = when (id) {
-        "one.web.research" -> "web_research"
-        "one.screen.intelligence" -> "screen_intelligence"
-        "one.voice.interface" -> "voice_interface"
-        "one.automation.engine" -> "automation"
-        else -> null
+
+    fun install(template: PluginTemplate): Result<PluginRecord> {
+        val validated = PluginManifestValidator.validate(
+            PluginManifest(id=template.id,name=template.name,version=template.version,
+                description=template.description,capabilities=template.capabilities,dependencies=template.dependencies)
+        ).getOrElse { return Result.failure(it) }
+        if (installed().any { it.id == validated.id }) return Result.failure(IllegalArgumentException("Plugin is already installed"))
+        val missing = validated.dependencies.filterNot { dependency -> installed().any { it.id == dependency } }
+        if (missing.isNotEmpty()) return Result.failure(IllegalArgumentException("Missing dependencies: ${missing.joinToString()}"))
+        val record = PluginRecord(validated.id,validated.name,validated.version,validated.description,
+            validated.capabilities,false,false,validated.manifestVersion,validated.dependencies)
+        store.savePlugin(record)
+        store.log("Installed plugin: ${record.name} (disabled by default)")
+        return Result.success(record)
     }
 
-    fun create(id: String, name: String, description: String, capabilities: List<String>): Result<PluginRecord> {
-        val cleanId = id.trim().lowercase()
-        if (!cleanId.matches(Regex("[a-z][a-z0-9]*(\\.[a-z0-9]+)+"))) return Result.failure(IllegalArgumentException("Use a reverse-domain plugin ID, e.g. dev.example.notes"))
-        if (name.isBlank()) return Result.failure(IllegalArgumentException("Plugin name is required"))
-        if (installed().any { it.id == cleanId }) return Result.failure(IllegalArgumentException("That plugin ID is already installed"))
-        val allowed = setOf("commands", "internet", "screen_capture", "microphone", "audio", "device_actions", "accessibility", "automation", "files")
-        if (capabilities.any { it !in allowed }) return Result.failure(IllegalArgumentException("One or more capabilities are not supported"))
-        val plugin = PluginRecord(cleanId, name.trim(), "0.1.0", description.trim(), capabilities.distinct(), false, true)
+    fun setEnabled(id: String, enabled: Boolean): Result<Unit> {
+        val plugin = installed().firstOrNull { it.id == id }
+            ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
+        if (enabled) {
+            val missing = plugin.dependencies.filterNot { dependency -> installed().any { it.id == dependency && it.enabled } }
+            if (missing.isNotEmpty()) return Result.failure(IllegalStateException("Enable required dependencies first: ${missing.joinToString()}"))
+        } else {
+            val dependents = installed().filter { it.enabled && id in it.dependencies }
+            if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Disable dependent plugins first: ${dependents.joinToString { it.name }}"))
+        }
+        store.savePlugin(plugin.copy(enabled=enabled))
+        if (!enabled) {
+            lifecycle.unregister(id)
+            lifecycle.revokePendingApprovals()
+            serviceFor(plugin.id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
+        }
+        store.log("${if (enabled) "Enabled" else "Disabled"} plugin: ${plugin.name}")
+        return Result.success(Unit)
+    }
+
+    fun remove(id: String): Result<Unit> {
+        val plugin = installed().firstOrNull { it.id == id }
+            ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
+        val dependents = installed().filter { id in it.dependencies }
+        if (dependents.isNotEmpty()) return Result.failure(IllegalStateException("Remove dependent plugins first: ${dependents.joinToString { it.name }}"))
+        lifecycle.unregister(id)
+        lifecycle.revokePendingApprovals()
+        serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
+        store.removePlugin(id)
+        onPluginRemoved(id)
+        store.log("Removed plugin: ${plugin.name}")
+        return Result.success(Unit)
+    }
+
+    private fun serviceFor(id: String): String? = catalogue.firstOrNull { it.id == id }?.bubbleService ?: bubbleBindings()[id]
+
+    /** The Bubble service the plugin offers, or null when it offers none. */
+    fun bubbleServiceOf(id: String): String? = serviceFor(id)
+
+    /** Whether the user has allowed this plugin into the Bubble. Separate from whether it is enabled. */
+    fun hasBubbleAccess(id: String): Boolean = serviceFor(id)?.let { it in store.bubbleServices() } == true
+
+    /**
+     * Bubble access is its own setting: enabling a plugin never grants it, and it can only be granted
+     * to a plugin that is enabled and offers a Bubble service. Disabling a plugin withdraws it.
+     */
+    fun setBubbleAccess(id: String, allowed: Boolean): Result<Unit> {
+        val plugin = installed().firstOrNull { it.id == id }
+            ?: return Result.failure(IllegalArgumentException("Plugin is not installed"))
+        val service = serviceFor(id) ?: return Result.failure(IllegalStateException("This plugin has no Bubble service"))
+        if (allowed && !plugin.enabled) return Result.failure(IllegalStateException("Enable the plugin before giving it Bubble access"))
+        store.setBubbleServices(if (allowed) store.bubbleServices() + service else store.bubbleServices() - service)
+        store.log("${if (allowed) "Allowed" else "Removed"} Bubble access: ${plugin.name}")
+        return Result.success(Unit)
+    }
+
+    fun create(id: String, name: String, description: String, capabilities: List<String>,
+               version: String = "0.1.0", dependencies: List<String> = emptyList()): Result<PluginRecord> {
+        if (!store.developerMode()) return Result.failure(IllegalStateException("Enable Developer Mode first"))
+        val validated = PluginManifestValidator.validate(
+            PluginManifest(id=id,name=name,version=version,description=description,
+                capabilities=capabilities,dependencies=dependencies)
+        ).getOrElse { return Result.failure(it) }
+        if (installed().any { it.id == validated.id }) return Result.failure(IllegalArgumentException("That plugin ID is already installed"))
+        val missing = validated.dependencies.filterNot { dependency -> installed().any { it.id == dependency } }
+        if (missing.isNotEmpty()) return Result.failure(IllegalArgumentException("Missing dependencies: ${missing.joinToString()}"))
+        val plugin = PluginRecord(validated.id,validated.name,validated.version,validated.description,
+            validated.capabilities,false,true,validated.manifestVersion,validated.dependencies)
         store.savePlugin(plugin)
-        store.log("Created developer plugin descriptor: ${plugin.name}")
+        store.log("Created developer plugin manifest: ${plugin.name}")
         return Result.success(plugin)
     }
 }

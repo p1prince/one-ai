@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "elements": [
+    { "t": "label", "text": "Echo plugin", "size": 16 },
+    { "t": "label", "text": "Type some text, then choose what to do with it.", "size": 12 },
+    { "t": "input", "key": "text", "hint": "Text" },
+    { "t": "button", "label": "Echo", "command": "echo", "args": { "text": "@text" } },
+    { "t": "button", "label": "Reverse", "command": "reverse", "args": { "text": "@text" } },
+    { "t": "button", "label": "Wait 3 s, then echo", "command": "wait", "args": { "text": "@text", "seconds": "3" } }
+  ]
+}

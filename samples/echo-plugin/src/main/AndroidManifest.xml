@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No activity on purpose: a plugin is a service that ONE AI binds to. It is installed like any app. -->
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name">
+
+        <!--
+            Must be exported with this exact intent action and NO android:permission: ONE AI finds plugins by
+            the action. Access control happens inside the SDK base class (only ONE AI may call).
+        -->
+        <service
+            android:name=".EchoPluginService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.oneai.plugin.action.PLUGIN" />
+            </intent-filter>
+            <!-- Declarative manifest v2, read by ONE AI without running any plugin code. -->
+            <meta-data
+                android:name="com.oneai.plugin.manifest"
+                android:resource="@xml/one_ai_plugin" />
+        </service>
+    </application>
+</manifest>
