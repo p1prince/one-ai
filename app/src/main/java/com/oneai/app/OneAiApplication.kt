@@ -8,14 +8,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Restore only previously enabled, still-trusted external plugins off the UI thread.
- * AppServices.restorePlugins contains failures, so an optional extension can never prevent
- * the core shell from starting.
+ * The readiness gate is released even on failure; optional extensions can never prevent
+ * the core shell from starting or leave plugin-dependent callers suspended indefinitely.
  */
 class OneAiApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        val services = AppServices.get(this)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            AppServices.get(this@OneAiApplication).restorePlugins()
+            services.restorePlugins()
         }
     }
 }
