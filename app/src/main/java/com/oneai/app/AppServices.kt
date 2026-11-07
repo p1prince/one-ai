@@ -35,6 +35,8 @@ import com.oneai.app.security.SecretVault
  */
 class AppServices private constructor(app: Application) {
     val store = OneAiStore(app)
+    /** Plugin-dependent callers suspend here until the startup restore pass has finished. */
+    val pluginRestoration = PluginRestorationGate()
 
     val commandRegistry = CommandRegistry { pluginId -> store.plugins().any { it.id == pluginId && it.enabled } }
 
@@ -94,11 +96,17 @@ class AppServices private constructor(app: Application) {
     }
 
     /**
-     * Brings back imported plugins that are still trusted and takes every other one out of service. A failure
-     * here must never stop the app from starting, so it is contained and reported in Activity.
+     * Brings back imported plugins that are still trusted and takes every other one out of service.
+     * The readiness barrier is always released, including when restoration fails, so the core shell
+     * remains usable and plugin callers never wait forever.
      */
     fun restorePlugins() {
-        runCatching { registrar.restoreAll() }.onFailure { store.log("Could not restore plugins: ${it.javaClass.simpleName}") }
+        try {
+            runCatching { registrar.restoreAll() }
+                .onFailure { store.log("Could not restore plugins: ${it.javaClass.simpleName}") }
+        } finally {
+            pluginRestoration.complete()
+        }
     }
 
     companion object {
