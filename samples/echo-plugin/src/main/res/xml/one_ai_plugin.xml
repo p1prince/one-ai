@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ONE AI plugin manifest v2. The plugin ID is the package name; the version is the APK's versionName. -->
-<one-ai-plugin manifestVersion="2" minCoreApi="1" targetCoreApi="1">
+<!-- ONE AI plugin manifest v2. The plugin ID is the package name; the version is the APK's versionName.
+     minCoreApi="3" because this plugin declares <settings> (host-delivered configuration, plugin API level 3). -->
+<one-ai-plugin manifestVersion="2" minCoreApi="3" targetCoreApi="3">
     <info
         name="Echo"
         description="Reference plugin that echoes text back. Use it to try the ONE AI plugin contract." />
@@ -23,6 +24,23 @@
         title="Wait, then echo"
         description="Waits a few seconds (reporting progress), then returns the text. Shows cancellation and deadlines."
         capability="commands" />
+
+    <!-- Optional settings. ONE AI draws the form, validates and stores the values, and sends them before each command.
+         Neither is required, so the plugin works as soon as it is enabled. Settings never grant capabilities or Bubble access. -->
+    <settings version="1">
+        <setting
+            key="prefix"
+            type="text"
+            title="Prefix"
+            description="Text added before every reply."
+            maxLength="40" />
+        <setting
+            key="uppercase"
+            type="toggle"
+            title="Uppercase replies"
+            description="Return replies in capital letters."
+            default="false" />
+    </settings>
 
     <!-- Optional. Without this element the plugin can never appear in the Bubble. -->
     <bubble service="echo" title="Echo" />

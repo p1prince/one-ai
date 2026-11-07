@@ -14,7 +14,7 @@ class EchoPluginService : OneAiPluginService() {
     private val commands = EchoCommands()
 
     override fun onCommand(command: String, args: Map<String, String>, context: CallContext): PluginOutput =
-        commands.run(command, args, context)
+        commands.run(command, args, context, config)
 
     /** The Bubble view is plain data (JSON); the core draws it. Only the service declared in the manifest exists. */
     override fun onView(serviceId: String): String? =

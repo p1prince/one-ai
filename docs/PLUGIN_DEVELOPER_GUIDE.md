@@ -1,4 +1,4 @@
-# ONE AI Plugin Developer Guide (plugin API level 2)
+# ONE AI Plugin Developer Guide (plugin API level 3)
 
 For people who build a plugin for ONE AI. The reference implementation is `samples/echo-plugin`; copy it as a starting point. Design background and threat model: `docs/STAGE_8_DESIGN.md`. The older `PLUGIN_SDK.md` describes manifest v1 and the in-app adapters; it stays for migration.
 
@@ -115,6 +115,41 @@ override fun onCommand(command: String, args: Map<String, String>, context: Call
 
 In tests, use `FakePluginHost.withConfig { command, args, context, config -> ... }` and call `host.applyConfig(1, mapOf("greeting_prefix" to "Hi"))` before `execute`; it mirrors the SDK's bounds and keep-previous behaviour. Real Binder delivery is not simulated.
 
+#### Worked example: the Echo sample
+
+`samples/echo-plugin` declares two optional settings and reads them in every command, so you can copy the whole pattern:
+
+```xml
+<one-ai-plugin manifestVersion="2" minCoreApi="3" targetCoreApi="3">
+    ...
+    <settings version="1">
+        <setting key="prefix" type="text" title="Prefix" description="Text added before every reply." maxLength="40" />
+        <setting key="uppercase" type="toggle" title="Uppercase replies" description="Return replies in capital letters." default="false" />
+    </settings>
+</one-ai-plugin>
+```
+
+```kotlin
+// EchoPluginService
+override fun onCommand(command: String, args: Map<String, String>, context: CallContext): PluginOutput =
+    commands.run(command, args, context, config)
+
+// EchoCommands: read the snapshot passed in, and cope with a missing value
+private fun styled(text: String, config: PluginConfig): String {
+    val body = if (config.boolean("uppercase")) text.uppercase() else text
+    return config.string("prefix") + body
+}
+```
+
+What to copy from it:
+
+- **Keep the keys in one place.** The sample exposes them as constants and a unit test checks they match the manifest, so the two cannot drift apart.
+- **Make optional things optional.** A setting that is `required="true"` with no default stops the user enabling the plugin until they set it, and, if an update adds one, stops an already-enabled plugin running until it is set. Echo's settings are optional so it works as soon as it is enabled.
+- **Test with the kit.** `EchoCommandsTest` uses `FakePluginHost.withConfig`, calls `applyConfig` before `execute`, checks that a change applies to the next command, and checks that an oversized snapshot is rejected while the previous one stays.
+- **Check the manifest against the host.** `EchoSamplePluginContractTest` feeds the sample's real manifest through the host's parser and validator and then through the host's settings form logic, so a settings declaration ONE AI would refuse fails in CI rather than on a user's device.
+
+The user sees these settings on the plugin's **Configure** screen in the Plugins section: ONE AI draws the form, validates every value, and shows your titles and descriptions as plain text. Saving settings never enables the plugin or gives it Bubble access.
+
 ### Plugin-requested screens (API 2)
 
 A plugin that needs to show a screen must return a **plugin-created immutable** `PendingIntent` through the API 2 `onLaunch` callback. The creator package and UID must match the imported plugin APK; mutable PendingIntents are rejected on Android 12+. The callback does not launch anything. ONE AI places the request in its own Floating Bubble and shows the package name plus the plugin-supplied label (which users should treat as untrusted text). The user must choose **Allow once** or **Reject**. Approval is consumed once, and ONE AI rechecks both the signing-certificate trust state and the plugin's enabled state immediately before sending. A canceled, stale, disabled or no-longer-trusted request is discarded.
@@ -164,10 +199,11 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - Check that your manifest XML and view JSON are acceptable to ONE AI. `EchoSamplePluginContractTest` (in the app's tests) shows how: it feeds both through the host's real parsers.
 - Real binding, signature checks and the Bubble need an emulator or device: `docs/EMULATOR_TEST_PLAN.md`.
 
-## 10. Known limits (API level 2)
+## 10. Known limits (API level 3)
 
 - No streaming results; one result per request.
 - Arguments and results are text only.
 - A plugin cannot call back into ONE AI beyond progress lines.
 - The AIDL SDK handshake reports wire SDK API **3**. The manifest's `minCoreApi`/`targetCoreApi` independently describe required host features; a plugin that requests the API 2 screen-launch feature must declare `minCoreApi="2"`.
-- API 2 adds a plugin-requested `PendingIntent` callback. The SDK can emit it, but the current host channel intentionally drops it pending Stage 9.4c (user confirmation, creator/identity validation and host launch handling). Do not rely on screen requests until that host path is implemented and device-tested.
+- API 2 adds a plugin-requested `PendingIntent` callback. The host path (identity checks, Bubble confirmation, one-time send) is implemented and unit-tested, but Android's behaviour when ONE AI sends the plugin's `PendingIntent` has **not been verified on a device**. Do not rely on screen requests until it has been.
+- API 3 adds host-delivered settings. A setting has no secret type (credentials are not supported), values are text/toggle/whole-number/choice only, and a change reaches the plugin on its next command rather than being pushed to an open connection. Real Binder delivery and behaviour after the plugin process dies are unverified on a device.

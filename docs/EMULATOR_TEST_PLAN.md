@@ -59,8 +59,12 @@ Record pass/fail per row. "Expected" is what the design requires, not an observe
 | M13 | Declare a sensitive capability (for example `files`) in a test plugin and press its button | Core-drawn approval showing the exact arguments; "Allow once" is single-use |
 | M14 | A third-party app tries to bind the echo plugin's service | Rejected by the SDK caller check |
 | M15 | Restart the device, then open the Bubble | Trusted plugins are restored; untrusted ones stay out of service |
+| M16 | Open the echo plugin's **Configure** screen; set Prefix to `>> ` and turn Uppercase on; Save; run Echo with `hi` | Reply is `>> HI`; enabled state and Bubble access did not change |
+| M17 | In Configure, type a 41-character prefix and press Save | Inline error naming Prefix, nothing saved; the dialog stays open |
+| M18 | In Configure, press Reset to defaults, then run Echo with `hi` | Reply is `hi`; fields show the defaults |
+| M19 | With a test plugin variant that declares a required setting with no default, try to enable it, then (after setting it) enable it and update to a variant adding a second required setting | Enabling is refused naming the setting; after the update the plugin stays enabled but does not run and shows "Needs configuration" until saved |
 
-M13 and M14 need a small extra test app or plugin variant that does not exist yet.
+M13, M14 and M19 need a small extra test app or plugin variant that does not exist yet.
 
 ## 4. Recording results
 

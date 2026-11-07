@@ -87,4 +87,44 @@ class EchoSamplePluginContractTest {
         assertTrue(gradle.contains("versionName = \"1.0.0\""))
         assertTrue(gradle.contains("versionCode = 1"))
     }
+
+    // ---- Stage 9.6e: the sample declares generic settings, and the host handles them end to end at JVM level ----
+
+    @Test fun manifestDeclaresPluginApiLevelThreeBecauseItDeclaresSettings() {
+        val manifest = manifest()
+        assertEquals(PluginApi.SETTINGS_MIN_API, manifest.minCoreApi)
+        assertEquals(PluginApi.SETTINGS_MIN_API, manifest.targetCoreApi)
+        assertTrue(PluginCompatibility.check(manifest).usable)
+    }
+
+    @Test fun settingsAreParsedAndValidatedByTheHostWithTheDeclaredTypesAndBounds() {
+        val schema = manifest().settings!!
+        assertEquals(listOf("prefix", "uppercase"), schema.settings.map { it.key })
+        val prefix = schema.settings.first { it.key == "prefix" }
+        assertEquals(PluginSettingType.TEXT, prefix.type)
+        assertEquals(40, prefix.maxLength)
+        assertEquals(PluginSettingType.TOGGLE, schema.settings.first { it.key == "uppercase" }.type)
+    }
+
+    @Test fun neitherSettingIsRequiredSoTheSamplePluginCanBeEnabledStraightAway() {
+        val schema = manifest().settings!!
+        assertTrue(schema.settings.none { it.required })
+        assertTrue(PluginSettingsValidator.missingRequired(schema, emptyMap()).isEmpty())
+        // With nothing stored the plugin receives only the toggle's declared default.
+        assertEquals(mapOf("uppercase" to "false"), PluginSettingsValidator.effectiveValues(schema, emptyMap()))
+    }
+
+    @Test fun theHostFormAcceptsTheSamplesSettingsAndRejectsAnOversizedPrefix() {
+        val schema = manifest().settings!!
+        val draft = PluginConfigureForm.initialDraft(schema, PluginSettingsValidator.effectiveValues(schema, emptyMap()))
+        assertTrue("an untouched form is valid", PluginConfigureForm.errors(schema, draft).isEmpty())
+
+        val edited = draft + mapOf("prefix" to ">> ", "uppercase" to "true")
+        assertTrue(PluginConfigureForm.errors(schema, edited).isEmpty())
+        val saved = PluginConfigureForm.valuesToSave(schema, edited)
+        assertEquals(mapOf("prefix" to ">> ", "uppercase" to "true"), PluginSettingsValidator.validateValues(schema, saved).getOrThrow())
+
+        val tooLong = draft + ("prefix" to "x".repeat(41))
+        assertEquals(setOf("prefix"), PluginConfigureForm.errors(schema, tooLong).keys)
+    }
 }
