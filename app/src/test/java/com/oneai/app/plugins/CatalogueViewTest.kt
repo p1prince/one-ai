@@ -134,9 +134,9 @@ class CatalogueViewTest {
     // ---- Untrusted text ------------------------------------------------------------------------------------
 
     @Test fun cleanRemovesBidiAndZeroWidthControlsAndTurnsControlCharactersIntoSpaces() {
-        val tricky = "Safe‮elif.exe​⁦ hidden⁩\nnext\tline\u0007end"
+        val tricky = "Safe\u202Eelif.exe\u200B\u2066 hidden\u2069\nnext\tline\u0007end"
         val cleaned = CatalogueView.clean(tricky)
-        assertFalse(cleaned.any { it in '‪'..'‮' || it in '⁦'..'⁩' || it == '​' })
+        assertFalse(cleaned.any { it in '\u202A'..'\u202E' || it in '\u2066'..'\u2069' || it == '\u200B' })
         assertFalse(cleaned.any { Character.isISOControl(it) })
         assertEquals("Safeelif.exe hidden next line end", cleaned)
     }
@@ -144,11 +144,11 @@ class CatalogueViewTest {
     @Test fun cleanCollapsesSpacesTrimsAndTruncates() {
         assertEquals("a b", CatalogueView.clean("   a     b   "))
         assertEquals(5, CatalogueView.clean("x".repeat(100), max = 5).length)
-        assertEquals("", CatalogueView.clean("‮​"))
+        assertEquals("", CatalogueView.clean("\u202E\u200B"))
     }
 
     @Test fun aBlankSourceNameFallsBackToTheHost() {
-        val record = CatalogueSourceRecord("https://catalogue.example.org/list.json", name = "‮ ")
+        val record = CatalogueSourceRecord("https://catalogue.example.org/list.json", name = "\u202E ")
         val title = CatalogueView.sourceTitle(CatalogueListing(record, null))
         assertEquals("catalogue.example.org", title)
     }
@@ -244,7 +244,7 @@ class CatalogueViewTest {
     @Test fun addProblemsAreCleanedAndNeverEmpty() {
         assertEquals("Only https URLs are allowed", CatalogueView.problem(IllegalArgumentException("Only https URLs are allowed")))
         assertEquals("That source could not be added", CatalogueView.problem(IllegalStateException()))
-        assertFalse(CatalogueView.problem(IllegalStateException("bad‮\nthing")).contains('\n'))
+        assertFalse(CatalogueView.problem(IllegalStateException("bad\u202E\nthing")).contains('\n'))
     }
 
     // ---- Production guards ---------------------------------------------------------------------------------

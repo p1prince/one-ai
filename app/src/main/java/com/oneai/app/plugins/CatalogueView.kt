@@ -21,7 +21,7 @@ data class AvailableEntry(
 data class SourceLine(val url: String, val title: String, val detail: String, val isError: Boolean)
 
 /**
- * Stage 9.7d — pure, Android-free policy and formatting behind the Plugin Centre catalogue list, the entry detail and
+ * Stage 9.7d - pure, Android-free policy and formatting behind the Plugin Centre catalogue list, the entry detail and
  * the Sources dialog. Everything that comes from a source is untrusted text and passes through [clean] before it is
  * drawn. Nothing here installs, imports, trusts, enables or grants Bubble access; it only describes what a listing
  * says and how it relates to this device.
@@ -64,7 +64,7 @@ object CatalogueView {
         for (ch in text) {
             when {
                 ch in HIDDEN -> Unit
-                Character.isISOControl(ch) || ch == ' ' || ch == ' ' -> out.append(' ')
+                Character.isISOControl(ch) || ch == '\u2028' || ch == '\u2029' -> out.append(' ')
                 else -> out.append(ch)
             }
         }
@@ -72,9 +72,9 @@ object CatalogueView {
     }
 
     private val HIDDEN: Set<Char> = buildSet {
-        add('؜'); add('​'); add('‌'); add('‍'); add('‎'); add('‏'); add('﻿')
-        for (c in '‪'..'‮') add(c)
-        for (c in '⁦'..'⁩') add(c)
+        add('\u061C'); add('\u200B'); add('\u200C'); add('\u200D'); add('\u200E'); add('\u200F'); add('\uFEFF')
+        for (c in '\u202A'..'\u202E') add(c)
+        for (c in '\u2066'..'\u2069') add(c)
     }
 
     fun stateLabel(status: CatalogueEntryStatus): String = when (status.install) {
@@ -103,7 +103,7 @@ object CatalogueView {
 
     /** One short line under an entry's name: version and capabilities. */
     fun summaryLine(entry: CatalogueEntry): String {
-        val capabilities = if (entry.capabilities.isEmpty()) "" else " • ${entry.capabilities.joinToString()}"
+        val capabilities = if (entry.capabilities.isEmpty()) "" else " \u2022 ${entry.capabilities.joinToString()}"
         return clean("v${entry.versionName}$capabilities")
     }
 
