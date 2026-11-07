@@ -1,6 +1,6 @@
 # Stage 9 — Generic plugin catalogue / repository source: design proposal
 
-**Status: PROPOSED — awaiting owner decisions D-E to D-H (section 11). No code has been written.**
+**Status: APPROVED by the owner on 2026-11-08 (decision D6 in `docs/DECISIONS.md`): D-E to D-H all resolved as recommended. Implementation proceeds in slices 9.7a–9.7e.**
 Date: 2026-11-07. Scope: Stage 9 remaining gap "browsable catalogue/repository source (production catalogue is empty)" in `DEVELOPMENT_TRACKER.md` and `docs/STAGE_2_AUDIT.md` §12.10. Governed by `docs/PROJECT_CONTINUATION_RULES.md` and decisions D1, D4 and D5: generic and capability-neutral; no capability plugin is created, named as a deliverable or bundled.
 
 ## 1. Problem

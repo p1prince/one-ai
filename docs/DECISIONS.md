@@ -29,6 +29,11 @@
 - **Decided by:** project owner ("use recommendation") when asked during Stage 9.6d.
 - **Decision:** a plugin that is already enabled but has a required setting with no value (for example after an update added one) stays enabled but is not run and serves no Bubble view until the setting is saved. Enabling remains blocked (D-C). The plugin card shows "Needs configuration" and names the settings; nothing is auto-disabled and Bubble access is untouched.
 
+## D6 — Generic plugin catalogue / repository source (Stage 9)
+- **Date:** 2026-11-08. **Decided by:** project owner ("Use recommendations"), approving the recommendations in `docs/STAGE_9_CATALOGUE_DESIGN.md` §12.
+- **D-E:** no preconfigured catalogue source; the user adds HTTPS source URLs. **D-F:** ONE AI never downloads or installs APKs; an entry's link opens in the browser/store and the platform installs. **D-G:** an installed certificate that is not among an entry's listed signers blocks importing *from the catalogue view* (the on-device import path is unchanged) and catalogue documents are unsigned in v1. **D-H:** the legacy reserved plugin IDs and Bubble service names stay reserved, held in an explicit `CoreReservedNames` that does not depend on `BuiltInCatalogue`.
+- **Consequence:** implement in slices 9.7a–9.7e. A catalogue is a listing, never authority: it cannot install, trust, enable or grant Bubble access. No capability plugin or default catalogue content is created.
+
 ## Open decisions
 - **O3 — Stage 8 design defaults** (`docs/STAGE_8_DESIGN.md` §12): trust-on-first-use with fingerprint confirmation; declarative plugin UI only; minSdk 26. Proceeding with these unless the owner objects.
 - **O2 — Command card subtitle:** keep "Your AI command interface is being prepared." or retire it now the AI interface works? *(low impact; currently kept verbatim because the owner listed it as approved Home text. It reads inaccurately now that the interface works; one-line change to remove)*
