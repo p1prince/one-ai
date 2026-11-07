@@ -55,7 +55,9 @@ data class PluginCenterSnapshot(
      */
     val catalogueFacts: Map<String, InstalledPluginFacts> = emptyMap(),
     /** Plugins that are installed and enabled, for dependency reporting in the catalogue view. */
-    val enabledPluginIds: Set<String> = emptySet()
+    val enabledPluginIds: Set<String> = emptySet(),
+    /** What the user trusted, by package name: the pinned certificate and the declaration that was approved (Stage 9.8 Details). */
+    val trustedEntries: Map<String, TrustEntry> = emptyMap()
 ) {
     companion object { val EMPTY = PluginCenterSnapshot(emptyList(), emptyMap(), emptyMap()) }
 }
@@ -109,7 +111,8 @@ class ExternalPluginCenter(
             configurable = schemas,
             needsConfiguration = missing,
             catalogueFacts = facts,
-            enabledPluginIds = manager.installed().filter { it.enabled }.map { it.id }.toSet()
+            enabledPluginIds = manager.installed().filter { it.enabled }.map { it.id }.toSet(),
+            trustedEntries = entries.associateBy { it.packageName }
         )
     }
 

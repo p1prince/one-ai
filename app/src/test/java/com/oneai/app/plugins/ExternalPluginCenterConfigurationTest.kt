@@ -236,4 +236,15 @@ class ExternalPluginCenterConfigurationTest {
         assertTrue(f.center.setEnabled(pkg, false).isSuccess)
         assertTrue(f.center.snapshot().enabledPluginIds.isEmpty())
     }
+
+    @Test fun snapshotExposesWhatTheUserTrustedAndChangesNothing() {
+        val f = Fixture()
+        val before = f.store.bubbleServices()
+        val trusted = f.center.snapshot().trustedEntries
+        assertEquals(setOf(pkg), trusted.keys)
+        assertEquals(cert, trusted.getValue(pkg).certificateSha256)
+        assertEquals(manifest(1, withSettings = true), trusted.getValue(pkg).trustedManifest)
+        assertFalse("reading trusted entries enables nothing", f.store.plugins().any { it.enabled })
+        assertEquals("and grants no Bubble access", before, f.store.bubbleServices())
+    }
 }

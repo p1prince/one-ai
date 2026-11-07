@@ -28,6 +28,9 @@ object CapabilityPolicy {
         "automation", "files", "internet", "app_launch"
     )
 
+    /** Whether using [capability] always asks the user first. The same rule [evaluate] applies, exposed so screens never keep their own copy. */
+    fun requiresApproval(capability: String): Boolean = capability in approvalRequired
+
     fun evaluate(request: ActionRequest, pluginEnabled: Boolean, declaredCapabilities: Set<String>): ActionAuthorization {
         if (!pluginEnabled) return ActionAuthorization(false, false, ActionRisk.BLOCKED, "Plugin is disabled")
         if (request.pluginId.isBlank() || request.pluginId.length > 100 ||

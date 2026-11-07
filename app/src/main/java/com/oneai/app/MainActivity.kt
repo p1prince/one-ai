@@ -55,6 +55,7 @@ import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalStatus
 import com.oneai.app.plugins.PluginCenterSnapshot
 import com.oneai.app.plugins.PluginConfigureForm
+import com.oneai.app.plugins.PluginDetailsView
 import com.oneai.app.plugins.PluginSettingType
 import com.oneai.app.plugins.PluginSettingsSchema
 import com.oneai.app.plugins.PluginUpdateCheckGate
@@ -206,6 +207,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var restored by remember { mutableStateOf(restoration.isReady) }
     var reviewing by remember { mutableStateOf<DiscoveredPlugin?>(null) }
     var reviewingUpdate by remember { mutableStateOf<String?>(null) }
+    var detailsFor by remember { mutableStateOf<String?>(null) }
     var configuring by remember { mutableStateOf<String?>(null) }
     val updateCheckGate = remember { PluginUpdateCheckGate() }
     val scope = rememberCoroutineScope()
@@ -292,6 +294,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
                 Row {
                     if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id},enabled=restored){Text("Review update",color=Gold)}
+                    if(snapshot.trustedEntries.containsKey(p.id)) TextButton(onClick={detailsFor=p.id}){Text("Details",color=Gold)}
                     if(snapshot.configurable.containsKey(p.id)) TextButton(onClick={configuring=p.id},enabled=restored){Text("Configure",color=Gold)}
                     TextButton(onClick={ changed(manager.remove(p.id),"") },enabled=restored){Text("Remove",color=Color(0xFFFF8A80))}
                 }
@@ -408,6 +411,31 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             onReset={ center.resetSettings(id).map { center.effectiveSettings(id) }.also { tick++;refresh() } },
             onClose={configuring=null}
         )
+    }
+    detailsFor?.let { id ->
+        val trustedEntry=snapshot.trustedEntries[id]
+        if(trustedEntry==null) { detailsFor=null } else {
+            val details=PluginDetailsView.build(
+                entry=trustedEntry,status=snapshot.statuses[id],
+                enabled=installed.firstOrNull { it.id==id }?.enabled==true,
+                bubbleAccess=manager.hasBubbleAccess(id),
+                needsConfiguration=snapshot.needsConfiguration[id].orEmpty(),
+                enabledPluginIds=snapshot.enabledPluginIds
+            )
+            AlertDialog(
+                onDismissRequest={detailsFor=null},
+                title={Text(details.title)},
+                text={ Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                    details.sections.forEach { section ->
+                        Column(verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                            Text(section.heading.uppercase(),color=Gold,fontSize=10.sp,fontWeight=FontWeight.Bold)
+                            section.lines.forEach { Text(it,fontSize=12.sp) }
+                        }
+                    }
+                } },
+                confirmButton={TextButton(onClick={detailsFor=null}){Text("Close",color=Gold)}}
+            )
+        }
     }
     reviewingUpdate?.let { id ->
         val pending=snapshot.pendingUpdates[id]
