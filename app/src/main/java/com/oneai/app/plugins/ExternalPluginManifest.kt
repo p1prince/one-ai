@@ -25,6 +25,9 @@ object PluginApi {
     const val MANIFEST_META_DATA = "com.oneai.plugin.manifest"
 
     const val MANIFEST_VERSION = 2
+
+    /** Lowest `minCoreApi` a plugin declaring `<settings>` may use: level 3 adds host-delivered configuration (D5). */
+    const val SETTINGS_MIN_API = 3
 }
 
 data class ExternalCommandDeclaration(
@@ -50,7 +53,9 @@ data class ExternalPluginManifest(
     val capabilities: List<String>,
     val commands: List<ExternalCommandDeclaration> = emptyList(),
     val bubble: ExternalBubbleDeclaration? = null,
-    val dependencies: List<String> = emptyList()
+    val dependencies: List<String> = emptyList(),
+    /** Optional generic configuration schema (Stage 9.6a). Null means the plugin has no settings. */
+    val settings: PluginSettingsSchema? = null
 ) {
     val id: String get() = packageName
 
@@ -143,9 +148,17 @@ object ExternalManifestValidator {
         }
         require(id !in dependencies) { "A plugin cannot depend on itself" }
 
+        val settings = manifest.settings?.let { declared ->
+            require(manifest.minCoreApi >= PluginApi.SETTINGS_MIN_API) {
+                "A plugin that declares settings must declare minCoreApi ${PluginApi.SETTINGS_MIN_API} or higher"
+            }
+            PluginSettingsValidator.validateSchema(declared).getOrThrow()
+        }
+
         manifest.copy(
             packageName = id, versionName = version, name = name, description = description,
-            capabilities = capabilities, commands = commands, bubble = bubble, dependencies = dependencies
+            capabilities = capabilities, commands = commands, bubble = bubble, dependencies = dependencies,
+            settings = settings
         )
     }
 }
@@ -233,6 +246,9 @@ object ExternalManifestParser {
         }
         val bubbles = root.children.filter { it.name == "bubble" }
         require(bubbles.size <= 1) { "At most one <bubble> element is allowed" }
+        val settingsNodes = root.children.filter { it.name == "settings" }
+        require(settingsNodes.size <= 1) { "At most one <settings> element is allowed" }
+        val settings = settingsNodes.firstOrNull()?.let { PluginSettingsParser.parse(it).getOrThrow() }
         ExternalPluginManifest(
             manifestVersion = manifestVersion,
             packageName = packageName, versionName = versionName, versionCode = versionCode,
@@ -242,7 +258,8 @@ object ExternalManifestParser {
             capabilities = root.children.filter { it.name == "capability" }.map { it.attributes["name"].orEmpty() },
             commands = commands,
             bubble = bubbles.firstOrNull()?.let { ExternalBubbleDeclaration(it.attributes["service"].orEmpty(), it.attributes["title"].orEmpty()) },
-            dependencies = root.children.filter { it.name == "depends" }.map { it.attributes["plugin"].orEmpty() }
+            dependencies = root.children.filter { it.name == "depends" }.map { it.attributes["plugin"].orEmpty() },
+            settings = settings
         )
     }.mapCatching { ExternalManifestValidator.validate(it).getOrThrow() }
 

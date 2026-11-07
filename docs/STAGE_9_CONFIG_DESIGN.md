@@ -1,6 +1,6 @@
 # Stage 9 — Generic per-plugin configuration contract: design proposal
 
-**Status: PROPOSED — awaiting owner approval. No source has been changed for this design.**
+**Status: APPROVED by the owner on 2026-11-07 (decision D5 in `docs/DECISIONS.md`): D-A to D-D all resolved as recommended. Implementation proceeds in slices 9.6a–9.6e.**
 Date: 2026-11-07. Scope: Stage 9 gap 3 in `docs/STAGE_2_AUDIT.md` §12.10 ("no generic per-plugin configuration contract, persistence model, or configuration screen"). Governed by `docs/PROJECT_CONTINUATION_RULES.md`: generic and capability-neutral; no capability-specific settings in Core.
 
 ## 1. Problem
@@ -31,7 +31,7 @@ A plugin author has no supported way to let the user configure a plugin. Today t
 
 Types in v1: `toggle`, `text`, `number` (integer), `choice`. `required="true"` means a value (or a default) must exist. Unknown attributes/elements are ignored (same rule as the rest of the manifest), so an older host still reads the manifest; it simply shows no settings.
 
-Bounds (new constants beside `ExternalManifestValidator`): max 24 settings; `key` matches `[a-z][a-z0-9_]{0,39}` and is unique; `title` 1–60; `description` ≤ 200; `text` value ≤ 500 (declared `maxLength` may only lower it); `number` within declared `min`/`max` and a signed 32-bit range; `choice` 2–16 options, option value `[a-z0-9_]{1,40}`, label 1–40; every default must itself pass validation. A full stored snapshot is capped at 8 KB.
+Bounds (new constants beside `ExternalManifestValidator`): max 24 settings; `key` matches `[a-z][a-z0-9_]{0,39}` and is unique; `title` 1–60; `description` ≤ 200; `text` value ≤ 500 (declared `maxLength` may only lower it); `number` within declared `min`/`max` and a signed 32-bit range; `choice` 2–16 options, option value `[a-z0-9_]{1,40}`, label 1–40; every default must itself pass validation. A full stored snapshot is capped at 8 KB; to guarantee a full snapshot always fits, the total declared `text` capacity across a schema is limited to 2,000 characters and total options to 96.
 
 Not in v1: secrets/credentials, free-form JSON, lists, file pickers, plugin-drawn screens (see open decision D-A).
 

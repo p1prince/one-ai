@@ -20,6 +20,11 @@
 - **External extension boundary:** independently developed plugins may be separately installed, signed Android APKs using the secure documented bound-service/AIDL contract, explicit user trust, signer verification, compatibility checks, host-controlled permissions/approvals, declarative Bubble contributions, bounded requests/results, and failure isolation. Arbitrary dex/class loading from plugin folders remains rejected.
 - **Consequence:** Do not extract, package, build, or integrate individual capability plugins unless the owner explicitly starts a separate plugin project. Generic infrastructure must be complete without sample capability modules. Existing sample/test fixtures may remain only where needed to test the generic contract and must not become product deliverables.
 
+## D5 — Generic per-plugin configuration contract (Stage 9)
+- **Date:** 2026-11-07. **Decided by:** project owner ("I approve all"), approving the recommendations in `docs/STAGE_9_CONFIG_DESIGN.md` §11.
+- **D-A:** secret/credential settings are excluded from v1. **D-B:** the host pushes the validated snapshot to the plugin on bind and on change. **D-C:** a plugin with unmet required settings cannot be enabled. **D-D:** the plugin API level is raised to 3 for `applyConfig`.
+- **Consequence:** implement in slices 9.6a–9.6e. Capability-specific settings never enter Core; configuration never grants capabilities or Bubble access.
+
 ## Open decisions
 - **O3 — Stage 8 design defaults** (`docs/STAGE_8_DESIGN.md` §12): trust-on-first-use with fingerprint confirmation; declarative plugin UI only; minSdk 26. Proceeding with these unless the owner objects.
 - **O2 — Command card subtitle:** keep "Your AI command interface is being prepared." or retire it now the AI interface works? *(low impact; currently kept verbatim because the owner listed it as approved Home text. It reads inaccurately now that the interface works; one-line change to remove)*
