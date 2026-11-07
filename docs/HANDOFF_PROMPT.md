@@ -1,3 +1,5 @@
+> **SUPERSEDED — DO NOT USE AS THE LIVE HANDOFF.** This prompt is retained as historical context only. It points to an old branch and an obsolete shell-first/capability sequencing snapshot. For all current work, read `docs/PROJECT_CONTINUATION_RULES.md` first and verify the live repository. The active work branch at the 2026-11-07 reconciliation is `foundation/validation-core-shell-startup-isolation`; `foundation/batch-03-ai-engine` is the protected original and must not be modified. The owner-approved 12-stage roadmap and generic-plugin scope in the continuation rules override every instruction and snapshot below.
+
 # Prompt for continuing ONE AI with another AI model
 
 Copy everything in the block below into a new conversation and attach the **ONE AI Official Open-Shell Development Plan** (.docx). The prompt makes the new AI work out where the project actually is (git history, tracker and CI) before it does anything, so it does not depend on this file being up to date. The "snapshot" inside it is a convenience only and is labelled as possibly stale.
