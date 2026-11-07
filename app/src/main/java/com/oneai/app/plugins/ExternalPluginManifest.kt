@@ -87,6 +87,11 @@ object ExternalManifestValidator {
     private val identifier = Regex("[a-z][a-z0-9_]{0,39}")
     private val semanticVersion = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?")
 
+    /** The same identity rules the manifest uses, for listings (catalogue entries) that must agree with them. */
+    fun isValidPluginId(id: String): Boolean = id.length <= MAX_ID_LENGTH && pluginId.matches(id)
+    fun isValidIdentifier(value: String): Boolean = identifier.matches(value)
+    fun isValidVersionName(value: String): Boolean = semanticVersion.matches(value)
+
     /** Returns a normalised copy, or a failure whose message is safe to show the user. */
     fun validate(manifest: ExternalPluginManifest): Result<ExternalPluginManifest> = runCatching {
         require(manifest.manifestVersion == PluginApi.MANIFEST_VERSION) {
@@ -180,17 +185,29 @@ object PluginCompatibility {
         manifest: ExternalPluginManifest,
         hostLevel: Int = PluginApi.LEVEL,
         minSupportedTarget: Int = PluginApi.MIN_SUPPORTED_TARGET
+    ): Compatibility = check(manifest.minCoreApi, manifest.targetCoreApi, hostLevel, minSupportedTarget)
+
+    /** Same rules from the two declared API levels alone, for callers that hold a listing rather than a manifest. */
+    fun check(
+        minCoreApi: Int,
+        targetCoreApi: Int,
+        hostLevel: Int = PluginApi.LEVEL,
+        minSupportedTarget: Int = PluginApi.MIN_SUPPORTED_TARGET
     ): Compatibility = when {
-        manifest.minCoreApi > hostLevel ->
-            Compatibility.Incompatible("Needs ONE AI plugin API ${manifest.minCoreApi}; this ONE AI provides $hostLevel. Update ONE AI.")
-        manifest.targetCoreApi < minSupportedTarget ->
-            Compatibility.CompatibleWithWarning("Built for an older plugin API (${manifest.targetCoreApi}); ask the developer for an update.")
+        minCoreApi > hostLevel ->
+            Compatibility.Incompatible("Needs ONE AI plugin API $minCoreApi; this ONE AI provides $hostLevel. Update ONE AI.")
+        targetCoreApi < minSupportedTarget ->
+            Compatibility.CompatibleWithWarning("Built for an older plugin API ($targetCoreApi); ask the developer for an update.")
         else -> Compatibility.Compatible
     }
 
     /** Dependencies that are not installed *and* enabled, in declaration order. */
     fun missingDependencies(manifest: ExternalPluginManifest, enabledPluginIds: Set<String>): List<String> =
         manifest.dependencies.filterNot { it in enabledPluginIds }
+
+    /** Same rule for a bare dependency list, for callers that hold a listing rather than a manifest. */
+    fun missingDependencies(dependencies: List<String>, enabledPluginIds: Set<String>): List<String> =
+        dependencies.filterNot { it in enabledPluginIds }
 }
 
 /**
