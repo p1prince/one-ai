@@ -146,6 +146,24 @@ class FloatingBubbleService : Service() {
 
     private fun showPanel() {
         val services = AppServices.get(application)
+        if (services.pluginRestoration.isReady) {
+            showPanelWhenReady(services)
+            return
+        }
+        val loading = basePanel()
+        addLabel(loading, "ONE AI  •  QUICK PANEL", 16f)
+        addLabel(loading, "Restoring trusted plugins…")
+        addButton(loading, "Close panel") { hidePanel() }
+        attachPanel(loading)
+        serviceScope.launch {
+            services.pluginRestoration.awaitReady()
+            if (serviceJob.isActive) uiHandler.post {
+                if (serviceJob.isActive) showPanelWhenReady(services)
+            }
+        }
+    }
+
+    private fun showPanelWhenReady(services: AppServices) {
         if (services.pluginLaunchApprovalController.presentPending()) return
         val store = services.store
         val enabledPlugins = store.plugins().filter { it.enabled }.map { it.id }.toSet()
@@ -231,6 +249,7 @@ class FloatingBubbleService : Service() {
         val services = AppServices.get(application)
         val output = addLabel(box, "Running $title…", 12f)
         serviceScope.launch {
+            services.pluginRestoration.awaitReady()
             val result = services.commandExecutor.execute(commandId, args)
             if (!serviceJob.isActive) return@launch
             if (result.status == com.oneai.app.commands.CommandStatus.AWAITING_APPROVAL) {
@@ -341,11 +360,14 @@ class FloatingBubbleService : Service() {
     private fun runPluginCall(call: BubbleAction.PluginCall, provider: BubbleServiceProvider) {
         val services = AppServices.get(application)
         val executor: PluginActionExecutor = services.pluginExecution.executor
-        provider.ensureReady(host).onFailure {
-            showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
-            return
-        }
         serviceScope.launch {
+            services.pluginRestoration.awaitReady()
+            provider.ensureReady(host).onFailure {
+                uiHandler.post {
+                    if (serviceJob.isActive) showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
+                }
+                return@launch
+            }
             val decision = executor.invoke(call.pluginId, call.input)
             if (!serviceJob.isActive) return@launch
             uiHandler.post {
