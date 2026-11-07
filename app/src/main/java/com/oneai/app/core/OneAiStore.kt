@@ -16,7 +16,7 @@ data class PluginRecord(
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
 data class ActivityEntry(val timestamp: Long, val message: String)
 
-class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore, CatalogueSourceStorage {
     // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
     private val appContext: Context = context.applicationContext ?: context
     private val prefs = appContext.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
@@ -91,6 +91,10 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
         all.remove(pluginId)
         writeObject(PLUGIN_CONFIG_KEY, all)
     }
+
+    // Catalogue sources (Stage 9.7c): one JSON string owned and validated by the plugins package.
+    override fun readCatalogueSources(): String? = prefs.getString("catalogue_sources", null)
+    override fun writeCatalogueSources(json: String) { prefs.edit().putString("catalogue_sources", json).apply() }
 
     override fun commands(): List<CommandRecord> {
         val saved = readArray("commands")

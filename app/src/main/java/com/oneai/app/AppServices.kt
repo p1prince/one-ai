@@ -16,8 +16,11 @@ import com.oneai.app.core.CoreReservedNames
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.plugins.AndroidPackageSignatureSource
 import com.oneai.app.plugins.BoundPluginChannelFactory
+import com.oneai.app.plugins.CatalogueRefreshGate
+import com.oneai.app.plugins.CatalogueSources
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
+import com.oneai.app.plugins.HttpsCatalogueTransport
 import com.oneai.app.plugins.PluginConfiguration
 import com.oneai.app.plugins.PluginDiscovery
 import com.oneai.app.plugins.PluginLaunchApprovalBroker
@@ -89,6 +92,13 @@ class AppServices private constructor(app: Application) {
         },
         configuration = pluginConfiguration
     )
+
+    /**
+     * Stage 9.7c: the user's catalogue sources (none by default). Construction and adding or removing a source
+     * never touch the network; only an explicit Refresh does, gated by [catalogueRefreshGate].
+     */
+    val catalogueSources = CatalogueSources(store, HttpsCatalogueTransport()) { store.log(it) }
+    val catalogueRefreshGate = CatalogueRefreshGate()
 
     lateinit var center: ExternalPluginCenter
         private set
