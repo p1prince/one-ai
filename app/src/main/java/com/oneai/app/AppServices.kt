@@ -18,12 +18,14 @@ import com.oneai.app.plugins.BoundPluginChannelFactory
 import com.oneai.app.plugins.BuiltInCatalogue
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
+import com.oneai.app.plugins.PluginConfiguration
 import com.oneai.app.plugins.PluginDiscovery
 import com.oneai.app.plugins.PluginLaunchApprovalBroker
 import com.oneai.app.plugins.PluginLaunchApprovalController
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.plugins.PluginTrustRegistry
 import com.oneai.app.plugins.SharedPrefsTrustStore
+import com.oneai.app.plugins.TrustCheck
 import com.oneai.app.security.SecretVault
 
 /**
@@ -44,7 +46,8 @@ class AppServices private constructor(app: Application) {
     val pluginHost = PluginHostComposition(
         store, emptyList(), BubbleProviders.registry,
         onPluginRemoved = { id -> center.onRemoved(id); commandRegistry.unregisterOwner(id) },
-        bubbleBindings = { center.bubbleBindings() }
+        bubbleBindings = { center.bubbleBindings() },
+        configStore = store
     )
     val pluginExecution = pluginHost.execution
     val pluginRuntime = pluginExecution.runtime
@@ -79,6 +82,13 @@ class AppServices private constructor(app: Application) {
         }
     )
 
+    /** Stage 9.6b: host-owned per-plugin settings. Only a currently trusted plugin has configurable settings. */
+    val pluginConfiguration = PluginConfiguration(
+        store,
+        schemaOf = { pluginId -> (trust.peek(pluginId) as? TrustCheck.Trusted)?.entry?.trustedManifest?.settings },
+        log = { store.log(it) }
+    )
+
     lateinit var center: ExternalPluginCenter
         private set
 
@@ -87,7 +97,8 @@ class AppServices private constructor(app: Application) {
     init {
         center = ExternalPluginCenter(
             discover = PluginDiscovery(app)::discover, trust = trust, registrar = registrar, manager = plugins,
-            reservedBubbleServices = BuiltInCatalogue.bubbleBindings.values.toSet() + BubbleUiPolicy.COMMAND_MANAGER
+            reservedBubbleServices = BuiltInCatalogue.bubbleBindings.values.toSet() + BubbleUiPolicy.COMMAND_MANAGER,
+            configuration = pluginConfiguration
         )
         commandRegistry.registerCore("run_saved", "Run saved command", "Runs one of your saved commands through the AI engine.") { args ->
             val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "A command ID is required.")

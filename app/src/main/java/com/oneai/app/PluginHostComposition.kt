@@ -1,6 +1,7 @@
 package com.oneai.app
 
 import com.oneai.app.bubble.BubbleProviderRegistry
+import com.oneai.app.core.PluginConfigStore
 import com.oneai.app.core.PluginStore
 import com.oneai.app.plugins.PluginExecutionServices
 import com.oneai.app.plugins.PluginManager
@@ -15,7 +16,8 @@ class PluginHostComposition(
     catalogue: List<PluginTemplate> = emptyList(),
     val bubbleProviders: BubbleProviderRegistry = BubbleProviderRegistry(),
     onPluginRemoved: (String) -> Unit = {},
-    bubbleBindings: () -> Map<String, String> = { emptyMap() }
+    bubbleBindings: () -> Map<String, String> = { emptyMap() },
+    configStore: PluginConfigStore? = null
 ) {
     val execution = PluginExecutionServices(store)
     val manager = PluginManager(
@@ -23,6 +25,7 @@ class PluginHostComposition(
         catalogue = catalogue,
         onPluginRemoved = onPluginRemoved,
         bubbleBindings = bubbleBindings,
-        lifecycle = execution.runtime
+        lifecycle = execution.runtime,
+        configStore = configStore
     )
 }

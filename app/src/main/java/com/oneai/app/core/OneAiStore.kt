@@ -16,7 +16,7 @@ data class PluginRecord(
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
 data class ActivityEntry(val timestamp: Long, val message: String)
 
-class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore {
     // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
     private val appContext: Context = context.applicationContext ?: context
     private val prefs = appContext.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
@@ -53,6 +53,43 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
                 put("manifestVersion", p.manifestVersion); put("dependencies", JSONArray(p.dependencies))
             })
         } })
+    }
+
+    // Per-plugin configuration (Stage 9.6b): {"<pluginId>": {"schemaVersion": 1, "values": {"<key>": "<value>"}}}.
+    // Values are validated by PluginConfiguration before they reach save(); unreadable data is discarded to defaults.
+    override fun values(pluginId: String): Map<String, String> {
+        val entry = readObject(PLUGIN_CONFIG_KEY).optJSONObject(pluginId) ?: return emptyMap()
+        return runCatching {
+            val stored = entry.getJSONObject("values")
+            val result = LinkedHashMap<String, String>()
+            val keys = stored.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val value = stored.get(key)
+                if (value !is String) error("not a string")
+                result[key] = value
+            }
+            result.toMap()
+        }.getOrElse {
+            remove(pluginId)
+            log("Discarded unreadable settings of $pluginId; defaults apply")
+            emptyMap()
+        }
+    }
+
+    override fun save(pluginId: String, schemaVersion: Int, values: Map<String, String>) {
+        val all = readObject(PLUGIN_CONFIG_KEY)
+        val stored = JSONObject()
+        values.forEach { (key, value) -> stored.put(key, value) }
+        all.put(pluginId, JSONObject().put("schemaVersion", schemaVersion).put("values", stored))
+        writeObject(PLUGIN_CONFIG_KEY, all)
+    }
+
+    override fun remove(pluginId: String) {
+        val all = readObject(PLUGIN_CONFIG_KEY)
+        if (!all.has(pluginId)) return
+        all.remove(pluginId)
+        writeObject(PLUGIN_CONFIG_KEY, all)
     }
 
     override fun commands(): List<CommandRecord> {
@@ -115,7 +152,13 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
     override fun developerMode() = prefs.getBoolean("developer_mode", false)
     fun setDeveloperMode(value: Boolean) { prefs.edit().putBoolean("developer_mode", value).apply() }
 
+    private fun readObject(key: String): JSONObject = runCatching { JSONObject(prefs.getString(key, "{}")) }.getOrElse { JSONObject() }
+    private fun writeObject(key: String, value: JSONObject) { prefs.edit().putString(key, value.toString()).apply() }
     private fun readArray(key: String): JSONArray = runCatching { JSONArray(prefs.getString(key, "[]")) }.getOrElse { JSONArray() }
     private fun writeArray(key: String, value: JSONArray) { prefs.edit().putString(key, value.toString()).apply() }
     private fun JSONArray.toStringList(): List<String> = (0 until length()).map { getString(it) }
+
+    private companion object {
+        const val PLUGIN_CONFIG_KEY = "plugin_config"
+    }
 }

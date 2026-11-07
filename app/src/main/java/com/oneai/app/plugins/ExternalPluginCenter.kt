@@ -61,7 +61,9 @@ class ExternalPluginCenter(
     private val registrar: ExternalPluginRegistrar,
     private val manager: PluginManager,
     /** Bubble service names that already belong to the core or to built-in plugins; no other plugin may take them. */
-    private val reservedBubbleServices: Set<String> = emptySet()
+    private val reservedBubbleServices: Set<String> = emptySet(),
+    /** Per-plugin configuration (Stage 9.6b). Null means this center applies no configuration rules. */
+    private val configuration: PluginConfiguration? = null
 ) {
     /** Read-only view: rendering must never mutate plugin lifecycle. */
     fun snapshot(): PluginCenterSnapshot {
@@ -84,8 +86,15 @@ class ExternalPluginCenter(
             val installed = discovered.manifest.getOrNull() ?: return@forEach
             val entry = trust.trusted().firstOrNull { it.packageName == discovered.packageName } ?: return@forEach
             if (installed == entry.trustedManifest || installed == entry.pendingUpdate?.manifest) return@forEach
-            registrar.applyUpdate(installed)
+            if (registrar.applyUpdate(installed) == UpdateDecision.Accepted) reconcileConfiguration(discovered.packageName)
         }
+    }
+
+    /** After the trusted declaration changed, keep, reset or drop stored values to match the new schema. */
+    private fun reconcileConfiguration(packageName: String) {
+        val config = configuration ?: return
+        val entry = trust.trusted().firstOrNull { it.packageName == packageName } ?: return
+        config.reconcile(packageName, entry.trustedManifest.settings)
     }
 
     /** The certificate fingerprint to show the user before they decide. */
@@ -120,6 +129,11 @@ class ExternalPluginCenter(
         }
         val check = trust.check(id)
         val entry = (check as? TrustCheck.Trusted)?.entry ?: return Result.failure(IllegalStateException(blockedReason(check)))
+        // D-C: a plugin with unmet required settings cannot be enabled. Nothing is registered or changed.
+        val missing = configuration?.missingRequired(id).orEmpty()
+        if (missing.isNotEmpty()) {
+            return Result.failure(IllegalStateException("Set the required settings first: ${missing.joinToString { it.title }}"))
+        }
         registrar.register(entry).onFailure { return Result.failure(it) }
         manager.setEnabled(id, true).onFailure {
             registrar.deactivate(id, "could not be turned on")
@@ -134,7 +148,8 @@ class ExternalPluginCenter(
     }
 
     /** The user approved the declaration they were shown. The plugin stays off until they turn it on. */
-    fun approveUpdate(id: String): Result<PluginRecord> = registrar.approvePendingUpdate(id)
+    fun approveUpdate(id: String): Result<PluginRecord> =
+        registrar.approvePendingUpdate(id).onSuccess { reconcileConfiguration(id) }
 
     fun isExternal(id: String): Boolean = trust.trusted().any { it.packageName == id }
 

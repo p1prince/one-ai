@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.core.PluginConfigStore
 import com.oneai.app.core.PluginStore
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.core.PluginLifecycleController
@@ -11,7 +12,9 @@ class PluginManager(
     private val onPluginRemoved: (String) -> Unit = {},
     /** Plugin ID to Bubble service ID for plugins that are not in [catalogue], such as installed external plugins. */
     private val bubbleBindings: () -> Map<String, String> = { emptyMap() },
-    private val lifecycle: PluginLifecycleController = NoOpPluginLifecycleController
+    private val lifecycle: PluginLifecycleController = NoOpPluginLifecycleController,
+    /** When present, a removed plugin's stored configuration is removed with it (Stage 9.6b). */
+    private val configStore: PluginConfigStore? = null
 ) {
 
     fun installed() = store.plugins()
@@ -60,6 +63,7 @@ class PluginManager(
         lifecycle.revokePendingApprovals()
         serviceFor(id)?.let { service -> store.setBubbleServices(store.bubbleServices() - service) }
         store.removePlugin(id)
+        configStore?.remove(id)
         onPluginRemoved(id)
         store.log("Removed plugin: ${plugin.name}")
         return Result.success(Unit)
