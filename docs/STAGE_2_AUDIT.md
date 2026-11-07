@@ -351,7 +351,7 @@ The order below is a correction sequence mapped to the existing stages, not a re
 
 ### 12.8 Stage 2 disposition
 
-The requested source review, class-level dependency map, test inventory and final migration sequence are now documented. **Stage 2 audit is ready for owner review/acceptance; it is not an implementation-complete milestone.** No application source, test, manifest, Gradle configuration or runtime behaviour was changed. No APK was built, no emulator/device test was run, and PR #1 remains unmerged.
+The original source review and test inventory have now been reconciled against the owner-approved 2026-11-07 scope. **Stage 2 is complete as a repository audit and disposition record; this does not mean Stages 3–10 are implementation-complete.** The final corrected-scope findings and retain/correct/remove/implement classifications are recorded in §12.10. No application source, test, manifest, Gradle configuration or runtime behaviour was changed during this reconciliation. Android Validation #584 passed on exact audited SHA `19164516fbb2cb62a0848651d73bd758c1fed73f`; it ran compile/JVM tests/lint and compile-only instrumentation sources, not an APK or device test. No APK was built and no merge was performed.
 
 
 ### 12.9 Historical Stage 8 SDK review notes (2026-11-05; capability-extraction recommendations superseded)
@@ -388,3 +388,48 @@ The previous audit's sections describing six reference capability modules, a nam
 Reconcile the actual repository against the corrected 12-stage roadmap. Report concrete generic Core/Plugin Centre requirements as retain, correct, remove, or implement, with file/dependency evidence and existing test/CI evidence. Do not make application-code changes until that reconciliation is complete and the relevant implementation scope is authorized under the project rules.
 
 See `docs/PROJECT_CONTINUATION_RULES.md` for mandatory cross-AI handoff rules and source-of-truth hierarchy.
+
+
+### 12.10 Final repository reconciliation against the owner-approved scope (2026-11-07)
+
+**Audited branch:** `foundation/validation-core-shell-startup-isolation`  
+**Audited HEAD:** `19164516fbb2cb62a0848651d73bd758c1fed73f`  
+**Validation:** Android Validation #584 / run `42373107263` — **success** on the exact audited SHA. The workflow compiled the app, ran the JVM unit-test suite, lint and compile-only Android instrumentation-test sources. It did not build an APK or execute instrumentation, emulator or device tests.
+
+This is a corrected-scope audit, not a second implementation pass. Existing work and test evidence are retained; the obsolete capability-extraction sequence in §12.7 is historical only and must not be executed.
+
+#### Retain — existing generic platform work
+
+- **Standalone Core composition:** `AppServices.kt` creates `PluginHostComposition` with an empty optional-plugin catalogue and the process-wide `BubbleProviders.registry`; the only automatically registered command is the generic `core/run_saved`. `PluginHostComposition.kt`, `PluginExecutionServices.kt`, `OneAiStore.kt`, `PluginRestorationGate.kt`, and `OneAiApplication.kt` establish the shared host/runtime and non-blocking startup restoration boundary. The source-level production-boundary regression test and CI #581/#584 evidence are retained. This proves the current production composition is empty-by-default at source/test level, not Android runtime acceptance.
+- **Generic command and Bubble contracts:** retain the core-owned action/result DTOs, shared command executor, generic Bubble provider registry, independent Bubble access, and empty-by-default panel policy. Do not reintroduce capability-specific registrations into production composition.
+- **External plugin contract and trust:** retain manifest v2 validation/compatibility, signer fingerprint confirmation and re-check, update-consent policy, AIDL SDK module, bounded execution, host adapter/registrar, declarative Bubble parser/provider, and the Echo contract sample. These are generic extension-platform components. The sample is a contract test/reference, not a required capability plugin.
+- **Plugin Centre operations already present:** retain device package discovery, fingerprint-reviewed import, installed-plugin listing, enable/disable, separate Bubble access, one-shot explicit update checking, update review, removal, and process restoration of only previously enabled, still-trusted plugins. Reuse existing UI and tests; do not rebuild these flows.
+- **Generic dependency and compatibility foundations:** retain manifest dependency declarations, compatibility checks, enable-time dependency enforcement, dependent-disable/removal guards, and signer/update blocking. Their user-facing completeness is a separate remaining item below.
+- **Security and audit foundations:** retain the central capability policy, one-use approval gateway, plugin runtime failure containment, trust records, encrypted vault, Activity logging, and core Settings/Activity surfaces.
+
+#### Correct — documentation and residual generic-host boundaries
+
+- `docs/STAGE_8_DESIGN.md` still describes built-in capability extraction as Stage 9 work. That text conflicts with D4 and the mandatory 2026-11-07 continuation rules. Mark the extraction sequence superseded; Stage 8 remains generic SDK/contracts/developer tooling and Stage 9 remains the generic Plugin Centre.
+- `docs/HANDOFF_PROMPT.md` is a stale historical handoff: it directs a future AI to work on the protected original branch `foundation/batch-03-ai-engine`, and its snapshot predates the current Plugins UI and corrected scope. It must not be used as the live continuation instruction. `docs/PROJECT_CONTINUATION_RULES.md` is authoritative.
+- `docs/AUTODROID_INTEGRATION.md` describes the old `one.automation.engine` built-in adapter as slated for extraction. Treat it as historical implementation context only, not an active roadmap item.
+- `BuiltInCatalogue.kt` is no longer the production optional-plugin catalogue: `AppServices.kt` passes `emptyList()` to `PluginHostComposition`. However, the old catalogue is still consulted to reserve IDs and Bubble service names in `AppServices.kt`/the registrar. Review this reservation source in the appropriate generic Plugin Centre stage so optional capability names do not accidentally become permanent Core-reserved identifiers. Do not delete the old catalogue or adapters as part of this audit.
+- `MainActivity.kt` currently labels the Plugin Centre as an optional-capability manager, which is compatible with the corrected scope, but its empty production catalogue and generic management gaps below should be made explicit in future UX work.
+
+#### Implement — concrete generic gaps remaining in Stages 8–10
+
+1. **Stage 8 — generic developer tooling:** the SDK, developer guide and Echo contract sample exist, but the standalone reusable plugin-author fake-host/test kit described in `docs/STAGE_8_DESIGN.md` §8 is not packaged. The Develop screen currently creates a declarative plugin descriptor; it is not yet a complete generic authoring/validation/test workflow. Complete this without creating a capability implementation.
+2. **Stage 9 — generic catalogue/discovery:** production `PluginHostComposition` receives an empty catalogue, and `ExternalPluginCenter.snapshot()` discovers already-installed apps exposing the plugin service. The Plugins UI therefore has installed items and “Found on this device” discovery, but no browsable generic plugin catalogue/repository source. Implement the owner-approved generic catalogue/discovery experience without hard-coded capability entries.
+3. **Stage 9 — plugin configuration:** the manifest, `PluginRecord`, `PluginManager`, `ExternalPluginCenter`, `OneAiStore`, and Plugins UI do not currently expose a generic per-plugin configuration contract, persistence model, or configuration screen/host hand-off. Add a safe, versioned, plugin-neutral configuration mechanism; do not add capability-specific settings to Core.
+4. **Stage 9 — dependency and lifecycle UX:** dependencies are validated and enforced at enable/disable/removal boundaries, but the current installed-plugin card does not show dependency state/details or explain a blocked dependency action beyond the returned error. Compatibility is shown for discovered manifests. Add clear generic dependency/compatibility details and useful per-plugin lifecycle/diagnostic status, preserving existing enforcement.
+5. **Stage 9/10 — permission and approval visibility:** capability declarations and just-in-time approvals are enforced by the host, and the import review shows declared capabilities. The current Plugin Centre does not provide a consolidated per-plugin view of declared capabilities, relevant Android permission ownership, approval policy, and recent safe status. Add visibility without turning one-use approvals into standing grants or bypassing Android permission prompts.
+6. **Stage 8/9 — generic contract tests:** keep JVM regression coverage. Package the fake-host test kit and add host/plugin contract tests for configuration, dependency failure paths, lifecycle/status reporting, and generic catalogue entries as those contracts are implemented. Real AIDL binding, package discovery/signature reads, process isolation, and Bubble rendering remain Stage 11 emulator/device acceptance, not CI claims.
+
+#### Preserve / do not remove during this audit
+
+- The repository still contains historical or optional capability-specific files under `app/src/main/java/com/oneai/app/builtin`, several adapter files under `app/src/main/java/com/oneai/app/plugins`, reference-plugin modules, and related manifest declarations. Current production composition does not register the optional providers. Their continued presence is not proof that they are required for the empty Core shell, but neither is it permission for mass deletion. Preserve them and repository history. Any later exclusion/removal requires a focused dependency/build/manifest audit showing a concrete conflict with the approved standalone Core boundary.
+- No capability APK extraction, packaging, implementation, or integration is a current deliverable. The existing App Control/Device Control reference modules are not Stage 8/9 acceptance dependencies.
+- No application-source changes, speculative deletions, APK builds, merges, PR changes, or protected-branch changes were made as part of this Stage 2 reconciliation.
+
+#### Stage 2 disposition
+
+**Stage 2 — Existing Repository Audit: COMPLETE (audit/documentation evidence).** The repository has been classified against the corrected scope, completed work and validation evidence have been retained, obsolete instructions identified, and concrete generic Stage 8/9 gaps recorded. Continue with the next incomplete requirement in official stage order; do not repeat completed Stage 3–7 implementation or treat Stage 11 device acceptance as already performed.
