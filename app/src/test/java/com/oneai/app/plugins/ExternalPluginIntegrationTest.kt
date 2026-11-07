@@ -225,6 +225,20 @@ class ExternalPluginIntegrationTest {
         assertEquals("1.0.2", f.store.plugins().single().version)
     }
 
+    @Test fun restoreAllLeavesPreviouslyDisabledTrustedPluginsInactive() {
+        val f = Fixture(pkg, cert)
+        val registrar = f.registrar()
+        val imported = imported(f)
+        registrar.register(imported)
+
+        registrar.restoreAll()
+
+        assertFalse("restoration must not enable an imported-but-disabled plugin", f.store.plugins().single().enabled)
+        assertTrue("disabled plugins must not regain runtime adapters", f.runtime.registeredPluginIds().isEmpty())
+        assertTrue("disabled plugins must not regain commands", f.commands.list().isEmpty())
+        assertEquals(0, f.opens)
+    }
+
     @Test fun restoreAllBringsBackTrustedPluginsAndDisablesTheRest() {
         val f = Fixture(pkg, cert)
         val registrar = f.registrar()
