@@ -18,7 +18,10 @@ class SecretVault(context: Context) {
     /** Backward-compatible primary AI provider credential storage. */
     fun save(value: String) = saveSecret(alias, "cipher", "iv", value)
 
-    fun read(): String? = readSecret(alias, "cipher", "iv")
+    fun read(): String? = (readResult() as? SecretRead.Present)?.value
+
+    /** Like [read], but tells "nothing saved" apart from "saved but unreadable" (Stage 10.4). */
+    fun readResult(): SecretRead = readSecret(alias, "cipher", "iv")
 
     /** Stores a separate encrypted credential without replacing the primary AI provider key. */
     fun saveNamed(name: String, value: String) {
@@ -26,7 +29,9 @@ class SecretVault(context: Context) {
         saveSecret("one_ai_secret_$safeName", "cipher_$safeName", "iv_$safeName", value)
     }
 
-    fun readNamed(name: String): String? {
+    fun readNamed(name: String): String? = (readNamedResult(name) as? SecretRead.Present)?.value
+
+    fun readNamedResult(name: String): SecretRead {
         val safeName = validateName(name)
         return readSecret("one_ai_secret_$safeName", "cipher_$safeName", "iv_$safeName")
     }
@@ -43,13 +48,18 @@ class SecretVault(context: Context) {
             .putString(ivKey, Base64.encodeToString(cipher.iv, Base64.NO_WRAP)).apply()
     }
 
-    private fun readSecret(keyAlias: String, cipherKey: String, ivKey: String): String? = runCatching {
-        val data = prefs.getString(cipherKey, null) ?: return null
-        val iv = Base64.decode(prefs.getString(ivKey, null), Base64.NO_WRAP)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, getKey(keyAlias), GCMParameterSpec(128, iv))
-        String(cipher.doFinal(Base64.decode(data, Base64.NO_WRAP)), Charsets.UTF_8)
-    }.getOrNull()
+    private fun readSecret(keyAlias: String, cipherKey: String, ivKey: String): SecretRead {
+        val data = prefs.getString(cipherKey, null) ?: return SecretRead.Absent
+        return try {
+            val iv = Base64.decode(prefs.getString(ivKey, null), Base64.NO_WRAP)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, getKey(keyAlias), GCMParameterSpec(128, iv))
+            SecretRead.Present(String(cipher.doFinal(Base64.decode(data, Base64.NO_WRAP)), Charsets.UTF_8))
+        } catch (ignored: Exception) {
+            // Never log or show the cause: it can name key material. The caller only learns that it was unreadable.
+            SecretRead.Unreadable
+        }
+    }
 
     private fun validateName(name: String): String {
         require(name.matches(Regex("[a-z][a-z0-9_]{0,31}"))) { "Credential name is invalid." }

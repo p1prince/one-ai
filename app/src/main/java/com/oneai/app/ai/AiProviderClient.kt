@@ -1,6 +1,8 @@
 package com.oneai.app.ai
 
 import com.oneai.app.core.OneAiStore
+import com.oneai.app.security.CredentialStatus
+import com.oneai.app.security.SecretRead
 import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,9 @@ class AiProviderClient(
         require(messages.all { it.role in ALLOWED_ROLES && it.content.isNotBlank() }) {
             "Messages must have a supported role and non-empty content."
         }
-        val key = vault.read()?.takeIf { it.isNotBlank() }
+        val stored = vault.readResult()
+        if (stored === SecretRead.Unreadable) throw AiProviderException("CREDENTIALS_UNREADABLE", CredentialStatus.UNREADABLE_MESSAGE)
+        val key = (stored as? SecretRead.Present)?.value?.takeIf { it.isNotBlank() }
             ?: throw AiProviderException("MISSING_CREDENTIALS", "Add an API key in Settings before using the AI provider.")
         val endpoint = store.aiEndpoint().trim()
         val url = runCatching { URL(endpoint) }.getOrElse {

@@ -65,6 +65,7 @@ import com.oneai.app.plugins.PluginSettingsSchema
 import com.oneai.app.plugins.PluginUpdateCheckGate
 import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
+import com.oneai.app.security.CredentialStatus
 import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -630,14 +631,15 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
     var confirmClearAiKey by remember { mutableStateOf(false) }
     var confirmClearSearchKey by remember { mutableStateOf(false) }
     val endpointIssue = com.oneai.app.ai.ProviderSettingsPolicy.endpointError(endpoint)
-    val hasAiKey = !vault.read().isNullOrBlank()
+    val aiKeyStatus = CredentialStatus.of(vault.readResult())
+    val hasAiKey = aiKeyStatus == CredentialStatus.SAVED
     val hasSearchKey = !vault.readNamed("brave_search").isNullOrBlank()
     val providerReady = endpointIssue == null && provider.isNotBlank() && model.isNotBlank() && hasAiKey
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
         item { CardBox {
             Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            ActionRow("AI provider",if(providerReady) "Configured • credentials stored securely" else if(!hasAiKey) "Needs an API key" else endpointIssue ?: "Complete provider name and model") {
+            ActionRow("AI provider",if(providerReady) "Configured • credentials stored securely" else if(aiKeyStatus==CredentialStatus.UNREADABLE) CredentialStatus.UNREADABLE_MESSAGE else if(!hasAiKey) "Needs an API key" else endpointIssue ?: "Complete provider name and model") {
                 Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
             }
             ActionRow("Web Research",if(hasSearchKey) "Brave Search credential stored" else "Optional • no search credential saved") {
@@ -674,9 +676,9 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
             if(endpointIssue!=null) Text(endpointIssue,color=Color(0xFFFF8A80),fontSize=11.sp)
             Button(onClick={store.setAiProviderName(provider.trim());store.setAiEndpoint(endpoint.trim());store.setAiModel(model.trim());if(apiKey.isNotBlank())vault.save(apiKey.trim());apiKey="";status="Provider settings saved.";refresh()},enabled=endpointIssue==null&&provider.isNotBlank()&&model.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
-            Text("Credential status: ${if(hasAiKey) "saved (encrypted on this device)" else "not saved"}. Leave the key field blank to keep the existing key.",color=Muted,fontSize=11.sp)
+            Text("Credential status: ${aiKeyStatus.settingsText}. Leave the key field blank to keep the existing key.",color=Muted,fontSize=11.sp)
             Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Credentials use Android Keystore encryption.",color=Muted,fontSize=11.sp)
-            TextButton(onClick={confirmClearAiKey=true},enabled=hasAiKey){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
+            TextButton(onClick={confirmClearAiKey=true},enabled=aiKeyStatus!=CredentialStatus.NOT_SAVED){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item { CardBox {
