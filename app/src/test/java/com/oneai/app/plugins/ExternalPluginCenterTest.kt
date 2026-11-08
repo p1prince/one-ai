@@ -54,6 +54,8 @@ class ExternalPluginCenterTest {
         val runtime = PluginRuntime({ id -> store.plugins().firstOrNull { it.id == id } }, gateway)
         val commands = CommandRegistry { id -> store.plugins().any { it.id == id && it.enabled } }
         val bubbleServices = mutableSetOf<String>()
+        val reports = mutableListOf<UpdateCheckReport>()
+        var now = 1_700_000_000_000L
         /** What is installed on the "device"; null means the plugin app is not installed. */
         var installed: ExternalPluginManifest? = manifest()
         var extras: List<DiscoveredPlugin> = emptyList()
@@ -68,7 +70,8 @@ class ExternalPluginCenterTest {
         init {
             center = ExternalPluginCenter(
                 discover = { listOfNotNull(installed?.let { DiscoveredPlugin(it.packageName, "Notes app", "svc", Result.success(it)) }) + extras },
-                trust = trust, registrar = registrar, manager = manager, reservedBubbleServices = reservedServices
+                trust = trust, registrar = registrar, manager = manager, reservedBubbleServices = reservedServices,
+                clock = { now }, onUpdateCheck = { reports += it }
             )
         }
 
@@ -284,5 +287,85 @@ class ExternalPluginCenterTest {
         assertFalse(f.center.onRemoved("one.some.builtin"))
         assertFalse(f.center.isExternal("one.some.builtin"))
         assertNull(f.center.snapshot().statuses["one.some.builtin"])
+    }
+
+    @Test fun theUpdateCheckReportsAnUpdateWithTheSamePowersAsUpdated() {
+        val f = Fixture()
+        f.import()
+        f.installed = manifest(versionCode = 2)
+        f.now = 5_000L
+        val report = f.center.checkForUpdates()
+        assertEquals(UpdateCheckReport(checkedAtMillis = 5_000L, checked = 1, unchanged = 0, updated = 1), report)
+        assertEquals("the same report is passed on once", listOf(report), f.reports)
+    }
+
+    @Test fun theUpdateCheckReportsAnUpdateWithMorePowersAsNeedingApprovalEvenWhenCheckedAgain() {
+        val f = Fixture()
+        f.import()
+        f.installed = manifest(versionCode = 2, extraCommand = true)
+        val first = f.center.checkForUpdates()
+        assertEquals(listOf("Notes app"), first.needsApproval)
+        assertEquals(0, first.updated)
+        val second = f.center.checkForUpdates()
+        assertEquals("an update that is still waiting stays listed", listOf("Notes app"), second.needsApproval)
+        assertEquals(2, f.reports.size)
+    }
+
+    @Test fun theUpdateCheckReportsARefusedDowngrade() {
+        val f = Fixture()
+        f.installed = manifest(versionCode = 3)
+        f.center.import(pkg, 3, cert)
+        f.installed = manifest(versionCode = 2)
+        val report = f.center.checkForUpdates()
+        assertEquals(listOf("Notes app"), report.rejected)
+        assertEquals(1, report.checked)
+        assertEquals(0, report.updated)
+    }
+
+    @Test fun theUpdateCheckCountsAnUnchangedPlugin() {
+        val f = Fixture()
+        f.import()
+        val report = f.center.checkForUpdates()
+        assertEquals(UpdateCheckReport(checkedAtMillis = f.now, checked = 1, unchanged = 1, updated = 0), report)
+        assertEquals("Checked 1 plugin: 1 unchanged.", report.summary())
+    }
+
+    @Test fun theUpdateCheckWithNothingImportedSaysThereWasNothingToCheck() {
+        val f = Fixture()
+        val report = f.center.checkForUpdates()
+        assertEquals("No imported plugins to check.", report.summary())
+        assertEquals(1, report.lines().size)
+        assertTrue(f.trust.trusted().isEmpty())
+    }
+
+    @Test fun theUpdateCheckReportsAnImportedPluginThatIsNoLongerInstalled() {
+        val f = Fixture()
+        f.import()
+        f.installed = null
+        val report = f.center.checkForUpdates()
+        assertEquals(listOf(pkg), report.notFound)
+        assertEquals(0, report.checked)
+        assertEquals("Checked 1 plugin: 1 no longer installed.", report.summary())
+    }
+
+    @Test fun theUpdateCheckReportsAnImportedPluginWhoseManifestCannotBeRead() {
+        val f = Fixture()
+        f.import()
+        f.installed = null
+        f.extras = listOf(DiscoveredPlugin(pkg, "Notes app", "svc", Result.failure(IllegalStateException("unreadable"))))
+        val report = f.center.checkForUpdates()
+        assertEquals(listOf("Notes app"), report.unreadable)
+        assertTrue(report.notFound.isEmpty())
+        assertEquals(1, report.checked)
+    }
+
+    @Test fun renderingAndSnapshotsNeverRunOrReportAnUpdateCheck() {
+        val f = Fixture()
+        f.import()
+        f.installed = manifest(versionCode = 2, extraCommand = true)
+        f.center.snapshot()
+        f.center.snapshot()
+        assertTrue(f.reports.isEmpty())
+        assertTrue("the update was not applied by looking", f.center.snapshot().pendingUpdates.isEmpty())
     }
 }

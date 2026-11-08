@@ -63,6 +63,7 @@ import com.oneai.app.plugins.PluginDetailsView
 import com.oneai.app.plugins.PluginSettingType
 import com.oneai.app.plugins.PluginSettingsSchema
 import com.oneai.app.plugins.PluginUpdateCheckGate
+import com.oneai.app.plugins.UpdateCheckReport
 import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.security.CredentialStatus
@@ -215,6 +216,9 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     var detailsFor by remember { mutableStateOf<String?>(null) }
     var configuring by remember { mutableStateOf<String?>(null) }
     val updateCheckGate = remember { PluginUpdateCheckGate() }
+    // Stage 9.10: what the last explicit update check found. Held for this screen only; Activity keeps the record.
+    var lastUpdateReport by remember { mutableStateOf<UpdateCheckReport?>(null) }
+    var updateCheckError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     // Catalogue listings are read from storage and re-validated off the main thread; they never touch the network.
@@ -264,16 +268,27 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                         updateCheckGate.request()
                         scope.launch {
                             scanning=true
-                            snapshot=withContext(Dispatchers.IO) {
-                                runCatching {
-                                    if (updateCheckGate.consume()) center.checkForUpdates()
-                                    center.snapshot()
-                                }.getOrDefault(PluginCenterSnapshot.EMPTY)
-                            }
+                            val checkResult=withContext(Dispatchers.IO) { if (updateCheckGate.consume()) runCatching { center.checkForUpdates() } else null }
+                            // A failed check keeps the screen as it was; the list is re-read either way so any change already made shows.
+                            withContext(Dispatchers.IO) { runCatching { center.snapshot() }.getOrNull() }?.let { snapshot=it }
+                            checkResult?.onSuccess { lastUpdateReport=it;updateCheckError=null }
+                                ?.onFailure { updateCheckError="The update check did not finish: ${CatalogueView.clean(it.message ?: "unknown error",120)}. Try again." }
                             scanning=false
                         }
                     }
                 },enabled=!scanning && restored) { Text("Check updates",color=Gold) }
+            }
+        }
+        if(updateCheckError!=null || lastUpdateReport!=null) item {
+            CardBox {
+                Text("UPDATE CHECK",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold)
+                val error=updateCheckError
+                val report=lastUpdateReport
+                if(error!=null) Text(error,color=Color(0xFFFF8A80),fontSize=12.sp)
+                if(report!=null) {
+                    Text("Last checked ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(report.checkedAtMillis))}",color=Muted,fontSize=11.sp)
+                    report.lines().forEach { line -> Text(line,color=White,fontSize=12.sp) }
+                }
             }
         }
         item { Text("INSTALLED",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold) }

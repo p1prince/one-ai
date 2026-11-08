@@ -12,6 +12,7 @@ import com.oneai.app.commands.CommandExecutor
 import com.oneai.app.commands.CommandOutput
 import com.oneai.app.commands.CommandRegistry
 import com.oneai.app.commands.CommandRouter
+import com.oneai.app.core.ActivityKind
 import com.oneai.app.core.CoreReservedNames
 import com.oneai.app.core.OneAiStore
 import com.oneai.app.plugins.AndroidPackageSignatureSource
@@ -111,7 +112,8 @@ class AppServices private constructor(app: Application) {
             discover = PluginDiscovery(app)::discover, trust = trust, registrar = registrar, manager = plugins,
             reservedBubbleServices = CoreReservedNames.bubbleServices + BubbleUiPolicy.COMMAND_MANAGER,
             configuration = pluginConfiguration,
-            installedSigners = packageSignatures::currentSigners
+            installedSigners = packageSignatures::currentSigners,
+            onUpdateCheck = { report -> store.log("Update check: ${report.summary()}", ActivityKind.PLUGIN, null) }
         )
         commandRegistry.registerCore("run_saved", "Run saved command", "Runs one of your saved commands through the AI engine.") { args ->
             val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "A command ID is required.")

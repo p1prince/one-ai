@@ -79,7 +79,11 @@ class ExternalPluginCenter(
     /** Per-plugin configuration (Stage 9.6b). Null means this center applies no configuration rules. */
     private val configuration: PluginConfiguration? = null,
     /** Current signing certificates (SHA-256) of an installed package, or null when it is not installed. Used only to compare catalogue listings. */
-    private val installedSigners: (String) -> List<String>? = { null }
+    private val installedSigners: (String) -> List<String>? = { null },
+    /** Time source for update-check reports (Stage 9.10). */
+    private val clock: () -> Long = System::currentTimeMillis,
+    /** Told once after each explicit update check; production writes it to Activity. Rendering never calls it. */
+    private val onUpdateCheck: (UpdateCheckReport) -> Unit = {}
 ) {
     /** Read-only view: rendering must never mutate plugin lifecycle. */
     fun snapshot(): PluginCenterSnapshot {
@@ -150,17 +154,36 @@ class ExternalPluginCenter(
     fun resetSettings(id: String): Result<Unit> =
         configuration?.reset(id) ?: Result.failure(IllegalStateException("This plugin has no settings you can change"))
 
-    /** Explicit user-initiated update check; opening or redrawing Plugin Centre is read-only. */
-    fun checkForUpdates() { applyUpdates(discover()) }
+    /**
+     * Explicit user-initiated update check; opening or redrawing Plugin Centre is read-only. Returns what it found
+     * and reports the same to [onUpdateCheck] once.
+     */
+    fun checkForUpdates(): UpdateCheckReport = applyUpdates(discover()).also(onUpdateCheck)
 
     /** An installed update is judged by the trust rules: same or fewer powers is accepted, more waits for the user. */
-    private fun applyUpdates(found: List<DiscoveredPlugin>) {
+    private fun applyUpdates(found: List<DiscoveredPlugin>): UpdateCheckReport {
+        var checked = 0
+        var unchanged = 0
+        var updated = 0
+        val needsApproval = mutableListOf<String>()
+        val rejected = mutableListOf<String>()
+        val unreadable = mutableListOf<String>()
         found.forEach { discovered ->
-            val installed = discovered.manifest.getOrNull() ?: return@forEach
             val entry = trust.trusted().firstOrNull { it.packageName == discovered.packageName } ?: return@forEach
-            if (installed == entry.trustedManifest || installed == entry.pendingUpdate?.manifest) return@forEach
-            if (registrar.applyUpdate(installed) == UpdateDecision.Accepted) reconcileConfiguration(discovered.packageName)
+            checked++
+            val name = discovered.appLabel.ifBlank { discovered.packageName }
+            val installed = discovered.manifest.getOrNull() ?: run { unreadable += name; return@forEach }
+            if (installed == entry.trustedManifest) { unchanged++; return@forEach }
+            if (installed == entry.pendingUpdate?.manifest) { needsApproval += name; return@forEach }
+            when (registrar.applyUpdate(installed)) {
+                UpdateDecision.Accepted -> { updated++; reconcileConfiguration(discovered.packageName) }
+                is UpdateDecision.ConsentRequired -> needsApproval += name
+                is UpdateDecision.Rejected -> rejected += name
+            }
         }
+        val foundIds = found.map { it.packageName }.toSet()
+        val notFound = trust.trusted().map { it.packageName }.filterNot { it in foundIds }
+        return UpdateCheckReport(clock(), checked, unchanged, updated, needsApproval, rejected, unreadable, notFound)
     }
 
     /** After the trusted declaration changed, keep, reset or drop stored values to match the new schema. */
