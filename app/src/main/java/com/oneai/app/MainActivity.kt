@@ -595,7 +595,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             CardBox {
                 Text(if(it.timestamp>0) DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(it.timestamp)) else "Earlier activity",color=Gold,fontSize=10.sp)
                 Spacer(Modifier.height(4.dp))
-                Text(it.message,color=White,fontSize=13.sp)
+                // Stage 10, A2: log lines can contain plugin-supplied text (names, error messages), so strip hidden and reordering characters first.
+                Text(CatalogueView.clean(it.message,ActivityLog.DISPLAY_MAX),color=White,fontSize=13.sp)
             }
         }
     }

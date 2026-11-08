@@ -119,25 +119,30 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     override fun record(event: String) { log(event) }
 
-    override fun log(message: String) {
-        val logs = readArray("activity")
-        logs.put(0, JSONObject().put("time", System.currentTimeMillis()).put("message", message))
-        val trimmed = JSONArray()
-        for (i in 0 until minOf(logs.length(), 150)) trimmed.put(logs.getJSONObject(i))
-        writeArray("activity", trimmed)
-    }
-
-    fun activityEntries(): List<ActivityEntry> = readArray("activity").let { a ->
-        (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            ActivityEntry(item.optLong("time", 0L), item.optString("message"))
+    // All appends, reads and clears go through one process-wide lock (Stage 10, A1); see ActivityLog.
+    private val activityLog = ActivityLog(
+        load = {
+            val a = readArray("activity")
+            (0 until a.length()).mapNotNull { i ->
+                val item = a.optJSONObject(i) ?: return@mapNotNull null
+                ActivityEntry(item.optLong("time", 0L), item.optString("message"))
+            }
+        },
+        save = { entries ->
+            writeArray("activity", JSONArray().apply {
+                entries.forEach { put(JSONObject().put("time", it.timestamp).put("message", it.message)) }
+            })
         }
-    }
+    )
+
+    override fun log(message: String) = activityLog.append(message)
+
+    fun activityEntries(): List<ActivityEntry> = activityLog.entries()
 
     /** Backward-compatible message-only view for existing callers. */
     fun activity(): List<String> = activityEntries().map { it.message }
 
-    fun clearActivity() { writeArray("activity", JSONArray()) }
+    fun clearActivity() = activityLog.clear()
 
     fun setBubbleEnabled(enabled: Boolean) { prefs.edit().putBoolean("bubble_enabled", enabled).apply() }
     fun bubbleEnabled() = prefs.getBoolean("bubble_enabled", false)
