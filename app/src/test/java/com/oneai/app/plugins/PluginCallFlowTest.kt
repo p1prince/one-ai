@@ -42,6 +42,26 @@ class PluginCallFlowTest {
         assertTrue(flow.state() is PluginCallState.Done)
     }
 
+    @Test fun aRunningCallCanMoveToApprovalWhenTheExecutorAsksForIt() {
+        val flow = PluginCallFlow()
+        val id = flow.request("Reverse", "reverse", needsApproval = false)!!
+        assertTrue(flow.needApproval(id, "text: abc"))
+        assertEquals(PluginCallState.AwaitingApproval("Running Reverse...", "text: abc"), flow.state())
+        assertTrue(flow.approve(id))
+        assertTrue(flow.state() is PluginCallState.Running)
+        assertFalse("only a running call can ask for approval", flow.needApproval(id))
+    }
+
+    @Test fun approvalRequestForACancelledOrOlderRunIsDropped() {
+        val flow = PluginCallFlow()
+        val old = flow.request("A", "a", needsApproval = false)!!
+        flow.cancel()
+        assertFalse(flow.needApproval(old))
+        flow.request("B", "b", needsApproval = false)
+        assertFalse(flow.needApproval(old))
+        assertTrue(flow.state() is PluginCallState.Running)
+    }
+
     @Test fun rejectingAtApprovalReturnsToIdle() {
         val flow = PluginCallFlow()
         val id = flow.request("Reverse", "reverse", needsApproval = true)!!

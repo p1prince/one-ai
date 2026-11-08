@@ -53,6 +53,17 @@ class PluginCallFlow {
         return current
     }
 
+    /**
+     * The executor answered that run [runId] needs the user's approval, so a running call moves to awaiting
+     * approval (the Bubble's real flow: invoke first, then ask). True only for the current running call.
+     */
+    @Synchronized fun needApproval(runId: Long, review: String? = null): Boolean {
+        val running = state as? PluginCallState.Running ?: return false
+        if (runId != current) return false
+        state = PluginCallState.AwaitingApproval(running.heading, review?.let { cleanText(it, MAX_REVIEW) })
+        return true
+    }
+
     /** The user approved run [runId]. True only if it was awaiting approval; it is then Running. */
     @Synchronized fun approve(runId: Long): Boolean {
         val waiting = state as? PluginCallState.AwaitingApproval ?: return false
