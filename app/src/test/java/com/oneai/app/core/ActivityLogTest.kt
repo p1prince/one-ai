@@ -75,9 +75,9 @@ class ActivityLogTest {
     }
 
     @Test fun displayCleaningStripsHiddenAndReorderingCharacters() {
-        val raw = "Registered enabled external plugin: Safe‮evil​\u0007 name next"
+        val raw = "Registered enabled external plugin: Safe\u202Eevil\u200B\u0007 name\u2028next"
         val shown = CatalogueView.clean(raw, ActivityLog.DISPLAY_MAX)
-        assertFalse(shown.any { it == '‮' || it == '​' || it == '\u0007' || it == ' ' })
+        assertFalse(shown.any { it == '\u202E' || it == '\u200B' || it == '\u0007' || it == '\u2028' })
         assertEquals("Registered enabled external plugin: Safeevil name next", shown)
     }
 
