@@ -627,13 +627,11 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
 @Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,accessOverview:()->AccessOverviewData,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
-    var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
+    var apiKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
     var confirmClearAiKey by remember { mutableStateOf(false) }
-    var confirmClearSearchKey by remember { mutableStateOf(false) }
     val endpointIssue = com.oneai.app.ai.ProviderSettingsPolicy.endpointError(endpoint)
     val aiKeyStatus = CredentialStatus.of(vault.readResult())
     val hasAiKey = aiKeyStatus == CredentialStatus.SAVED
-    val hasSearchKey = !vault.readNamed("brave_search").isNullOrBlank()
     val providerReady = endpointIssue == null && provider.isNotBlank() && model.isNotBlank() && hasAiKey
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
@@ -641,9 +639,6 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("AI provider",if(providerReady) "Configured • credentials stored securely" else if(aiKeyStatus==CredentialStatus.UNREADABLE) CredentialStatus.UNREADABLE_MESSAGE else if(!hasAiKey) "Needs an API key" else endpointIssue ?: "Complete provider name and model") {
                 Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
-            }
-            ActionRow("Web Research",if(hasSearchKey) "Brave Search credential stored" else "Optional • no search credential saved") {
-                Text(if(hasSearchKey) "READY" else "OPTIONAL",color=if(hasSearchKey) Gold else Muted,fontSize=10.sp)
             }
             ActionRow("Floating Bubble",if(bubble) "Enabled (Android overlay access may still be required)" else "Disabled") {
                 Text(if(bubble) "ON" else "OFF",color=Gold,fontSize=11.sp)
@@ -681,15 +676,6 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             TextButton(onClick={confirmClearAiKey=true},enabled=aiKeyStatus!=CredentialStatus.NOT_SAVED){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
-        item { CardBox {
-            Text("WEB RESEARCH",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            OutlinedTextField(braveSearchKey,{braveSearchKey=it},modifier=Modifier.fillMaxWidth(),label={Text("Brave Search API key (stored encrypted)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
-            Button(onClick={vault.saveNamed("brave_search",braveSearchKey.trim());braveSearchKey="";status="Web Research credential saved.";refresh()},enabled=braveSearchKey.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save search credential")}
-            Text("Credential status: ${if(hasSearchKey) "saved (encrypted separately)" else "not saved"}.",color=Muted,fontSize=11.sp)
-            Text("Web Research uses Brave Search over HTTPS. This credential is stored separately from your AI provider key. Search requests require a separate ONE AI approval.",color=Muted,fontSize=11.sp)
-            TextButton(onClick={confirmClearSearchKey=true},enabled=hasSearchKey){Text("Remove search credential",color=Color(0xFFFF8A80))}
-            if(status.isNotBlank())Text(status,color=Gold)
-        } }
         item {
             // Stage 10.1: read-only overview of what each trusted plugin may ask for; it changes nothing.
             val overview = accessOverview()
@@ -713,12 +699,5 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
         text={Text("ONE AI requests will stop working until you save a new provider key. Your provider name, endpoint and model settings will remain unchanged.")},
         confirmButton={TextButton(onClick={vault.save("");store.log("Removed AI provider credential");confirmClearAiKey=false;status="AI provider key removed.";refresh()}){Text("Remove key",color=Color(0xFFFF8A80))}},
         dismissButton={TextButton(onClick={confirmClearAiKey=false}){Text("Cancel")}}
-    )
-    if(confirmClearSearchKey) AlertDialog(
-        onDismissRequest={confirmClearSearchKey=false},
-        title={Text("Remove Brave Search key?")},
-        text={Text("Web Research will be unavailable until a new search credential is saved. Your AI provider key is not affected.")},
-        confirmButton={TextButton(onClick={vault.saveNamed("brave_search","");store.log("Removed Web Research credential");confirmClearSearchKey=false;status="Web Research credential removed.";refresh()}){Text("Remove key",color=Color(0xFFFF8A80))}},
-        dismissButton={TextButton(onClick={confirmClearSearchKey=false}){Text("Cancel")}}
     )
 }
