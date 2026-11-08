@@ -368,4 +368,53 @@ class ExternalPluginCenterTest {
         assertTrue(f.reports.isEmpty())
         assertTrue("the update was not applied by looking", f.center.snapshot().pendingUpdates.isEmpty())
     }
+
+    // ---- Slice C3 (decision D12 / D-AD): which plugins may be opened inside the app ----
+
+    @Test fun aTrustedPluginIsOpenableInTheAppOnlyOnceEnabledAndNeverNeedsBubbleAccess() {
+        val f = Fixture()
+        assertTrue("nothing imported", f.center.inAppPlugins().isEmpty())
+        f.import()
+        assertTrue("imported but not enabled", f.center.inAppPlugins().isEmpty())
+        assertTrue(f.center.setEnabled(pkg, true).isSuccess)
+        assertFalse("Bubble access was never granted", f.manager.hasBubbleAccess(pkg))
+        assertEquals(listOf(pkg), f.center.inAppPlugins().map { it.pluginId })
+        assertEquals("Notes", f.center.inAppPlugins().single().name)
+    }
+
+    @Test fun grantingOrRevokingBubbleAccessNeverChangesWhatIsOpenableInTheApp() {
+        val f = Fixture()
+        f.import()
+        f.center.setEnabled(pkg, true)
+        val before = f.center.inAppPlugins()
+        assertTrue(f.manager.setBubbleAccess(pkg, true).isSuccess)
+        assertEquals(before, f.center.inAppPlugins())
+        assertTrue(f.manager.setBubbleAccess(pkg, false).isSuccess)
+        assertEquals(before, f.center.inAppPlugins())
+        assertEquals(listOf(pkg), f.center.inAppPlugins().map { it.pluginId })
+    }
+
+    @Test fun disablingAPluginRemovesItFromTheInAppListAndListingChangesNothing() {
+        val f = Fixture()
+        f.import()
+        f.center.setEnabled(pkg, true)
+        val logsBefore = f.store.logs.size
+        val enabledBefore = f.store.plugins().map { it.id to it.enabled }
+        f.center.inAppPlugins()
+        f.center.inAppPlugins()
+        assertEquals("listing records nothing", logsBefore, f.store.logs.size)
+        assertEquals("listing changes no plugin state", enabledBefore, f.store.plugins().map { it.id to it.enabled })
+        assertTrue(f.center.setEnabled(pkg, false).isSuccess)
+        assertTrue(f.center.inAppPlugins().isEmpty())
+    }
+
+    @Test fun aPluginWhoseSignerChangedIsNotOpenableInTheApp() {
+        val f = Fixture()
+        f.import()
+        f.center.setEnabled(pkg, true)
+        assertEquals(1, f.center.inAppPlugins().size)
+        f.signatures.signers[pkg] = listOf("b".repeat(64))
+        assertTrue(f.center.inAppPlugins().isEmpty())
+    }
 }
+

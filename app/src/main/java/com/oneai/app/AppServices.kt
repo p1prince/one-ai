@@ -1,6 +1,8 @@
 package com.oneai.app
 
 import android.app.Application
+import android.content.Context
+import com.oneai.app.bubble.BubbleHost
 import com.oneai.app.bubble.BubbleProviders
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.ExternalBubbleProvider
@@ -22,6 +24,7 @@ import com.oneai.app.plugins.CatalogueSources
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalPluginRegistrar
 import com.oneai.app.plugins.HttpsCatalogueTransport
+import com.oneai.app.plugins.InAppPluginController
 import com.oneai.app.plugins.PluginConfiguration
 import com.oneai.app.plugins.PluginDiscovery
 import com.oneai.app.plugins.PluginLaunchApprovalBroker
@@ -31,6 +34,7 @@ import com.oneai.app.plugins.PluginTrustRegistry
 import com.oneai.app.plugins.SharedPrefsTrustStore
 import com.oneai.app.plugins.TrustCheck
 import com.oneai.app.security.SecretVault
+import kotlinx.coroutines.CoroutineScope
 
 /**
  * Process-wide composition of the plugin system. One instance serves the app screens and the Floating
@@ -39,7 +43,7 @@ import com.oneai.app.security.SecretVault
  * It starts nothing on its own: with no plugins installed or imported it holds an empty command registry
  * (apart from core commands), an empty trust store and no Bubble providers for external plugins.
  */
-class AppServices private constructor(app: Application) {
+class AppServices private constructor(private val app: Application) {
     val store = OneAiStore(app)
     /** Plugin-dependent callers suspend here until the startup restore pass has finished. */
     val pluginRestoration = PluginRestorationGate()
@@ -119,6 +123,28 @@ class AppServices private constructor(app: Application) {
             val id = args["id"] ?: throw CommandException("INVALID_ARGUMENT", "A command ID is required.")
             CommandOutput("Command result", commandRouter.run(id).content)
         }
+    }
+
+    /**
+     * Slice C3 (decision D12): the controller for one plugin's screen inside the app. It uses the plugin's own provider
+     * view and the shared executor, exactly as the Bubble does, and refuses a plugin that is not currently openable
+     * (trusted, Enabled, declares a screen, settings complete). Bubble access is never consulted. Null means "not
+     * openable right now".
+     */
+    fun inAppPluginController(pluginId: String, scope: CoroutineScope): InAppPluginController? {
+        if (center.inAppPlugins().none { it.pluginId == pluginId }) return null
+        val provider = BubbleProviders.registry.providers().firstOrNull { it.pluginId == pluginId } ?: return null
+        val host = object : BubbleHost {
+            override val context: Context get() = app
+            override fun hideBubble() = Unit
+        }
+        return InAppPluginController(
+            pluginId = pluginId,
+            scope = scope,
+            executor = pluginExecution.executor,
+            loadView = { provider.loadView(host) },
+            prepare = { pluginRestoration.awaitReady(); provider.ensureReady(host) }
+        )
     }
 
     /**

@@ -56,6 +56,9 @@ import com.oneai.app.plugins.Compatibility
 import com.oneai.app.plugins.DiscoveredPlugin
 import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalStatus
+import com.oneai.app.plugins.InAppPluginController
+import com.oneai.app.plugins.InAppPluginEntry
+import com.oneai.app.plugins.PluginScreen
 import com.oneai.app.plugins.PluginCenterSnapshot
 import com.oneai.app.plugins.PluginConfigureForm
 import com.oneai.app.plugins.PluginActivityView
@@ -68,6 +71,7 @@ import com.oneai.app.plugins.PluginCompatibility
 import com.oneai.app.plugins.PluginManager
 import com.oneai.app.security.CredentialStatus
 import com.oneai.app.security.SecretVault
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,6 +89,8 @@ class MainActivity : ComponentActivity() {
         val services=AppServices.get(application)
         store=services.store; plugins=services.plugins; commandRouter=services.commandRouter
         setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,services.pluginRestoration,services.catalogueSources,services.catalogueRefreshGate,
+            inAppPlugins={ services.center.inAppPlugins() },
+            newPluginController={ id,scope -> services.inAppPluginController(id,scope) },
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
             onAsk={ prompt,done -> lifecycleScope.launch { runCatching { services.aiOrchestrator.respond(prompt, conversation).content }.onSuccess { done(it) }.onFailure { done("Error: ${it.message}") } } },
             onNewConversation={ conversation.clear() },
@@ -114,28 +120,38 @@ internal enum class Page(val title:String) {
 @Composable
 private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter, restoration:PluginRestorationGate,
                      catalogueSources:CatalogueSources, catalogueRefreshGate:CatalogueRefreshGate,
+                     inAppPlugins:()->List<InAppPluginEntry>, newPluginController:(String,CoroutineScope)->InAppPluginController?,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
                      onRunCommand:(String,(String)->Unit)->Unit) {
     var page by remember { mutableStateOf(Page.Home) }; var refresh by remember { mutableIntStateOf(0) }
     var chatResult by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }
     var pluginRestored by remember { mutableStateOf(restoration.isReady) }
     LaunchedEffect(restoration) { restoration.awaitReady(); pluginRestored=true }
+    // Slice C3: a plugin's own screen is a sub-page, not a sixth destination. It is closed by any navigation tap.
+    var openPlugin by remember { mutableStateOf<String?>(null) }
+    val pluginScope = rememberCoroutineScope()
+    val openable = remember(refresh,pluginRestored) { if(pluginRestored) inAppPlugins() else emptyList() }
     val refreshNow: () -> Unit = { refresh++; Unit }
     MaterialTheme(colorScheme=darkColorScheme(primary=Gold,background=Ink,surface=Panel,onPrimary=Ink,onBackground=White,onSurface=White)) {
         Scaffold(containerColor=Ink, bottomBar={
             NavigationBar(containerColor=Panel) {
                 Page.destinations.forEach { p ->
                     val selected = page==p || (p==Page.Home && page==Page.Commands)
-                    NavigationBarItem(selected=selected,onClick={page=p;refresh++},icon={
+                    NavigationBarItem(selected=selected,onClick={openPlugin=null;page=p;refresh++},icon={
                         Icon(when(p){Page.Home->Icons.Default.Home;Page.Plugins->Icons.Default.Extension;Page.Develop->Icons.Default.Code;Page.Activity->Icons.Default.History;else->Icons.Default.Settings},p.title)
                     },label={Text(p.title,fontSize=10.sp)},colors=NavigationBarItemDefaults.colors(selectedIconColor=Gold,selectedTextColor=Gold,indicatorColor=Gold.copy(alpha=.14f),unselectedIconColor=Muted,unselectedTextColor=Muted))
                 }
             }
         }) { pad ->
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
-            when(page) {
-                Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,catalogueSources,catalogueRefreshGate,{store.activityEntries()},refreshNow)
+            val opened = openPlugin
+            val openedController = remember(opened) { opened?.let { newPluginController(it,pluginScope) } }
+            if(opened!=null && openedController==null) LaunchedEffect(opened) { openPlugin=null; refresh++ }
+            if(opened!=null && openedController!=null) {
+                PluginScreen(openable.firstOrNull { it.pluginId==opened }?.name ?: "Plugin",openedController,{ openPlugin=null;refresh++ },Modifier.padding(pad))
+            } else when(page) {
+                Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" },openable,{ openPlugin=it })
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,catalogueSources,catalogueRefreshGate,{store.activityEntries()},refreshNow,openable,{ openPlugin=it })
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
@@ -149,7 +165,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
 @Composable private fun CardBox(content:@Composable ColumnScope.()->Unit) { Column(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(16.dp)).padding(16.dp),content=content) }
 @Composable private fun ActionRow(title:String,detail:String,action:@Composable RowScope.()->Unit) { Row(Modifier.fillMaxWidth().padding(vertical=9.dp),verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)){Text(title,color=White,fontWeight=FontWeight.SemiBold);Text(detail,color=Muted,fontSize=12.sp)};action() } }
 
-@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,go:(Page)->Unit,result:String,busy:Boolean,onAsk:(String)->Unit,onNewConversation:()->Unit) {
+@Composable private fun HomePage(modifier:Modifier,store:OneAiStore,go:(Page)->Unit,result:String,busy:Boolean,onAsk:(String)->Unit,onNewConversation:()->Unit,inApp:List<InAppPluginEntry>,onOpenPlugin:(String)->Unit) {
     var prompt by remember { mutableStateOf("") }
     val installed = store.plugins()
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=26.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
@@ -179,6 +195,10 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             ModuleCard(Icons.Default.Code,"Developer Mode","Create and test your own plugins"){go(Page.Develop)}
             ModuleCard(Icons.Default.Tune,"Command Manager","Organise commands and shortcuts"){go(Page.Commands)}
         } }
+        if(inApp.isNotEmpty()) {
+            item { Text("YOUR PLUGINS",color=Muted,fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.4.sp) }
+            item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) { inApp.forEach { ModuleCard(Icons.Default.Extension,it.name,"Open "+it.screenTitle){ onOpenPlugin(it.pluginId) } } } }
+        }
         item { Text("SYSTEM STATUS",color=Muted,fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.4.sp) }
         item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             StatusCard("AI CORE","Foundation",Modifier.weight(1f))
@@ -205,7 +225,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
 }
 
-@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,sources:CatalogueSources,refreshGate:CatalogueRefreshGate,activity:()->List<ActivityEntry>,refresh:()->Unit) {
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,sources:CatalogueSources,refreshGate:CatalogueRefreshGate,activity:()->List<ActivityEntry>,refresh:()->Unit,openable:List<InAppPluginEntry>,onOpenPlugin:(String)->Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var operationMessage by remember { mutableStateOf("") }
     var snapshot by remember { mutableStateOf(PluginCenterSnapshot.EMPTY) }
@@ -313,6 +333,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                     Switch(manager.hasBubbleAccess(p.id),{ changed(manager.setBubbleAccess(p.id,it),"") },enabled=PluginStartupAccessPolicy.canChangeBubbleAccess(restored,p.enabled))
                 } else if(external && declared?.bubble!=null && center.bubbleServiceConflict(declared)) Text("Its Bubble service name is already taken, so it cannot appear in the Bubble.",color=Muted,fontSize=11.sp)
                 Row {
+                    if(openable.any { it.pluginId==p.id }) TextButton(onClick={onOpenPlugin(p.id)},enabled=restored){Text("Open",color=Gold)}
                     if(status is ExternalStatus.UpdatePending) TextButton(onClick={reviewingUpdate=p.id},enabled=restored){Text("Review update",color=Gold)}
                     if(snapshot.trustedEntries.containsKey(p.id)) TextButton(onClick={detailsFor=p.id}){Text("Details",color=Gold)}
                     if(snapshot.configurable.containsKey(p.id)) TextButton(onClick={configuring=p.id},enabled=restored){Text("Configure",color=Gold)}

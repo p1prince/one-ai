@@ -143,6 +143,26 @@ class ExternalPluginCenter(
         )
     }
 
+    /**
+     * Slice C3: the plugins that may be opened inside the app. Read-only and cheap (no device scan), so Home and the
+     * Plugins screen can ask while drawing. It depends on trust, Enabled, a declared screen and complete settings only;
+     * it never reads Bubble access. See [InAppPluginAccess].
+     */
+    fun inAppPlugins(): List<InAppPluginEntry> {
+        val entries = trust.trusted()
+        val statuses = entries.mapNotNull { entry -> statusOf(trust.peek(entry.packageName))?.let { entry.packageName to it } }.toMap()
+        val ready = statuses.filterValues { it == ExternalStatus.Ready }.keys
+        val missing = configuration?.let { config ->
+            ready.mapNotNull { id -> config.missingRequired(id).map { it.title }.takeIf { it.isNotEmpty() }?.let { id to it } }.toMap()
+        }.orEmpty()
+        return InAppPluginAccess.build(
+            entries = entries,
+            statuses = statuses,
+            enabledPluginIds = manager.installed().filter { it.enabled }.map { it.id }.toSet(),
+            needsConfiguration = missing
+        )
+    }
+
     /** The values a plugin currently has in effect (stored, otherwise default); empty for a plugin without settings. */
     fun effectiveSettings(id: String): Map<String, String> = configuration?.effective(id).orEmpty()
 
