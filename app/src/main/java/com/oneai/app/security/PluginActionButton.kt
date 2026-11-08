@@ -1,9 +1,5 @@
 package com.oneai.app.security
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,7 +9,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import com.oneai.app.core.PluginActionInput
 import com.oneai.app.core.PluginInvocationResult
 import com.oneai.app.core.PluginActionExecutor
@@ -22,10 +17,10 @@ import kotlinx.coroutines.launch
 /**
  * Reusable user-facing entry point for a trusted plugin action.
  *
- * Sensitive actions pause for ONE AI's exact-action approval dialog. Microphone
- * actions additionally request Android RECORD_AUDIO permission just in time.
- * Other platform capabilities (MediaProjection, Accessibility, file pickers,
- * and settings changes) must use their dedicated Android consent flows.
+ * Sensitive actions pause for ONE AI's exact-action approval dialog. ONE AI never
+ * requests Android runtime permissions on a plugin's behalf: a plugin is a separate
+ * signed app and asks for any Android permission it needs (for example RECORD_AUDIO)
+ * itself (decision D10 / D-R). The Core app declares no capability permissions.
  */
 @Composable
 fun PluginActionButton(
@@ -36,12 +31,9 @@ fun PluginActionButton(
     modifier: Modifier = Modifier,
     onResult: (PluginInvocationResult) -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var working by remember { mutableStateOf(false) }
     var awaitingApproval by remember { mutableStateOf(false) }
-    var waitingForMicrophonePermission by remember { mutableStateOf(false) }
-    var pendingApprovalTicket by remember { mutableStateOf<String?>(null) }
 
     val execute: (String?) -> Unit = { ticket ->
         scope.launch {
@@ -58,30 +50,15 @@ fun PluginActionButton(
         }
     }
 
-    val microphonePermission = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        waitingForMicrophonePermission = false
-        val ticket = pendingApprovalTicket
-        pendingApprovalTicket = null
-        if (granted && ticket != null) {
-            execute(ticket)
-        } else {
-            onResult(PluginInvocationResult.Rejected(
-                "Microphone access was not granted. No plugin action was started."
-            ))
-        }
-    }
-
     Button(
         onClick = {
-            if (working || waitingForMicrophonePermission) return@Button
+            if (working) return@Button
             execute(null)
         },
-        enabled = !working && !waitingForMicrophonePermission,
+        enabled = !working,
         modifier = modifier
     ) {
-        Text(if (working || waitingForMicrophonePermission) "Working…" else label)
+        Text(if (working) "Working\u2026" else label)
     }
 
     if (awaitingApproval) {
@@ -92,15 +69,7 @@ fun PluginActionButton(
                 ticket.fold(
                     onSuccess = { ticket ->
                         awaitingApproval = false
-                        if (input.capability == "microphone" &&
-                            context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            pendingApprovalTicket = ticket
-                            waitingForMicrophonePermission = true
-                            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                        } else {
-                            execute(ticket)
-                        }
+                        execute(ticket)
                     },
                     onFailure = {
                         awaitingApproval = false
