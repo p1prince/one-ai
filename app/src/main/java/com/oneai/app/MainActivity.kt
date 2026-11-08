@@ -38,7 +38,9 @@ import androidx.compose.ui.unit.sp
 import java.text.DateFormat
 import java.util.Date
 import androidx.lifecycle.lifecycleScope
-import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.AiProvider
+import com.oneai.app.ai.ProviderProfiles
+import com.oneai.app.ai.ProfileOutcome
 import com.oneai.app.ai.AiConversation
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.FloatingBubbleService
@@ -88,7 +90,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val services=AppServices.get(application)
         store=services.store; plugins=services.plugins; commandRouter=services.commandRouter
-        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,commandRouter,services.pluginRestoration,services.catalogueSources,services.catalogueRefreshGate,
+        setContent { OneAiApp(store,plugins,services.center,services.vault,services.aiProvider,services.providerProfiles,commandRouter,services.pluginRestoration,services.catalogueSources,services.catalogueRefreshGate,
             inAppPlugins={ services.center.inAppPlugins() },
             newPluginController={ id,scope -> services.inAppPluginController(id,scope) },
             onBubbleToggle={ enabled -> toggleBubble(enabled) },
@@ -118,7 +120,7 @@ internal enum class Page(val title:String) {
 }
 
 @Composable
-private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProviderClient, commandRouter:CommandRouter, restoration:PluginRestorationGate,
+private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPluginCenter, vault:SecretVault, ai:AiProvider, profiles:ProviderProfiles, commandRouter:CommandRouter, restoration:PluginRestorationGate,
                      catalogueSources:CatalogueSources, catalogueRefreshGate:CatalogueRefreshGate,
                      inAppPlugins:()->List<InAppPluginEntry>, newPluginController:(String,CoroutineScope)->InAppPluginController?,
                      onBubbleToggle:(Boolean)->Unit, onAsk:(String,(String)->Unit)->Unit, onNewConversation:()->Unit,
@@ -155,7 +157,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
-                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },{ center.accessOverview() },pluginRestored,onBubbleToggle,refreshNow)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,profiles,{ center.bubbleBindings() },{ center.accessOverview() },pluginRestored,onBubbleToggle,refreshNow)
             }
         }
     }
@@ -660,20 +662,28 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
     )
 }
 
-@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,accessOverview:()->AccessOverviewData,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,profiles:ProviderProfiles,externalBindings:()->Map<String,String>,accessOverview:()->AccessOverviewData,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
-    var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
+    var version by remember{mutableStateOf(0)}
+    val profileList = remember(version){profiles.list()}
+    val activeProfile = remember(version){profiles.active()}
+    var selectedId by remember{mutableStateOf(activeProfile.id)}
+    val selected = profileList.firstOrNull{it.id==selectedId} ?: activeProfile
+    var provider by remember(selected.id,version){mutableStateOf(selected.name)};var endpoint by remember(selected.id,version){mutableStateOf(selected.endpoint)};var model by remember(selected.id,version){mutableStateOf(selected.model)}
     var apiKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
     var confirmClearAiKey by remember { mutableStateOf(false) }
+    var confirmDeleteProfile by remember { mutableStateOf(false) }
     val endpointIssue = com.oneai.app.ai.ProviderSettingsPolicy.endpointError(endpoint)
-    val aiKeyStatus = CredentialStatus.of(vault.readResult())
-    val hasAiKey = aiKeyStatus == CredentialStatus.SAVED
-    val providerReady = endpointIssue == null && provider.isNotBlank() && model.isNotBlank() && hasAiKey
+    val aiKeyStatus = CredentialStatus.of(profiles.keyResult(selected.id))
+    val activeKeyStatus = CredentialStatus.of(profiles.keyResult(activeProfile.id))
+    val activeEndpointIssue = com.oneai.app.ai.ProviderSettingsPolicy.endpointError(activeProfile.endpoint)
+    val providerReady = activeEndpointIssue == null && activeProfile.name.isNotBlank() && activeProfile.model.isNotBlank() && activeKeyStatus == CredentialStatus.SAVED
+    val bump = { version += 1; refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item { Header("Settings","Configure the core, AI provider and floating interface.") }
         item { CardBox {
             Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            ActionRow("AI provider",if(providerReady) "Configured • credentials stored securely" else if(aiKeyStatus==CredentialStatus.UNREADABLE) CredentialStatus.UNREADABLE_MESSAGE else if(!hasAiKey) "Needs an API key" else endpointIssue ?: "Complete provider name and model") {
+            ActionRow("AI provider",if(providerReady) "${activeProfile.name} • credentials stored securely" else if(activeKeyStatus==CredentialStatus.UNREADABLE) CredentialStatus.UNREADABLE_MESSAGE else if(activeKeyStatus!=CredentialStatus.SAVED) "${activeProfile.name} needs an API key" else activeEndpointIssue ?: "Complete provider name and model") {
                 Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
             }
             ActionRow("Floating Bubble",if(bubble) "Enabled (Android overlay access may still be required)" else "Disabled") {
@@ -701,15 +711,40 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
         } }
         item { CardBox {
             Text("AI PROVIDER",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
-            OutlinedTextField(provider,{provider=it},modifier=Modifier.fillMaxWidth(),label={Text("Provider label")})
+            Text("Saved provider profiles. The active one answers your requests; each profile keeps its own key.",color=Muted,fontSize=11.sp)
+            profileList.forEach { p ->
+                Row(Modifier.fillMaxWidth().clickable { selectedId = p.id; apiKey = ""; status = "" },verticalAlignment=Alignment.CenterVertically){
+                    RadioButton(p.id==selected.id,{ selectedId = p.id; apiKey = ""; status = "" })
+                    Text(p.name,color=White,modifier=Modifier.weight(1f))
+                    if(p.id==activeProfile.id) Text("ACTIVE",color=Gold,fontSize=11.sp,fontWeight=FontWeight.Bold)
+                }
+            }
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                OutlinedButton(onClick={
+                    when(val r=profiles.add(profiles.suggestName(),com.oneai.app.ai.ProviderProfiles.DEFAULT_ENDPOINT,com.oneai.app.ai.ProviderProfiles.DEFAULT_MODEL)){
+                        is ProfileOutcome.Ok -> { selectedId = r.profile.id; apiKey = ""; status = "Profile added. Edit it, add its key, then save." }
+                        is ProfileOutcome.Refused -> status = r.message
+                    }
+                    bump()
+                }){Text("Add profile")}
+                OutlinedButton(onClick={ if(profiles.setActive(selected.id)){status="${selected.name} is now the active provider."}; bump() },enabled=selected.id!=activeProfile.id){Text("Use this profile")}
+            }
+            OutlinedTextField(provider,{provider=it},modifier=Modifier.fillMaxWidth(),label={Text("Profile name")})
             OutlinedTextField(endpoint,{endpoint=it},modifier=Modifier.fillMaxWidth(),label={Text("HTTPS chat-completions endpoint")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),singleLine=true)
             OutlinedTextField(model,{model=it},modifier=Modifier.fillMaxWidth(),label={Text("Model")},singleLine=true)
             OutlinedTextField(apiKey,{apiKey=it},modifier=Modifier.fillMaxWidth(),label={Text("API key (stored encrypted on device)")},singleLine=true,visualTransformation=PasswordVisualTransformation())
             if(endpointIssue!=null) Text(endpointIssue,color=Color(0xFFFF8A80),fontSize=11.sp)
-            Button(onClick={store.setAiProviderName(provider.trim());store.setAiEndpoint(endpoint.trim());store.setAiModel(model.trim());if(apiKey.isNotBlank())vault.save(apiKey.trim());apiKey="";status="Provider settings saved.";refresh()},enabled=endpointIssue==null&&provider.isNotBlank()&&model.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
+            Button(onClick={
+                when(val r=profiles.update(selected.id,provider,endpoint,model)){
+                    is ProfileOutcome.Ok -> { if(apiKey.isNotBlank())profiles.saveKey(selected.id,apiKey); status="Provider profile saved." }
+                    is ProfileOutcome.Refused -> status = r.message
+                }
+                apiKey=""; bump()
+            },enabled=endpointIssue==null&&provider.isNotBlank()&&model.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save provider profile")}
             Text("Credential status: ${aiKeyStatus.settingsText}. Leave the key field blank to keep the existing key.",color=Muted,fontSize=11.sp)
             Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Credentials use Android Keystore encryption.",color=Muted,fontSize=11.sp)
             TextButton(onClick={confirmClearAiKey=true},enabled=aiKeyStatus!=CredentialStatus.NOT_SAVED){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
+            TextButton(onClick={confirmDeleteProfile=true},enabled=profileList.size>1){Text("Delete this profile",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         item {
@@ -732,8 +767,21 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
     if(confirmClearAiKey) AlertDialog(
         onDismissRequest={confirmClearAiKey=false},
         title={Text("Remove AI provider key?")},
-        text={Text("ONE AI requests will stop working until you save a new provider key. Your provider name, endpoint and model settings will remain unchanged.")},
-        confirmButton={TextButton(onClick={vault.save("");store.log("Removed AI provider credential");confirmClearAiKey=false;status="AI provider key removed.";refresh()}){Text("Remove key",color=Color(0xFFFF8A80))}},
+        text={Text("Requests to ${selected.name} will stop working until you save a new key. Its name, endpoint and model stay unchanged.")},
+        confirmButton={TextButton(onClick={profiles.removeKey(selected.id);store.log("Removed AI provider credential");confirmClearAiKey=false;status="AI provider key removed.";bump()}){Text("Remove key",color=Color(0xFFFF8A80))}},
         dismissButton={TextButton(onClick={confirmClearAiKey=false}){Text("Cancel")}}
+    )
+    if(confirmDeleteProfile) AlertDialog(
+        onDismissRequest={confirmDeleteProfile=false},
+        title={Text("Delete provider profile?")},
+        text={Text("${selected.name} and its saved key will be removed. This cannot be undone.")},
+        confirmButton={TextButton(onClick={
+            when(val r=profiles.remove(selected.id)){
+                is ProfileOutcome.Ok -> { selectedId = profiles.active().id; status="Profile deleted." }
+                is ProfileOutcome.Refused -> status = r.message
+            }
+            confirmDeleteProfile=false; bump()
+        }){Text("Delete",color=Color(0xFFFF8A80))}},
+        dismissButton={TextButton(onClick={confirmDeleteProfile=false}){Text("Cancel")}}
     )
 }

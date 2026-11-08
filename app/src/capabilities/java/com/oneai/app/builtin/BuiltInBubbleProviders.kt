@@ -1,7 +1,7 @@
 package com.oneai.app.builtin
 
 import com.oneai.app.ai.AiOrchestrator
-import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.AiProviders
 import com.oneai.app.ai.BraveSearchProvider
 import com.oneai.app.ai.OpenAiCompatibleVisionProvider
 import com.oneai.app.ai.RetryingAiProvider
@@ -170,7 +170,7 @@ class VoiceBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvid
         VoiceInterfaceAdapter(
             inputProvider = VoiceInputProvider { VoiceCaptureBridge.capture(context) },
             outputProvider = VoiceOutputProvider { VoiceSpeaker.speak(context, it) },
-            orchestrator = AiOrchestrator(RetryingAiProvider(AiProviderClient(store, SecretVault(context))), store)
+            orchestrator = AiOrchestrator(RetryingAiProvider(AiProviders.active(store, SecretVault(context))), store)
         )
     }
 

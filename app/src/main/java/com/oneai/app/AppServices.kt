@@ -7,7 +7,11 @@ import com.oneai.app.bubble.BubbleProviders
 import com.oneai.app.bubble.BubbleUiPolicy
 import com.oneai.app.bubble.ExternalBubbleProvider
 import com.oneai.app.ai.AiOrchestrator
-import com.oneai.app.ai.AiProviderClient
+import com.oneai.app.ai.AiProvider
+import com.oneai.app.ai.AiProviders
+import com.oneai.app.ai.ActiveAiProvider
+import com.oneai.app.ai.ProviderProfiles
+import com.oneai.app.ai.VaultProfileSecrets
 import com.oneai.app.ai.RetryingAiProvider
 import com.oneai.app.commands.CommandException
 import com.oneai.app.commands.CommandExecutor
@@ -63,7 +67,11 @@ class AppServices private constructor(private val app: Application) {
 
     /** AI and saved-command services are process-scoped and shared by Home and Floating Bubble. */
     val vault = SecretVault(app)
-    val aiProvider = AiProviderClient(store, vault)
+    private val profileSecrets = VaultProfileSecrets(vault)
+    private val aiRegistry = AiProviders.registry(profileSecrets)
+    /** Saved AI service profiles and the active one (decision D-V / V1). Home, Bubble and Settings share this. */
+    val providerProfiles = ProviderProfiles(store, profileSecrets, aiRegistry::kinds) { store.log(it) }
+    val aiProvider: AiProvider = ActiveAiProvider(providerProfiles, aiRegistry)
     val aiOrchestrator = AiOrchestrator(RetryingAiProvider(aiProvider), store)
     val commandRouter = CommandRouter(store, aiOrchestrator)
     val commandExecutor = CommandExecutor(

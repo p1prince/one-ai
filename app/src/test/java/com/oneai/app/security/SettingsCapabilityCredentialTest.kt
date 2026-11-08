@@ -35,7 +35,8 @@ class SettingsCapabilityCredentialTest {
         val page = settingsPage()
         assertTrue(page.contains("AI PROVIDER"))
         assertTrue(page.contains("Remove AI provider key?"))
-        assertTrue(page.contains("vault.readResult()"))
+        // Slice S1 (provider profiles): the key status still comes from a stored read result, now per profile.
+        assertTrue(page.contains("profiles.keyResult("))
     }
 
     @Test fun nothingInMainActivityWipesTheSavedSearchKey() {

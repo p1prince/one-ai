@@ -4,6 +4,8 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import com.oneai.app.ai.AiActivityLogger
+import com.oneai.app.ai.LegacyProviderSettings
+import com.oneai.app.ai.ProviderProfileStorage
 import com.oneai.app.commands.CommandRepository
 import com.oneai.app.security.ActionAuditLogger
 
@@ -22,7 +24,7 @@ data class ActivityEntry(
     val plugin: String? = null
 )
 
-class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore, CatalogueSourceStorage {
+class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore, CatalogueSourceStorage, ProviderProfileStorage {
     // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
     private val appContext: Context = context.applicationContext ?: context
     private val prefs = appContext.getSharedPreferences("one_ai_store", Context.MODE_PRIVATE)
@@ -162,12 +164,17 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
     fun bubbleServiceOrder(): List<String> = prefs.getString("bubble_service_order", "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
     fun setBubbleServiceOrder(order: List<String>) { prefs.edit().putString("bubble_service_order", order.distinct().joinToString(",")).apply() }
 
-    fun setAiEndpoint(value: String) { prefs.edit().putString("ai_endpoint", value.trim()).apply() }
-    fun aiEndpoint() = prefs.getString("ai_endpoint", "https://api.openai.com/v1/chat/completions") ?: ""
-    fun setAiModel(value: String) { prefs.edit().putString("ai_model", value.trim()).apply() }
-    fun aiModel() = prefs.getString("ai_model", "gpt-4o-mini") ?: "gpt-4o-mini"
-    fun setAiProviderName(value: String) { prefs.edit().putString("ai_provider", value).apply() }
-    fun aiProviderName() = prefs.getString("ai_provider", "OpenAI-compatible") ?: "OpenAI-compatible"
+    // AI provider profiles (decision D-V / V1, slice S1). The list lives in ProviderProfiles; this is only storage.
+    override fun readProfiles(): String? = prefs.getString("ai_profiles", null)
+    override fun writeProfiles(json: String) { prefs.edit().putString("ai_profiles", json).apply() }
+    override fun readActiveId(): String? = prefs.getString("ai_active_profile", null)
+    override fun writeActiveId(id: String) { prefs.edit().putString("ai_active_profile", id).apply() }
+    /** The pre-profile single configuration, read only to migrate it into the first profile. Nothing writes these keys any more. */
+    override fun legacySettings() = LegacyProviderSettings(
+        endpoint = prefs.getString("ai_endpoint", null),
+        model = prefs.getString("ai_model", null),
+        name = prefs.getString("ai_provider", null)
+    )
 
     override fun developerMode() = prefs.getBoolean("developer_mode", false)
     fun setDeveloperMode(value: Boolean) { prefs.edit().putBoolean("developer_mode", value).apply() }

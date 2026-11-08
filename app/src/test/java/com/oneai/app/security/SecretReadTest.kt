@@ -57,7 +57,8 @@ class SecretReadTest {
         assertTrue(client.contains("CREDENTIALS_UNREADABLE"))
         assertTrue(client.contains("CredentialStatus.UNREADABLE_MESSAGE"))
         val main = source("com/oneai/app/MainActivity.kt")
-        assertTrue(main.contains("CredentialStatus.of(vault.readResult())"))
+        // Slice S1 (provider profiles): the key status is still derived from a stored read result, now the selected profile's.
+        assertTrue(main.contains("CredentialStatus.of(profiles.keyResult(selected.id))"))
         assertTrue(main.contains("aiKeyStatus.settingsText"))
         assertFalse("the AI key status must not collapse unreadable into not saved", main.contains("if(hasAiKey) \"saved"))
     }

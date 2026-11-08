@@ -1,6 +1,7 @@
 # AI providers and AI-to-plugin tool use - scoping
 
 - **Date:** 2026-11-08. **Method:** read-only source inspection of exact head `8dbdfc70fb14e6eb105eefdd3d8b877dcf59c497` (CI #657 passed on `33ba79a`; `8dbdfc7` is a tracker-only commit). No source, manifest, build file or test was changed.
+- **Status (2026-11-08):** D-V option V1 was approved as decision D13 and slice S1 is implemented (see `DEVELOPMENT_TRACKER.md` for its CI record). D-W to D-Z remain open; S2 to S5 have not started. The sections below are the original scoping and are not rewritten.
 - **Evidence level:** source inspection only. Nothing was run on an emulator or device and no provider was called.
 - **Why now:** the owner wants ONE AI to be a complete platform that stays useful without plugins, to use more than one AI service (not only a single key), and to make plugins feel like part of the AI instead of a separate toolbox.
 - **Scope:** generic Core only (Stage 5 provider-neutral AI, Stage 6 command framework, Stage 8/9 plugin contract and management). No capability plugin is involved (D4 stands). Because this changes the plugin API and adds a new permission state, **nothing here starts without owner decisions** (section 6).

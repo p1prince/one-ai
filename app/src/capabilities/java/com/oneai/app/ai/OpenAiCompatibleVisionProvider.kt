@@ -2,6 +2,7 @@ package com.oneai.app.ai
 
 import android.util.Base64
 import com.oneai.app.core.OneAiStore
+import com.oneai.app.security.SecretRead
 import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -16,14 +17,18 @@ class OpenAiCompatibleVisionProvider(
     private val store: OneAiStore,
     private val vault: SecretVault
 ) : AiVisionProvider {
+    private val profiles = AiProviders.profiles(store, vault)
+
     override suspend fun analyzeImage(prompt: String, imageBytes: ByteArray, mimeType: String): AiCompletion =
         withContext(Dispatchers.IO) {
             require(prompt.isNotBlank() && prompt.length <= 4_000) { "Image analysis instructions are invalid." }
             require(imageBytes.isNotEmpty() && imageBytes.size <= MAX_IMAGE_BYTES) { "Selected image is empty or too large." }
             require(mimeType in SUPPORTED_MIME_TYPES) { "Selected image format is not supported." }
-            val key = vault.read()?.takeIf { it.isNotBlank() }
+            // Follows the active AI provider profile and that profile's own key (decision D-V / V1, slice S1).
+            val profile = profiles.active()
+            val key = (profiles.keyResult(profile.id) as? SecretRead.Present)?.value?.takeIf { it.isNotBlank() }
                 ?: throw AiProviderException("MISSING_CREDENTIALS", "Add an API key in Settings before using image analysis.")
-            val url = runCatching { URL(store.aiEndpoint().trim()) }.getOrElse {
+            val url = runCatching { URL(profile.endpoint.trim()) }.getOrElse {
                 throw AiProviderException("INVALID_ENDPOINT", "The provider endpoint is not a valid URL.")
             }
             require(url.protocol.equals("https", true) && url.host.isNotBlank() &&
@@ -36,7 +41,7 @@ class OpenAiCompatibleVisionProvider(
                 .put(JSONObject().put("type", "image_url").put("image_url",
                     JSONObject().put("url", dataUrl).put("detail", "auto")))
             val payload = JSONObject()
-                .put("model", store.aiModel())
+                .put("model", profile.model)
                 .put("messages", JSONArray().put(JSONObject()
                     .put("role", "user").put("content", content)))
                 .put("temperature", 0.2)
@@ -83,7 +88,7 @@ class OpenAiCompatibleVisionProvider(
                     else -> ""
                 }
                 if (answer.isBlank()) throw AiProviderException("EMPTY_RESPONSE", "The provider returned an empty analysis.")
-                AiCompletion(answer, json.optString("model", store.aiModel()), store.aiProviderName())
+                AiCompletion(answer, json.optString("model", profile.model), profile.name)
             } catch (e: AiProviderException) {
                 throw e
             } catch (e: CancellationException) {

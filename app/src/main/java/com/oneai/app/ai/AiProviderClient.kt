@@ -1,9 +1,7 @@
 package com.oneai.app.ai
 
-import com.oneai.app.core.OneAiStore
 import com.oneai.app.security.CredentialStatus
 import com.oneai.app.security.SecretRead
-import com.oneai.app.security.SecretVault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,10 +10,14 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** OpenAI-compatible chat-completions adapter. Credentials are never logged. */
+/**
+ * OpenAI-compatible chat-completions adapter for one provider profile (decision D-V / V1, slice S1).
+ * The endpoint, model and display name come from [profile]; the key is read from [secrets] for that profile only.
+ * Credentials are never logged.
+ */
 class AiProviderClient(
-    private val store: OneAiStore,
-    private val vault: SecretVault
+    private val profile: AiProviderProfile,
+    private val secrets: ProfileSecrets
 ) : AiProvider {
     suspend fun ask(prompt: String): String {
         require(prompt.isNotBlank()) { "Enter a message before sending it." }
@@ -27,11 +29,11 @@ class AiProviderClient(
         require(messages.all { it.role in ALLOWED_ROLES && it.content.isNotBlank() }) {
             "Messages must have a supported role and non-empty content."
         }
-        val stored = vault.readResult()
+        val stored = secrets.read(profile.secretName)
         if (stored === SecretRead.Unreadable) throw AiProviderException("CREDENTIALS_UNREADABLE", CredentialStatus.UNREADABLE_MESSAGE)
         val key = (stored as? SecretRead.Present)?.value?.takeIf { it.isNotBlank() }
             ?: throw AiProviderException("MISSING_CREDENTIALS", "Add an API key in Settings before using the AI provider.")
-        val endpoint = store.aiEndpoint().trim()
+        val endpoint = profile.endpoint.trim()
         val url = runCatching { URL(endpoint) }.getOrElse {
             throw AiProviderException("INVALID_ENDPOINT", "The provider endpoint is not a valid URL.")
         }
@@ -53,7 +55,7 @@ class AiProviderClient(
             connection.setRequestProperty("User-Agent", "ONE-AI-Android")
 
             val payload = JSONObject()
-                .put("model", store.aiModel())
+                .put("model", profile.model)
                 .put("messages", JSONArray().apply {
                     messages.forEach { put(JSONObject().put("role", it.role).put("content", it.content)) }
                 })
@@ -82,7 +84,7 @@ class AiProviderClient(
                 ?: throw AiProviderException("INVALID_RESPONSE", "The provider response did not contain a message.")
             val answer = extractContent(message.opt("content"))
             if (answer.isBlank()) throw AiProviderException("EMPTY_RESPONSE", "The provider returned an empty answer.")
-            AiCompletion(answer, json.optString("model", store.aiModel()), store.aiProviderName())
+            AiCompletion(answer, json.optString("model", profile.model), profile.name)
         } catch (e: AiProviderException) {
             throw e
         } catch (e: CancellationException) {
