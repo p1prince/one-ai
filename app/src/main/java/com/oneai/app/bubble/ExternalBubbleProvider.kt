@@ -48,7 +48,8 @@ class ExternalBubbleProvider(
                 confirmLabel = "Allow once"
             ),
             outcomes = BubbleOutcomes("${manifest.name} unavailable", "${manifest.name} blocked", "${manifest.name} failed"),
-            backTo = serviceId
+            backTo = serviceId,
+            runTitle = command.title
         )
     }
 

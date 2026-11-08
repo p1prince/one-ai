@@ -65,7 +65,9 @@ sealed interface BubbleAction {
         val input: PluginActionInput,
         val approval: BubbleApproval,
         val outcomes: BubbleOutcomes,
-        val backTo: String? = null
+        val backTo: String? = null,
+        /** Command title for the host-drawn "Running" panel (D11 / D-T); null falls back to the action id. */
+        val runTitle: String? = null
     ) : BubbleAction
 
     /** An action the gateway gates but the contributor performs itself after approval. */

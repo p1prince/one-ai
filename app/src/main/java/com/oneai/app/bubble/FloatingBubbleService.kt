@@ -49,6 +49,7 @@ class FloatingBubbleService : Service() {
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
     private val registry get() = BubbleProviders.registry
     private var panelToken = 0
+    private val runs = BubbleRunState()
 
     private val host = object : BubbleHost {
         override val context: Context get() = this@FloatingBubbleService
@@ -281,18 +282,55 @@ class FloatingBubbleService : Service() {
                 showHandoffResult("Approval unavailable", "ONE AI could not verify approval for this command.")
                 return@addButton
             }
-            hidePanel()
-            serviceScope.launch {
-                val result = services.commandExecutor.execute(commandId, input.values, ticket)
-                if (serviceJob.isActive) uiHandler.post {
-                    if (serviceJob.isActive) showHandoffResult(
-                        result.title.ifBlank { title },
-                        if (result.status == com.oneai.app.commands.CommandStatus.COMPLETED) result.content
-                        else result.error?.message ?: result.content.ifBlank { "The command could not be completed." }
-                    )
-                }
+            launchRun(title, commandId, { services.commandExecutor.execute(commandId, input.values, ticket) }) { result ->
+                showHandoffResult(
+                    result.title.ifBlank { title },
+                    if (result.status == com.oneai.app.commands.CommandStatus.COMPLETED) result.content
+                    else result.error?.message ?: result.content.ifBlank { "The command could not be completed." }
+                )
             }
         }
+        attachPanel(box)
+    }
+
+    /**
+     * Runs one approved call behind the host-drawn "Running" panel with Cancel (decision D11 / D-T).
+     * The panel text is the command title only, never plugin text. Cancel cancels the job (the adapter then
+     * cancels the request in the plugin); hiding the panel does not cancel. A result that arrives after
+     * Cancel is dropped, and a failure is shown instead of crashing the service.
+     */
+    private fun <T> launchRun(title: String?, fallback: String, work: suspend () -> T, onResult: (T) -> Unit) {
+        val id = runs.begin()
+        showRunning(id, title, fallback)
+        val job = serviceScope.launch {
+            val outcome: Result<T> = try {
+                Result.success(work())
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure<T>(error)
+            }
+            if (!serviceJob.isActive) return@launch
+            uiHandler.post {
+                if (!serviceJob.isActive || !runs.complete(id)) return@post
+                outcome.fold(
+                    onSuccess = onResult,
+                    onFailure = { showHandoffResult("Command failed", "The command could not be completed.") }
+                )
+            }
+        }
+        runs.attach(id, job)
+    }
+
+    private fun showRunning(id: Long, title: String?, fallback: String) {
+        val box = basePanel()
+        addLabel(box, "ONE AI  •  RUNNING", 16f)
+        addLabel(box, BubbleRunning.heading(title, fallback), 14f)
+        addLabel(box, BubbleRunning.HIDDEN_NOTE, 11f)
+        addButton(box, "Cancel") {
+            if (runs.cancel(id)) showHandoffResult(BubbleRunning.CANCELLED_TITLE, BubbleRunning.CANCELLED_NOTE)
+        }
+        addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
     }
 
@@ -363,21 +401,17 @@ class FloatingBubbleService : Service() {
     private fun runPluginCall(call: BubbleAction.PluginCall, provider: BubbleServiceProvider) {
         val services = AppServices.get(application)
         val executor: PluginActionExecutor = services.pluginExecution.executor
-        serviceScope.launch {
+        launchRun(call.runTitle, call.input.actionId, {
             services.pluginRestoration.awaitReady()
-            provider.ensureReady(host).onFailure {
-                uiHandler.post {
-                    if (serviceJob.isActive) showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.")
-                }
-                return@launch
-            }
-            val decision = executor.invoke(call.pluginId, call.input)
-            if (!serviceJob.isActive) return@launch
-            uiHandler.post {
-                if (!serviceJob.isActive) return@post
-                if (decision is PluginInvocationResult.AwaitingApproval) showApproval(call, executor)
-                else show(call.outcomes.present(decision))
-            }
+            provider.ensureReady(host).map { executor.invoke(call.pluginId, call.input) }
+        }) { prepared ->
+            prepared.fold(
+                onSuccess = { decision ->
+                    if (decision is PluginInvocationResult.AwaitingApproval) showApproval(call, executor)
+                    else show(call.outcomes.present(decision))
+                },
+                onFailure = { showHandoffResult(call.outcomes.unavailableTitle, it.message ?: "Could not start this service.") }
+            )
         }
     }
 
@@ -392,11 +426,8 @@ class FloatingBubbleService : Service() {
                 showHandoffResult(call.outcomes.blockedTitle, "ONE AI could not verify approval for this action.")
                 return@addButton
             }
-            hidePanel()
-            serviceScope.launch {
-                val result = runtime.invoke(call.pluginId, call.input, ticket)
-                if (!serviceJob.isActive) return@launch
-                uiHandler.post { if (serviceJob.isActive) show(call.outcomes.present(result)) }
+            launchRun(call.runTitle, call.input.actionId, { runtime.invoke(call.pluginId, call.input, ticket) }) { result ->
+                show(call.outcomes.present(result))
             }
         }
         attachPanel(box)
