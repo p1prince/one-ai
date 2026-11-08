@@ -44,6 +44,8 @@ import com.oneai.app.bubble.FloatingBubbleService
 import com.oneai.app.commands.CommandRouter
 import com.oneai.app.commands.CommandStatus
 import com.oneai.app.core.*
+import com.oneai.app.plugins.AccessOverview
+import com.oneai.app.plugins.AccessOverviewData
 import com.oneai.app.plugins.CatalogueListing
 import com.oneai.app.plugins.CatalogueRefreshGate
 import com.oneai.app.plugins.CatalogueSources
@@ -134,7 +136,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
-                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },pluginRestored,onBubbleToggle,refreshNow)
+                Page.Settings -> SettingsPage(Modifier.padding(pad),store,vault,{ center.bubbleBindings() },{ center.accessOverview() },pluginRestored,onBubbleToggle,refreshNow)
             }
         }
     }
@@ -609,7 +611,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
     )
 }
 
-@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
+@Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,vault:SecretVault,externalBindings:()->Map<String,String>,accessOverview:()->AccessOverviewData,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var endpoint by remember{mutableStateOf(store.aiEndpoint())};var model by remember{mutableStateOf(store.aiModel())};var provider by remember{mutableStateOf(store.aiProviderName())}
     var apiKey by remember{mutableStateOf("")};var braveSearchKey by remember{mutableStateOf("")};var status by remember{mutableStateOf("")}
@@ -674,7 +676,22 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             TextButton(onClick={confirmClearSearchKey=true},enabled=hasSearchKey){Text("Remove search credential",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
-        item { CardBox { Text("SECURITY",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp);Text("• Plugins declare capabilities and start disabled.\n• The shell does not execute downloaded plugin code.\n• Provider credentials are encrypted with Android Keystore.\n• Android permissions are requested only when a feature needs them.",color=White,fontSize=12.sp) } }
+        item {
+            // Stage 10.1: read-only overview of what each trusted plugin may ask for; it changes nothing.
+            val overview = accessOverview()
+            CardBox {
+                Text("ACCESS OVERVIEW",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
+                if(overview.isEmpty) Text(AccessOverview.EMPTY_TEXT,color=Muted,fontSize=12.sp)
+                overview.rows.forEach { row ->
+                    Spacer(Modifier.height(8.dp))
+                    Text(row.title,color=White,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
+                    row.lines.forEach { line -> Text(line,color=Muted,fontSize=11.sp) }
+                }
+                if(overview.moreCount>0) { Spacer(Modifier.height(8.dp));Text("and ${overview.moreCount} more. Open the Plugins screen to see them all.",color=Muted,fontSize=11.sp) }
+                Spacer(Modifier.height(10.dp))
+                AccessOverview.explanation.forEach { line -> Text("\u2022 $line",color=White,fontSize=12.sp) }
+            }
+        }
     }
     if(confirmClearAiKey) AlertDialog(
         onDismissRequest={confirmClearAiKey=false},

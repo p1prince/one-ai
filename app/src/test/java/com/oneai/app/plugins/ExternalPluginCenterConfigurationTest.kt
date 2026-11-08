@@ -247,4 +247,30 @@ class ExternalPluginCenterConfigurationTest {
         assertFalse("reading trusted entries enables nothing", f.store.plugins().any { it.enabled })
         assertEquals("and grants no Bubble access", before, f.store.bubbleServices())
     }
+
+    @Test fun accessOverviewReflectsEnabledStateAndNeedsConfigurationAndChangesNothing() {
+        val f = Fixture()
+        val logsBefore = f.store.logs.size
+        val first = f.center.accessOverview().rows.single()
+        assertEquals("Notes", first.title)
+        assertTrue(first.lines[0].startsWith("Enabled: no."))
+        assertTrue("a required setting has no value", first.lines[0].contains("needs configuration: Mode"))
+        assertTrue(first.lines[1].contains("offers no Bubble view"))
+        assertTrue("files asks first", first.lines[2].contains("files"))
+        assertEquals("reading the overview records nothing", logsBefore, f.store.logs.size)
+        assertFalse(f.store.plugins().any { it.enabled })
+        assertTrue("and grants no Bubble access", f.store.bubbleServices().isEmpty())
+
+        f.configuration.update(pkg, mapOf("mode" to "plain")).getOrThrow()
+        assertTrue(f.center.setEnabled(pkg, true).isSuccess)
+        val second = f.center.accessOverview().rows.single()
+        assertTrue(second.lines[0].startsWith("Enabled: yes. Trusted."))
+        assertFalse(second.lines[0].contains("needs configuration"))
+    }
+
+    @Test fun accessOverviewIsEmptyWhenNothingIsTrusted() {
+        val f = Fixture()
+        f.trustStore.remove(pkg)
+        assertTrue(f.center.accessOverview().isEmpty)
+    }
 }

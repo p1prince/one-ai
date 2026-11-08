@@ -1,6 +1,6 @@
 # Stage 10 design note — security controls, structured Activity, access overview
 
-- **Status:** PROPOSED. Nothing here is approved or implemented. Owner decisions D-I to D-L (section 8) are open.
+- **Status:** APPROVED 2026-11-08 as decision D7 (D-I to D-L as recommended, `docs/DECISIONS.md`). Slice 10.1 is implemented; slices 10.2 to 10.4 are not.
 - **Date:** 2026-11-08. **Basis:** `docs/STAGE_10_AUDIT.md` (gaps S2, A3, A4, S1), source head `f1413f9` (Android Validation #626 passed); this note adds docs only.
 - **Scope:** generic Core and plugin-platform security, settings and activity. No capability plugin is involved and none is added (`docs/PROJECT_CONTINUATION_RULES.md`).
 - **Evidence level:** source inspection. Call-site counts below come from a grep, not from a runtime trace.
@@ -30,7 +30,7 @@
 
 **Option rejected: a permissions table with toggles.** There are no persistent permissions to toggle; showing switches would suggest standing grants that do not exist.
 
-**Slice 10.1.** A pure `AccessOverview` builder (input: trusted entries, enabled ids, Bubble access, needs-configuration titles; output: rows with cleaned text via `CatalogueView.clean`, bounded to a fixed row count), the Settings card, and unit tests: empty state, enabled/disabled, Bubble access shown separately from enabled, approval-first capabilities match `CapabilityPolicy`, long and hostile plugin text cleaned, row cap, and a source guard that the card has no state-changing call.
+**Slice 10.1 (implemented).** Deviation from the first wording: the overview has no Details button, because the Details dialog is owned by the Plugins screen and lifting it into Settings would add state without a way to render-test it here. The rows tell the user to open the Plugins screen for Details. A pure `AccessOverview` builder (input: trusted entries, enabled ids, Bubble access, needs-configuration titles; output: rows with cleaned text via `CatalogueView.clean`, bounded to a fixed row count), the Settings card, and unit tests: empty state, enabled/disabled, Bubble access shown separately from enabled, approval-first capabilities match `CapabilityPolicy`, long and hostile plugin text cleaned, row cap, and a source guard that the card has no state-changing call.
 
 ## 3. A3 — structured Activity entries (recommended, additive)
 

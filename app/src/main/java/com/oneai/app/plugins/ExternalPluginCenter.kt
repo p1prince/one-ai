@@ -116,6 +116,29 @@ class ExternalPluginCenter(
         )
     }
 
+    /**
+     * Stage 10.1: the read-only Access overview for Settings. Unlike [snapshot] it does not scan the device for plugin
+     * apps, so it is cheap enough to build while Settings is drawn. It uses [PluginTrustRegistry.peek], which records
+     * nothing, and changes no plugin state.
+     */
+    fun accessOverview(): AccessOverviewData {
+        val entries = trust.trusted()
+        val statuses = entries.mapNotNull { entry -> statusOf(trust.peek(entry.packageName))?.let { entry.packageName to it } }.toMap()
+        val ready = statuses.filterValues { it == ExternalStatus.Ready }.keys
+        val missing = configuration?.let { config ->
+            ready.mapNotNull { id ->
+                config.schema(id)?.let { config.missingRequired(id).map { m -> m.title }.takeIf { t -> t.isNotEmpty() }?.let { t -> id to t } }
+            }.toMap()
+        }.orEmpty()
+        return AccessOverview.build(
+            entries = entries,
+            statuses = statuses,
+            enabledPluginIds = manager.installed().filter { it.enabled }.map { it.id }.toSet(),
+            bubbleAccessIds = entries.map { it.packageName }.filter { manager.hasBubbleAccess(it) }.toSet(),
+            needsConfiguration = missing
+        )
+    }
+
     /** The values a plugin currently has in effect (stored, otherwise default); empty for a plugin without settings. */
     fun effectiveSettings(id: String): Map<String, String> = configuration?.effective(id).orEmpty()
 
