@@ -92,10 +92,10 @@ class BubbleRunStateTest {
     }
 
     @Test fun theHeadingStripsHiddenCharactersAndIsBounded() {
-        val tricky = "Safe‮txt​" + "x".repeat(200)
+        val tricky = "Safe\u202Etxt\u200B" + "x".repeat(200)
         val heading = BubbleRunning.heading(tricky, "fallback")
-        assertFalse(heading.contains('‮'))
-        assertFalse(heading.contains('​'))
+        assertFalse(heading.contains('\u202E'))
+        assertFalse(heading.contains('\u200B'))
         assertTrue(heading.length <= "Running ".length + BubbleRunning.MAX_TITLE + "...".length)
     }
 }
