@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -584,16 +585,27 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
 @Composable private fun ActivityPage(modifier:Modifier,store:OneAiStore,refresh:Int) {
     val entries=store.activityEntries()
     var confirmClear by remember { mutableStateOf(false) }
+    // Stage 10, slice 10.3: display-only filter; not persisted, never deletes or changes stored entries.
+    var filter by remember { mutableStateOf(ActivityFilter.ALL) }
+    val shown=ActivityFilter.apply(entries,filter)
     LazyColumn(modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         item {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) { Header("Activity","A local record of recent ONE AI actions and outcomes.") }
                 TextButton(onClick={confirmClear=true},enabled=entries.isNotEmpty()) { Text("Clear history",color=Color(0xFFFF8A80)) }
             }
-            Text("${entries.size} of 150 recent events • Stored on this device",color=Muted,fontSize=11.sp)
+            Text(if(filter==ActivityFilter.ALL) "${entries.size} of 150 recent events • Stored on this device" else "${shown.size} of ${entries.size} events shown • Stored on this device",color=Muted,fontSize=11.sp)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                ActivityFilter.values().forEach { option ->
+                    val selected=option==filter
+                    Text(option.label,color=if(selected) Color.Black else White,fontSize=12.sp,
+                        modifier=Modifier.background(if(selected) Gold else Panel,RoundedCornerShape(50)).clickable{filter=option}.padding(horizontal=14.dp,vertical=8.dp))
+                }
+            }
         }
         if(entries.isEmpty()) item { CardBox { Text("Nothing here yet.",color=White);Text("AI requests, command runs and security decisions will appear here.",color=Muted,fontSize=12.sp) } }
-        items(entries,key={"${it.timestamp}:${it.message}"}) {
+        else if(shown.isEmpty()) item { CardBox { Text("No ${filter.label} events.",color=White);Text("Nothing is hidden or deleted. Choose All to see every event.",color=Muted,fontSize=12.sp) } }
+        items(shown,key={"${it.timestamp}:${it.message}"}) {
             CardBox {
                 Text(if(it.timestamp>0) DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(it.timestamp)) else "Earlier activity",color=Gold,fontSize=10.sp)
                 Spacer(Modifier.height(4.dp))
