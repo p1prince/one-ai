@@ -84,8 +84,17 @@ Record pass/fail per row. "Expected" is what the design requires, not an observe
 | M38 | Repeat M36 and press **Close panel** while it runs, then wait for it to finish | The command is not cancelled; its result appears in the Bubble when it finishes |
 | M39 | Run `wait` with a plugin that exceeds the 35-second host deadline (or stop the plugin app mid-call) | The Running panel is replaced by a failure or timeout message, never left on screen, and the Bubble stays usable |
 | M40 | From the Command Manager, run an extension command that needs approval and press **Approve and run** | The same Running panel with the command title and Cancel appears instead of an empty screen, then the result |
+| M41 | With the echo plugin imported and **Enabled** but Bubble access **off**, open Plugins and Home | The plugin's card shows **Open**; Home shows a "YOUR PLUGINS" list with the plugin; Floating Bubble still does not offer it |
+| M42 | Turn the plugin off, look at Plugins and Home, then turn it on again (Bubble access still off) | **Open** and the Home entry disappear while it is off and come back when it is on; turning Bubble access on or off never changes either |
+| M43 | Tap **Open** | A plugin screen opens as a sub-page with the plugin's view, a note that the screen is supplied by the plugin, and Back; Back or any bottom-navigation item closes it and the five tabs are unchanged |
+| M44 | In the opened screen press a button whose command needs approval | A host dialog shows the exact values; **Allow once** runs it and shows Running with Cancel, then the result; **Cancel** in the dialog runs nothing |
+| M45 | Press the echo `wait` button, then press **Cancel**; repeat and instead leave the screen while it runs | Cancel shows a "Cancelled" note and no later result; leaving the screen cancels the command and nothing appears afterwards |
+| M46 | Use a plugin with a required setting that is not filled in (a variant of the echo sample) | It cannot be enabled, so no **Open** and no Home entry appear until the setting is saved and the plugin is enabled |
+| M47 | Open the plugin in the app while the Floating Bubble is also showing the same plugin; run a command in each | Both work independently; neither blocks, cancels or shows the other's result |
+| M48 | With a plugin variant that requests a screen (API 2) from a command run in the opened app screen | An in-app "Plugin screen request" dialog shows the package, the requested screen and a warning; **Allow once** sends the launch (Android may still block it: record what happens); **Reject** sends nothing |
+| M49 | Repeat M48 but leave the screen without answering; then request a screen from a different plugin while a plugin screen is open | The unanswered request is rejected and does not appear later in the Bubble; the other plugin's request still goes to the Bubble, not over the open screen |
 
-M13, M14, M19 and M31 need a small extra test app or plugin variant that does not exist yet. M20-M28 need an HTTPS server you control to host catalogue documents (the sample and variants of it) and a second device-installed plugin APK for M25-M27; none of these has been run.
+M13, M14, M19, M31, M46, M48 and M49 need a small extra test app or plugin variant that does not exist yet. M20-M28 need an HTTPS server you control to host catalogue documents (the sample and variants of it) and a second device-installed plugin APK for M25-M27; none of these has been run.
 
 ## 4. Recording results
 

@@ -163,6 +163,16 @@ Availability follows two independent user settings. A service appears in the Bub
 
 Contributors are registered in `BubbleProviders.registry` from the application composition root (`OneAiApplication`), which runs on every process start, including when Android restarts the Bubble service. The six capability UIs that ship today are expressed through this contract in `com.oneai.app.builtin` as an interim step; they are slated to become separately installed plugins (Stages 8–9).
 
+## In-app plugin screens (decision D12)
+
+A plugin that declares a Bubble view can also be used inside ONE AI. The user opens it with **Open** on the plugin's card in Plugins, or from the **Your plugins** list on Home. No SDK or plugin API change is involved: the app draws the same declarative view the Bubble draws, from the same provider, and runs commands through the same executor.
+
+- **Who can open it:** a plugin that is trusted (signer matches), **Enabled**, declares a screen and has every required setting filled in. Bubble access is a separate setting and is never consulted: a plugin the user has not allowed into the Bubble can still be opened in the app, and allowing or removing Bubble access does not change what can be opened.
+- **Not a sixth destination:** the screen is a sub-page. Tapping any navigation item, or Back, closes it. Nothing opens at startup.
+- **Same safety flow as the Bubble:** the approval dialog is drawn by ONE AI and shows the exact values; "Allow once" yields the one-use ticket; a **Running** state with **Cancel** is shown while a command runs; plugin text is labelled as plugin text; leaving the screen cancels a running command.
+- **Commands without a screen:** extension commands do not appear in the in-app Command Manager, because a command declares no parameters. A command that needs input is exposed through the plugin's own screen.
+- **Plugin-requested screens (API 2):** while a plugin's own screen is open, that plugin's screen request is shown in the app as a "Plugin screen request" dialog (package, requested screen, and a warning that the description comes from the plugin) with **Allow once** and **Reject**. It uses the same host launch policy as the Bubble: identity check, trust and Enabled re-check, one-use consumption, then the send. Closing the screen rejects an unanswered request. A request from any other plugin, or when no plugin screen is open, is handled by the Bubble exactly as before.
+
 ## Independently installed plugins (manifest v2)
 
 Plugins built as separate signed APKs (decision D1) are documented in `docs/PLUGIN_DEVELOPER_GUIDE.md`, with a working reference plugin in `samples/echo-plugin`. Everything above describes manifest v1 and the in-app adapters, which stay readable for migration. A trusted external plugin is wrapped by `ExternalPluginAdapter` so it uses the same `PluginRuntime`, gateway, command registry and Bubble contract described in this file.

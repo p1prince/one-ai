@@ -178,6 +178,8 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - While a command runs, ONE AI draws a **Running** panel with the command's declared title and a **Cancel** button; it never shows text from your plugin. Cancel interrupts your `onCommand` (so keep commands cancellable, section 5). The call ends at the latest after the 35-second host deadline. A cancelled command has used its one-use approval, so the user approves again to rerun it.
 - A command declares no parameters, so the Command Manager runs it with no arguments. If a command needs input, expose it through a Bubble view with `input` elements and a `button` that passes `"@key"` arguments.
 - Two separate user settings apply: enabling the plugin, and giving it Bubble access. The Bubble starts empty; nothing appears until the user turns both on.
+- The same view is also drawn **inside ONE AI**: the user opens it with **Open** on your plugin's card or from the Home list. That needs the plugin to be trusted, enabled and fully configured, but **not** Bubble access. The approval dialog, Running panel with Cancel and result frame are the same, and leaving the screen cancels a running command. Write the view so it makes sense in both places; you cannot tell which one is drawing it.
+- If your command asks for a screen (section 5, API 2) while your screen is open in the app, the user sees ONE AI's own "Plugin screen request" dialog in the app (not in the Bubble), with your package and label shown as untrusted text. Rejecting, or closing the screen without answering, sends nothing.
 
 ## 7. Who may call you (host verification)
 
