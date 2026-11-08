@@ -74,6 +74,8 @@ Adapters are trusted integration code, not arbitrary third-party code loaded fro
 
 Trusted in-app feature modules can return a completed text result to the running Bubble service using the internal `BubbleResultHandoff` contract. Send an explicit intent to `FloatingBubbleService` with action `ACTION_SHOW_RESULT` and the `EXTRA_TITLE` / `EXTRA_CONTENT` fields. The service validates and bounds both fields, then renders the result inside its independent overlay; it does not redirect the user to `MainActivity`. Invalid, blank or oversized results are ignored. The service is not exported, so this is an in-app integration boundary, not an external-app API.
 
+> **Historical (decisions D4, D8 and D9).** The sections from "Screen capture and selected-image hand-off" through "Device Control integration" describe the earlier in-app capability adapters. They are kept for reference only: that code lives in the `capabilities` product flavor and is not part of the Core app, and none of it is part of the current plugin contract. Plugin authors should follow the manifest v2 and API level sections below and `docs/PLUGIN_DEVELOPER_GUIDE.md`.
+
 ## Screen capture and selected-image hand-off
 
 The Stage 7 capture framework now provides a user-initiated path from the Bubble:
@@ -105,7 +107,7 @@ The optional Voice Interface plugin uses a trusted in-app adapter registered aga
 The optional App Control plugin uses the `app_launch` capability to enumerate launcher-visible applications and open a user-selected app through its exported Android launcher activity. The app catalog uses a launcher-intent `<queries>` declaration rather than broad `QUERY_ALL_PACKAGES` visibility. Every launch is routed through `PluginRuntime` and requires an exact-action, one-use approval naming the selected app. This integration does not sign in, inspect private app data, automate screens, or bypass another app's authentication. In-app automation remains a separate, permission-sensitive integration.
 
 
-## App Control integration (Stage 8)
+## App Control integration (Stage 8, continued)
 
 The optional App Control adapter uses the `app_launch` capability to list launcher-visible applications and open a user-selected app through its exported Android launcher activity. Package visibility is limited to launcher activities; the app does not request broad `QUERY_ALL_PACKAGES` access. Each launch requires an exact-action, one-use approval. This does not sign in, inspect private app data, automate in-app screens or bypass another app's security.
 

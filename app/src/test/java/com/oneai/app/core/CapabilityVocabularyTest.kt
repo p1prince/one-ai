@@ -76,6 +76,16 @@ class CapabilityVocabularyTest {
         assertTrue(section.contains("closed and versioned"))
     }
 
+    @Test fun theSdkNoteMarksTheEarlierCapabilityAdapterSectionsHistorical() {
+        val text = repoFile("PLUGIN_SDK.md").readText()
+        val note = text.indexOf("> **Historical (decisions D4, D8 and D9).**")
+        val firstAdapterSection = text.indexOf("## Screen capture and selected-image hand-off")
+        assertTrue(note >= 0)
+        assertTrue("the note must come before the first adapter section", note < firstAdapterSection)
+        val headings = text.lines().filter { it.startsWith("## ") }
+        assertEquals("no heading may repeat", headings.size, headings.toSet().size)
+    }
+
     @Test fun theDeveloperGuideListsExactlyTheVocabulary() {
         val section = repoFile("docs/PLUGIN_DEVELOPER_GUIDE.md").readText()
             .substringAfter("### Capabilities and approval").substringBefore("\n## ")
