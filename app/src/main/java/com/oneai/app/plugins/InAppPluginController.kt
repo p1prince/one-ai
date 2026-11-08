@@ -44,7 +44,11 @@ class InAppPluginController(
     private val executor: PluginActionExecutor,
     private val loadView: suspend () -> BubbleView,
     /** Waits for plugin restoration and prepares the adapter, as the Bubble does before its first call. */
-    private val prepare: suspend () -> Result<Unit>
+    private val prepare: suspend () -> Result<Unit>,
+    /** Slice C4: told once when the screen opens, so a plugin-requested screen can be presented here. */
+    private val onOpened: (InAppLaunchPresenter) -> Unit = {},
+    /** Told once when the screen closes. */
+    private val onClosed: () -> Unit = {}
 ) {
     private data class Pending(val runId: Long, val call: BubbleAction.PluginCall)
 
@@ -54,9 +58,19 @@ class InAppPluginController(
     private var notice: BubbleMessage? = null
     private var pending: Pending? = null
     private var job: Job? = null
+    private var attached = false
+
+    /** What the screen draws for a plugin-requested screen (API 2): the approval and its outcome. */
+    val launch = InAppLaunchPresenter()
 
     private val state = MutableStateFlow(snapshot())
     val ui: StateFlow<PluginScreenUi> get() = state
+
+    /** The screen is now showing: route this plugin's screen requests here. Safe to call more than once. */
+    fun opened() {
+        val first = synchronized(lock) { !attached.also { attached = true } }
+        if (first) onOpened(launch)
+    }
 
     /** Loads (or reloads) the plugin's screen. A failure shows a fixed message, not the exception text. */
     fun load() {
@@ -166,8 +180,13 @@ class InAppPluginController(
         publish()
     }
 
-    /** The screen is closing: stop any running call. */
-    fun close() = cancel()
+    /** The screen is closing: stop any running call, reject an unanswered screen request, stop routing here. */
+    fun close() {
+        cancel()
+        launch.close()
+        val wasAttached = synchronized(lock) { attached.also { attached = false } }
+        if (wasAttached) onClosed()
+    }
 
     private fun setNotice(message: BubbleMessage) {
         synchronized(lock) { notice = message }

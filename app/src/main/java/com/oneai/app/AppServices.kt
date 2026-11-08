@@ -143,7 +143,9 @@ class AppServices private constructor(private val app: Application) {
             scope = scope,
             executor = pluginExecution.executor,
             loadView = { provider.loadView(host) },
-            prepare = { pluginRestoration.awaitReady(); provider.ensureReady(host) }
+            prepare = { pluginRestoration.awaitReady(); provider.ensureReady(host) },
+            onOpened = { presenter -> pluginLaunchApprovalController.attachInApp(pluginId, presenter) },
+            onClosed = { pluginLaunchApprovalController.detachInApp() }
         )
     }
 

@@ -21,11 +21,14 @@ class PluginLaunchApprovalController(
 ) {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var presenter: BubbleHostApprovalPresenter? = null
+    /** Slice C4: set only while one plugin's own screen is open in the app. */
+    @Volatile private var inAppPresenter: BubbleHostApprovalPresenter? = null
+    @Volatile private var inAppPluginId: String? = null
 
     private val observer: (PluginLaunchRequest?) -> Unit = { request ->
         main.post {
-            val ui = presenter ?: return@post
             if (request == null) return@post
+            val ui = PluginLaunchRouting.select(request.pluginPackage, presenter, inAppPresenter, inAppPluginId) ?: return@post
             ui.showApproval(
                 title = "PLUGIN SCREEN REQUEST",
                 details = "Package: ${request.pluginPackage}\nRequested screen: ${request.label}",
@@ -43,6 +46,25 @@ class PluginLaunchApprovalController(
         broker.setObserver(observer)
     }
 
+    /**
+     * Slice C4 (decision D12 / D-AB): while [pluginId]'s own screen is open in the app, that plugin's screen request is
+     * shown there instead of waiting for the Bubble. The approve and reject actions are the same ones the Bubble uses,
+     * so identity, trust and Enabled checks, one-use consumption and the send stay in this single implementation.
+     * Requests from any other plugin are unaffected.
+     */
+    fun attachInApp(pluginId: String, ui: BubbleHostApprovalPresenter) {
+        inAppPluginId = pluginId
+        inAppPresenter = ui
+        broker.setObserver(observer)
+    }
+
+    /** The in-app screen closed. A request still waiting is not left behind by this call; the screen's presenter rejects it. */
+    fun detachInApp() {
+        inAppPresenter = null
+        inAppPluginId = null
+        if (presenter == null) broker.setObserver(null)
+    }
+
     /** Re-displays an unhandled request when the user reopens the Bubble after closing its panel. */
     fun presentPending(): Boolean {
         val request = broker.current() ?: return false
@@ -52,7 +74,7 @@ class PluginLaunchApprovalController(
 
     fun detach() {
         presenter = null
-        broker.setObserver(null)
+        if (inAppPresenter == null) broker.setObserver(null)
     }
 
     private fun approve(request: PluginLaunchRequest): String {

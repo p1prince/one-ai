@@ -38,7 +38,9 @@ import com.oneai.app.bubble.BubbleRunning
 fun PluginScreen(pluginName: String, controller: InAppPluginController, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ui by controller.ui.collectAsState()
     val inputs = remember { mutableStateMapOf<String, String>() }
-    LaunchedEffect(controller) { controller.load() }
+    LaunchedEffect(controller) { controller.opened(); controller.load() }
+    val launchPrompt by controller.launch.prompt.collectAsState()
+    val launchResult by controller.launch.result.collectAsState()
     DisposableEffect(controller) { onDispose { controller.close() } }
     BackHandler(onBack = onBack)
 
@@ -90,6 +92,25 @@ fun PluginScreen(pluginName: String, controller: InAppPluginController, onBack: 
             is PluginCallState.Cancelled -> ResultFrame(BubbleRunning.CANCELLED_TITLE, BubbleRunning.CANCELLED_NOTE, onDismiss = { controller.dismiss() }, fromPlugin = false)
             else -> Unit
         }
+
+        launchResult?.let { result ->
+            ResultFrame(result.title, result.message, onDismiss = { controller.launch.dismissResult() }, fromPlugin = false)
+        }
+    }
+
+    launchPrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = { controller.launch.reject() },
+            title = { Text(prompt.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(prompt.details)
+                    Text(prompt.warning, fontSize = 11.sp)
+                }
+            },
+            confirmButton = { Button(onClick = { controller.launch.approve() }) { Text("Allow once") } },
+            dismissButton = { TextButton(onClick = { controller.launch.reject() }) { Text("Reject") } }
+        )
     }
 
     ui.approval?.let { approval ->
