@@ -24,6 +24,8 @@
 
 ## 2. Genuine gaps (ordered by risk)
 
+> **Update 2026-11-08:** A1 and A2 were corrected in `f1413f9` (Android Validation #626 passed; JVM and CI evidence only). The other items below remain open.
+
 **A1 — Activity log writes are not thread-safe (defect, source evidence only).**
 `OneAiStore.log` reads the whole JSON array from SharedPreferences, inserts one entry and writes it back. `OneAiStore` has no synchronisation (`@Synchronized` count is 0). Callers include the UI, the Bubble service, plugin-channel callbacks and IO-dispatcher code, so concurrent events can overwrite each other and be lost. This is a source-level inference; no test or device run reproduced it. Smallest correction: serialise `log`/`clearActivity` (one lock or a single writer) and add a concurrent-writer JVM test.
 
