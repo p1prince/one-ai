@@ -74,6 +74,11 @@
 - **Scope of this authorisation:** one manual run of `android.yml` (Core debug APK plus the Echo sample plugin APK) on the validation branch. It does **not** authorise a merge, a release, a release-signed build, a PR update, a change to `foundation/batch-03-ai-engine`, or any further build.
 - **Consequence:** the owner runs the manual rows listed in `docs/STAGE_11_ACCEPTANCE_MATRIX.md` on the tablet and reports results; Stage 11 stays pending until they are recorded. Rows that need test variants or an HTTPS server cannot be run with this build.
 
+## D15 - Style conformance: leave the current styling as it is
+- **Date:** 2026-11-08. **Decided by:** project owner ("I'll leave it like that and deal with other things"), in answer to the options in `docs/STYLE_CONFORMANCE_REVIEW.md` section 4.
+- **Decision:** no style correction slice. The card corner radius (16dp) and the inconsistent section-label letter-spacing stay as they are, and the unrecorded values (page spacing, body sizes, error red, warning amber, chip shape) are accepted as the current standard. This is closer to option O-3 (judge on the tablet) than to O-1; the owner has not asked for the two deviations to be fixed.
+- **Consequence:** Stage 1 item "Plugins, Develop, Activity and Settings conformance" is closed as decided by the owner, not as verified against the original design. The Bubble visual design remains unrecovered. Reopen only if the owner reports something on the device.
+
 ## Open decisions
 - **O3 — Stage 8 design defaults** (`docs/STAGE_8_DESIGN.md` §12): trust-on-first-use with fingerprint confirmation; declarative plugin UI only; minSdk 26. Proceeding with these unless the owner objects.
 - **O2 — RESOLVED 2026-11-07: Command card subtitle retired.** The Command ONE card now reads "Ask ONE AI to help with your next task." (verified in `MainActivity.kt` 2026-11-08). Original question:  keep "Your AI command interface is being prepared." or retire it now the AI interface works? *(low impact; currently kept verbatim because the owner listed it as approved Home text. It reads inaccurately now that the interface works; one-line change to remove)*
