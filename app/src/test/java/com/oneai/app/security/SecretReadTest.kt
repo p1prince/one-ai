@@ -59,7 +59,7 @@ class SecretReadTest {
         val main = source("com/oneai/app/MainActivity.kt")
         assertTrue(main.contains("CredentialStatus.of(vault.readResult())"))
         assertTrue(main.contains("aiKeyStatus.settingsText"))
-        assertFalse("Settings must not collapse unreadable into not saved", main.contains("else \"not saved\""))
+        assertFalse("the AI key status must not collapse unreadable into not saved", main.contains("if(hasAiKey) \"saved"))
     }
 
     @Test fun anUnreadableKeyCanStillBeRemovedFromSettings() {
