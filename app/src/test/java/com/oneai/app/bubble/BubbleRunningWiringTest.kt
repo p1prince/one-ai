@@ -63,6 +63,23 @@ class BubbleRunningWiringTest {
         assertTrue(provider.contains("runTitle = command.title"))
     }
 
+    private fun repoFile(relative: String): File =
+        listOf(File("../$relative"), File(relative), File("../../$relative")).firstOrNull { it.isFile }
+            ?: error("Could not locate $relative")
+
+    @Test fun theDocumentsDescribeTheRunningPanelAndWhereArgumentsComeFrom() {
+        val sdk = repoFile("PLUGIN_SDK.md").readText()
+        val guide = repoFile("docs/PLUGIN_DEVELOPER_GUIDE.md").readText()
+        listOf(sdk, guide).forEach {
+            assertTrue(it.contains("**Running** panel"))
+            assertTrue(it.contains("**Cancel**"))
+            assertTrue(it.contains("35"))
+            assertTrue(it.contains("declares no parameters"))
+        }
+        val plan = repoFile("docs/EMULATOR_TEST_PLAN.md").readText()
+        listOf("M36", "M37", "M38", "M39", "M40").forEach { assertTrue("$it missing", plan.contains("| $it |")) }
+    }
+
     @Test fun runTitleIsOptionalSoOtherContributorsKeepWorking() {
         val call = BubbleAction.PluginCall(
             pluginId = "dev.example.notes",

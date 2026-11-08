@@ -175,6 +175,8 @@ If you declare a `<bubble>`, return its view from `onView(serviceId)` as JSON. I
 - A button names a **declared** command. Its `args` are strings: `"@key"` takes the text of the input with that key; `"@@x"` is the literal `@x`; anything else is a literal. Up to 32 arguments.
 - Parsing is strict and fails closed: any unknown type, undeclared command, missing input or out-of-bounds value rejects the whole view.
 - Pressing a button runs the command through the normal path: the user's approval (drawn by ONE AI, showing the exact arguments) when the capability needs it, then your `onCommand`.
+- While a command runs, ONE AI draws a **Running** panel with the command's declared title and a **Cancel** button; it never shows text from your plugin. Cancel interrupts your `onCommand` (so keep commands cancellable, section 5). The call ends at the latest after the 35-second host deadline. A cancelled command has used its one-use approval, so the user approves again to rerun it.
+- A command declares no parameters, so the Command Manager runs it with no arguments. If a command needs input, expose it through a Bubble view with `input` elements and a `button` that passes `"@key"` arguments.
 - Two separate user settings apply: enabling the plugin, and giving it Bubble access. The Bubble starts empty; nothing appears until the user turns both on.
 
 ## 7. Who may call you (host verification)
