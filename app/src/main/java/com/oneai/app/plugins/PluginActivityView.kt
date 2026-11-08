@@ -5,11 +5,13 @@ import com.oneai.app.core.ActivityEntry
 /**
  * Stage 9.9: picks the Activity entries that are about one plugin, for the Details view.
  *
- * The activity log stores a timestamp and free text only, and changing that format is a Stage 10 decision. Every
- * plugin-attributed message already names the plugin by its exact id (`[id] ...` from the adapter and registrar,
- * `id/actionId` from the security gateway), so an entry is "about" a plugin when its text contains that id as a whole
- * identifier. A longer id that merely starts or ends with it (`com.example.notes.extras` versus `com.example.notes`)
- * never matches. This is a read-only view over the existing log; it records and changes nothing. Pure Kotlin.
+ * Since Stage 10 slice 10.2 an entry may carry the id of the plugin it is about in [ActivityEntry.plugin]. When it does,
+ * that field decides: the entry is about exactly that plugin and the text is not searched. Entries without the field
+ * (written before 10.2, or by call sites not yet typed) fall back to text matching: every plugin-attributed message
+ * names the plugin by its exact id (`[id] ...` from the adapter and registrar, `id/actionId` from the security
+ * gateway), so such an entry is "about" a plugin when its text contains that id as a whole identifier. A longer id
+ * that merely starts or ends with it (`com.example.notes.extras` versus `com.example.notes`) never matches. This is a
+ * read-only view over the existing log; it records and changes nothing. Pure Kotlin.
  */
 object PluginActivityView {
     const val DEFAULT_LIMIT = 10
@@ -35,5 +37,9 @@ object PluginActivityView {
 
     /** The newest [limit] entries about [pluginId], in the order given (the log is newest first). */
     fun forPlugin(entries: List<ActivityEntry>, pluginId: String, limit: Int = DEFAULT_LIMIT): List<ActivityEntry> =
-        entries.filter { mentions(it.message, pluginId) }.take(limit.coerceAtLeast(0))
+        entries.filter { isAbout(it, pluginId) }.take(limit.coerceAtLeast(0))
+
+    /** The field wins when present; text matching is only the fallback for entries that carry no plugin id. */
+    fun isAbout(entry: ActivityEntry, pluginId: String): Boolean =
+        if (entry.plugin != null) entry.plugin == pluginId else mentions(entry.message, pluginId)
 }

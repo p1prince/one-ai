@@ -1,6 +1,7 @@
 package com.oneai.app.plugins
 
 import com.oneai.app.commands.CommandRegistry
+import com.oneai.app.core.ActivityKind
 import com.oneai.app.core.PluginRecord
 import com.oneai.app.core.PluginStore
 import com.oneai.app.core.PluginLifecycleController
@@ -42,7 +43,7 @@ class ExternalPluginRegistrar(
         clearRuntime(id)
         store.savePlugin(record)
         if (!record.enabled) {
-            store.log("Imported external plugin metadata: ${manifest.name} (disabled)")
+            store.log("Imported external plugin metadata: ${manifest.name} (disabled)", ActivityKind.PLUGIN, manifest.id)
             return Result.success(record)
         }
         val activated = registerRuntime(manifest)
@@ -51,7 +52,7 @@ class ExternalPluginRegistrar(
             if (existing == null) store.removePlugin(id)
             return Result.failure(activated.exceptionOrNull()!!)
         }
-        store.log("Registered enabled external plugin: ${manifest.name} ${manifest.versionName}")
+        store.log("Registered enabled external plugin: ${manifest.name} ${manifest.versionName}", ActivityKind.PLUGIN, manifest.id)
         return Result.success(record)
     }
 
@@ -72,7 +73,7 @@ class ExternalPluginRegistrar(
         clearRuntime(id)
         val adapter = ExternalPluginAdapter(
             manifest, trust, channels, timeoutMs,
-            report = { pluginId, message -> store.log("[$pluginId] $message") },
+            report = { pluginId, message -> store.log("[$pluginId] $message", ActivityKind.PLUGIN, pluginId) },
             settings = { settingsSnapshot(manifest) },
             missingRequired = { missingRequiredTitles(manifest) }
         )
@@ -124,7 +125,7 @@ class ExternalPluginRegistrar(
         clearRuntime(pluginId)
         lifecycle.revokePendingApprovals()
         store.plugins().firstOrNull { it.id == pluginId }?.takeIf { it.enabled }?.let { store.savePlugin(it.copy(enabled = false)) }
-        store.log("Deactivated external plugin $pluginId: $reason")
+        store.log("Deactivated external plugin $pluginId: $reason", ActivityKind.PLUGIN, pluginId)
     }
 
     /** Call from the app's plugin-removal hook: drops commands and the trust pin. */

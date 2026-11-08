@@ -14,7 +14,13 @@ data class PluginRecord(
 )
 
 data class CommandRecord(val id: String, val title: String, val prompt: String, val enabled: Boolean = false)
-data class ActivityEntry(val timestamp: Long, val message: String)
+/** One Activity line. [kind] and [plugin] are optional: entries stored before slice 10.2 have neither. */
+data class ActivityEntry(
+    val timestamp: Long,
+    val message: String,
+    val kind: ActivityKind? = null,
+    val plugin: String? = null
+)
 
 class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, ActionAuditLogger, PluginStore, PluginConfigStore, CatalogueSourceStorage {
     // The application context, so the process-wide gateway/runtime below never keep an Activity or Service alive.
@@ -119,23 +125,28 @@ class OneAiStore(context: Context) : AiActivityLogger, CommandRepository, Action
 
     override fun record(event: String) { log(event) }
 
+    override fun record(event: String, kind: ActivityKind, plugin: String?) { log(event, kind, plugin) }
+
     // All appends, reads and clears go through one process-wide lock (Stage 10, A1); see ActivityLog.
     private val activityLog = ActivityLog(
         load = {
             val a = readArray("activity")
             (0 until a.length()).mapNotNull { i ->
                 val item = a.optJSONObject(i) ?: return@mapNotNull null
-                ActivityEntry(item.optLong("time", 0L), item.optString("message"))
+                ActivityCodec.decode(item)
             }
         },
         save = { entries ->
             writeArray("activity", JSONArray().apply {
-                entries.forEach { put(JSONObject().put("time", it.timestamp).put("message", it.message)) }
+                entries.forEach { put(ActivityCodec.encode(it)) }
             })
         }
     )
 
     override fun log(message: String) = activityLog.append(message)
+
+    /** Typed entry (slice 10.2). Used by Core call sites only. */
+    override fun log(message: String, kind: ActivityKind, plugin: String?) = activityLog.append(message, kind, plugin)
 
     fun activityEntries(): List<ActivityEntry> = activityLog.entries()
 

@@ -115,4 +115,6 @@ class OneTimeApprovalGate(
 
 fun interface ActionAuditLogger {
     fun record(event: String)
+    /** Typed Activity entry (slice 10.2); loggers that keep no kinds just record the event. */
+    fun record(event: String, kind: com.oneai.app.core.ActivityKind, plugin: String? = null) = record(event)
 }

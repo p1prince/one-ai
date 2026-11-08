@@ -3,6 +3,8 @@ package com.oneai.app.ai
 /** Minimal activity sink so the orchestration layer is testable without Android storage. */
 fun interface AiActivityLogger {
     fun log(message: String)
+    /** Typed Activity entry (slice 10.2); loggers that keep no kinds just record the message. */
+    fun log(message: String, kind: com.oneai.app.core.ActivityKind, plugin: String? = null) = log(message)
 }
 
 /** Provider-neutral message passed between ONE AI and an AI service. */

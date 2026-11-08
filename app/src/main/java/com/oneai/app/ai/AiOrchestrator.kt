@@ -1,5 +1,6 @@
 package com.oneai.app.ai
 
+import com.oneai.app.core.ActivityKind
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -22,19 +23,19 @@ class AiOrchestrator(
             "The message is too long. Maximum length is $MAX_PROMPT_LENGTH characters."
         }
 
-        activity.log("AI request started")
+        activity.log("AI request started", ActivityKind.AI)
         return try {
             val userMessage = AiMessage("user", cleanPrompt)
             val context = if (conversation == null) listOf(userMessage)
                 else ContextPolicy.window(conversation.history() + userMessage)
             val completion = provider.complete(listOf(SYSTEM_MESSAGE) + context)
             conversation?.append(userMessage, AiMessage("assistant", completion.content))
-            activity.log("AI response received (" + completion.provider + ")")
+            activity.log("AI response received (" + completion.provider + ")", ActivityKind.AI)
             completion
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            activity.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"))
+            activity.log("AI request failed: " + (error.message?.take(120) ?: "Unknown error"), ActivityKind.ERROR)
             throw error
         }
     }

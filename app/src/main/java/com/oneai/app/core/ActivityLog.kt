@@ -15,8 +15,9 @@ class ActivityLog(
     private val save: (List<ActivityEntry>) -> Unit,
     private val now: () -> Long = { System.currentTimeMillis() }
 ) {
-    fun append(message: String) = synchronized(LOCK) {
-        save((listOf(ActivityEntry(now(), message)) + load()).take(MAX_ENTRIES))
+    /** Plain appends are recorded as [ActivityKind.SYSTEM] unless the call site gives a kind. */
+    fun append(message: String, kind: ActivityKind = ActivityKind.SYSTEM, plugin: String? = null) = synchronized(LOCK) {
+        save((listOf(ActivityEntry(now(), message, kind, plugin?.takeIf { it.isNotEmpty() })) + load()).take(MAX_ENTRIES))
     }
 
     fun entries(): List<ActivityEntry> = synchronized(LOCK) { load() }
