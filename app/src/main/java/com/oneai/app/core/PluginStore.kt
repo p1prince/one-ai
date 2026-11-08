@@ -13,5 +13,5 @@ interface PluginStore {
     fun developerMode(): Boolean
     fun log(message: String)
     /** Typed Activity entry (slice 10.2). Stores that keep no kinds just record the message. */
-    fun log(message: String, kind: ActivityKind, plugin: String? = null) = log(message)
+    fun log(message: String, kind: ActivityKind, plugin: String?) = log(message)
 }
