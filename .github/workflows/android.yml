@@ -33,3 +33,12 @@ jobs:
           name: one-ai-debug-apk
           path: app/build/outputs/apk/core/debug/app-core-debug.apk
           if-no-files-found: error
+      # Reference plugin for manual testing of the Plugin Centre. Separate APK, debug-signed, SDK only.
+      - name: Build echo sample plugin APK
+        run: gradle --no-daemon :samples:echo-plugin:assembleDebug
+      - name: Upload echo sample plugin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: echo-sample-plugin-apk
+          path: samples/echo-plugin/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
