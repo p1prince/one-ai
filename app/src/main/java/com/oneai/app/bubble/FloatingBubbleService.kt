@@ -143,7 +143,7 @@ class FloatingBubbleService : Service() {
     }
 
     private fun titleFor(service: String): String =
-        registry.provider(service)?.title ?: service.replace('_', ' ').replaceFirstChar { it.uppercase() }
+        BubbleUiPolicy.serviceLabel(service, registry.provider(service)?.title)
 
     private fun showPanel() {
         val services = AppServices.get(application)
@@ -476,16 +476,22 @@ class FloatingBubbleService : Service() {
         panelToken++
         // Keep large command/service lists inside the visible display instead of letting
         // the overlay extend beyond the screen. The Bubble remains independently usable.
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
+        // The panel is as tall as its content and only grows to this cap, so a short message
+        // does not leave a large empty area; longer content scrolls.
+        val maxPanelHeight = BubbleUiPolicy.panelMaxHeightPx(resources.displayMetrics.heightPixels)
+        val scroll = object : ScrollView(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(maxPanelHeight, MeasureSpec.AT_MOST))
+            }
+        }.apply {
+            isFillViewport = false
             addView(box, ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        val maxPanelHeight = (resources.displayMetrics.heightPixels * 0.78f).toInt().coerceAtLeast(320)
         val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.84f).toInt(),
-            maxPanelHeight, overlayType(),
+            WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT).apply {
             gravity=Gravity.CENTER; x=0; y=0
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE

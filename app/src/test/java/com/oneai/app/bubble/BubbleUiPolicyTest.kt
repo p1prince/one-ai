@@ -116,4 +116,25 @@ class BubbleUiPolicyTest {
             BubbleUiPolicy.availableServices(setOf("dev.example.notes"), mapOf("dev.example.notes" to "notes"))
         )
     }
+
+    @Test fun coreCommandServiceIsLabelledWithCapitals() {
+        assertEquals("Command Manager", BubbleUiPolicy.serviceLabel(BubbleUiPolicy.COMMAND_MANAGER, null))
+        assertEquals("Echo", BubbleUiPolicy.serviceLabel("echo", "Echo"))
+        assertEquals("Some service", BubbleUiPolicy.serviceLabel("some_service", null))
+    }
+
+    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
+        assertEquals(780, BubbleUiPolicy.panelMaxHeightPx(1000))
+        assertEquals(320, BubbleUiPolicy.panelMaxHeightPx(100))
+    }
+
+    @Test fun quickPanelWrapsItsContentInsteadOfFillingTheCap() {
+        val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
+        val source = File(dir, "FloatingBubbleService.kt").readText()
+        val panel = source.substringAfter("private fun attachPanel").substringBefore("private fun resizeBubble")
+        assertTrue(panel.contains("BubbleUiPolicy.panelMaxHeightPx"))
+        assertTrue(panel.contains("MeasureSpec.AT_MOST"))
+        assertTrue(panel.contains("WindowManager.LayoutParams.WRAP_CONTENT, overlayType()"))
+        assertTrue(!panel.contains("isFillViewport = true"))
+    }
 }

@@ -25,6 +25,16 @@ object BubbleUiPolicy {
 
     const val COMMAND_MANAGER = "command_manager"
 
+    /** Name shown for a Bubble service: the provider's own title, else a capitalised form of its ID ("Command Manager" for the core service). */
+    fun serviceLabel(serviceId: String, providerTitle: String?): String = when {
+        providerTitle != null -> providerTitle
+        serviceId == COMMAND_MANAGER -> "Command Manager"
+        else -> serviceId.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+
+    /** Tallest the quick panel may be. The panel itself wraps its content and only scrolls past this height. */
+    fun panelMaxHeightPx(screenHeightPx: Int): Int = (screenHeightPx * 0.78f).toInt().coerceAtLeast(320)
+
     /**
      * Core command service plus the Bubble service of every enabled plugin that has a binding.
      * [bindings] maps plugin ID to service ID; nothing about specific plugins is known here.

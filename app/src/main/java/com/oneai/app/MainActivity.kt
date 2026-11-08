@@ -689,7 +689,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             ActionRow("Floating Bubble",if(bubble) "Enabled (Android overlay access may still be required)" else "Disabled") {
                 Text(if(bubble) "ON" else "OFF",color=Gold,fontSize=11.sp)
             }
-            Text("${store.plugins().count { it.enabled }} enabled plugins • ${store.commands().count { it.enabled }} enabled commands",color=Muted,fontSize=11.sp)
+            Text(com.oneai.app.core.SettingsText.enabledSummary(store.plugins().count { it.enabled },store.commands().count { it.enabled }),color=Muted,fontSize=11.sp)
         } }
         item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
@@ -701,7 +701,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             val orderedOptions = savedOrder + availableOptions.filterNot { it in savedOrder }
             orderedOptions.forEachIndexed { index, id ->
                 Row(verticalAlignment=Alignment.CenterVertically,modifier=Modifier.fillMaxWidth().padding(vertical=3.dp)) {
-                    Text(com.oneai.app.bubble.BubbleProviders.registry.provider(id)?.title ?: id.replace('_',' '),color=White,modifier=Modifier.weight(1f))
+                    Text(com.oneai.app.bubble.BubbleUiPolicy.serviceLabel(id,com.oneai.app.bubble.BubbleProviders.registry.provider(id)?.title),color=White,modifier=Modifier.weight(1f))
                     IconButton(onClick={ if(index>0){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index-1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=restorationReady && index>0){Icon(Icons.Default.ArrowUpward,"Move up",tint=Gold)}
                     IconButton(onClick={ if(index<orderedOptions.lastIndex){val next=orderedOptions.toMutableList();val item=next.removeAt(index);next.add(index+1,item);store.setBubbleServiceOrder(next);refresh()} },enabled=restorationReady && index<orderedOptions.lastIndex){Icon(Icons.Default.ArrowDownward,"Move down",tint=Gold)}
                     Switch(id in services,{services=if(it)services+id else services-id;store.setBubbleServices(services)},enabled=restorationReady)
