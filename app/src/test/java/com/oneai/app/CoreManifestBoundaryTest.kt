@@ -50,4 +50,11 @@ class CoreManifestBoundaryTest {
             assertTrue("${source.name} references capability code: ${hit?.value}", hit == null)
         }
     }
+
+    @Test fun settingsDoesNotMentionAnAbsentCapability() {
+        val main = listOf(File("src/main/java/com/oneai/app/MainActivity.kt"), File("app/src/main/java/com/oneai/app/MainActivity.kt"))
+            .first { it.isFile }.readText()
+        assertFalse(main.contains("Screen Intelligence"))
+        assertFalse(main.contains("Web Research"))
+    }
 }

@@ -672,7 +672,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             if(endpointIssue!=null) Text(endpointIssue,color=Color(0xFFFF8A80),fontSize=11.sp)
             Button(onClick={store.setAiProviderName(provider.trim());store.setAiEndpoint(endpoint.trim());store.setAiModel(model.trim());if(apiKey.isNotBlank())vault.save(apiKey.trim());apiKey="";status="Provider settings saved.";refresh()},enabled=endpointIssue==null&&provider.isNotBlank()&&model.isNotBlank(),modifier=Modifier.fillMaxWidth()){Text("Save provider settings")}
             Text("Credential status: ${aiKeyStatus.settingsText}. Leave the key field blank to keep the existing key.",color=Muted,fontSize=11.sp)
-            Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Screen Intelligence additionally requires a vision-capable model at this endpoint. Credentials use Android Keystore encryption.",color=Muted,fontSize=11.sp)
+            Text("ONE AI supports OpenAI-compatible HTTPS chat-completions APIs. Credentials use Android Keystore encryption.",color=Muted,fontSize=11.sp)
             TextButton(onClick={confirmClearAiKey=true},enabled=aiKeyStatus!=CredentialStatus.NOT_SAVED){Text("Remove AI provider key",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
