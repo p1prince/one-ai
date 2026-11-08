@@ -76,6 +76,7 @@ Record pass/fail per row. "Expected" is what the design requires, not an observe
 | M30 | With Details closed, switch Enabled and Show in Floating Bubble off and on; reopen Details each time | The Status and Floating Bubble lines follow the switches; opening Details never changes either switch |
 | M31 | With the M13 test plugin variant (declares `files`), open Details | `files: asks you each time, and each approval is single-use`, matching the approval prompt in M13 |
 | M32 | With a held update (M10), open Details and then Review update | Details shows the declaration you approved plus "off until you review"; only Review update shows the new access |
+| M33 | Run the echo plugin's `wait` command with a short host timeout (or stop the plugin app mid-call), then open Details; also open Details of a second plugin | Recent activity lists the timeout or failure line (`[package] Timed out ...` or `Failed (code) ...`) with its time, newest first, at most 10; the second plugin shows none of those lines, and a plugin whose id extends another's is not mixed in |
 
 M13, M14, M19 and M31 need a small extra test app or plugin variant that does not exist yet. M20-M28 need an HTTPS server you control to host catalogue documents (the sample and variants of it) and a second device-installed plugin APK for M25-M27; none of these has been run.
 

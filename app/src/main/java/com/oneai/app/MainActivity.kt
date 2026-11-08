@@ -55,6 +55,7 @@ import com.oneai.app.plugins.ExternalPluginCenter
 import com.oneai.app.plugins.ExternalStatus
 import com.oneai.app.plugins.PluginCenterSnapshot
 import com.oneai.app.plugins.PluginConfigureForm
+import com.oneai.app.plugins.PluginActivityView
 import com.oneai.app.plugins.PluginDetailsView
 import com.oneai.app.plugins.PluginSettingType
 import com.oneai.app.plugins.PluginSettingsSchema
@@ -129,7 +130,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
             BackHandler(enabled=page==Page.Commands) { page=Page.Home }
             when(page) {
                 Page.Home -> HomePage(Modifier.padding(pad),store,{ target -> page=target },chatResult,busy,{ prompt -> busy=true;onAsk(prompt){chatResult=it;busy=false} },{ onNewConversation();chatResult="" })
-                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,catalogueSources,catalogueRefreshGate,refreshNow)
+                Page.Plugins -> PluginsPage(Modifier.padding(pad),manager,center,restoration,catalogueSources,catalogueRefreshGate,{store.activityEntries()},refreshNow)
                 Page.Develop -> DeveloperPage(Modifier.padding(pad),store,manager,pluginRestored,refreshNow)
                 Page.Commands -> CommandsPage(Modifier.padding(pad),store,commandRouter,refreshNow,onRunCommand,{page=Page.Home})
                 Page.Activity -> ActivityPage(Modifier.padding(pad),store,refresh)
@@ -199,7 +200,7 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
     }
 }
 
-@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,sources:CatalogueSources,refreshGate:CatalogueRefreshGate,refresh:()->Unit) {
+@Composable private fun PluginsPage(modifier:Modifier,manager:PluginManager,center:ExternalPluginCenter,restoration:PluginRestorationGate,sources:CatalogueSources,refreshGate:CatalogueRefreshGate,activity:()->List<ActivityEntry>,refresh:()->Unit) {
     var tick by remember { mutableIntStateOf(0) }
     var operationMessage by remember { mutableStateOf("") }
     var snapshot by remember { mutableStateOf(PluginCenterSnapshot.EMPTY) }
@@ -420,7 +421,8 @@ private fun OneAiApp(store:OneAiStore, manager:PluginManager, center:ExternalPlu
                 enabled=installed.firstOrNull { it.id==id }?.enabled==true,
                 bubbleAccess=manager.hasBubbleAccess(id),
                 needsConfiguration=snapshot.needsConfiguration[id].orEmpty(),
-                enabledPluginIds=snapshot.enabledPluginIds
+                enabledPluginIds=snapshot.enabledPluginIds,
+                recentActivity=PluginActivityView.forPlugin(activity(),id)
             )
             AlertDialog(
                 onDismissRequest={detailsFor=null},

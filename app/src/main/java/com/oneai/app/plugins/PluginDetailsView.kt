@@ -1,6 +1,9 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.core.ActivityEntry
 import com.oneai.app.security.CapabilityPolicy
+import java.text.DateFormat
+import java.util.Date
 
 /** One headed block of lines in the Details dialog. */
 data class DetailSection(val heading: String, val lines: List<String>)
@@ -18,6 +21,9 @@ data class PluginDetails(val title: String, val sections: List<DetailSection>)
  * A pending update's declaration is shown only through the existing Review update flow. Installed, trusted, enabled
  * and Bubble access stay four separate lines; nothing here is conflated or changed.
  *
+ * Stage 9.9 adds the plugin's most recent Activity entries, chosen by [PluginActivityView], so a failure or a refused
+ * action is visible next to the plugin it concerns.
+ *
  * Plugin-supplied text is untrusted and is cleaned with [CatalogueView.clean] before display. Pure Kotlin, no Android.
  */
 object PluginDetailsView {
@@ -30,7 +36,9 @@ object PluginDetailsView {
         bubbleAccess: Boolean,
         needsConfiguration: List<String>,
         enabledPluginIds: Set<String>,
-        hostLevel: Int = PluginApi.LEVEL
+        hostLevel: Int = PluginApi.LEVEL,
+        recentActivity: List<ActivityEntry> = emptyList(),
+        formatTime: (Long) -> String = { defaultTime(it) }
     ): PluginDetails {
         val manifest = entry.trustedManifest
         return PluginDetails(
@@ -43,12 +51,25 @@ object PluginDetailsView {
                 dependencies(manifest, enabledPluginIds),
                 access(manifest),
                 commands(manifest),
-                bubble(manifest, enabled, bubbleAccess)
+                bubble(manifest, enabled, bubbleAccess),
+                activity(recentActivity, formatTime)
             )
         )
     }
 
     private fun text(value: String, max: Int = CatalogueView.MAX_SHOWN_LINE) = CatalogueView.clean(value, max)
+
+    private fun defaultTime(millis: Long): String =
+        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(millis))
+
+    private fun activity(entries: List<ActivityEntry>, formatTime: (Long) -> String) = DetailSection(
+        "Recent activity",
+        if (entries.isEmpty()) listOf("Nothing recorded for this plugin.")
+        else entries.take(PluginActivityView.DEFAULT_LIMIT).map { e ->
+            val message = text(e.message, CatalogueView.MAX_SHOWN_SUMMARY)
+            if (e.timestamp > 0) "${formatTime(e.timestamp)}: $message" else message
+        }
+    )
 
     private fun identity(m: ExternalPluginManifest) = DetailSection(
         "Identity",

@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.core.ActivityEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -49,7 +50,7 @@ class PluginDetailsViewTest {
 
     @Test fun sectionsAreInAFixedOrder() {
         assertEquals(
-            listOf("Identity", "Trusted certificate", "Status", "Compatibility", "Depends on", "Access it can ask for", "Commands", "Floating Bubble"),
+            listOf("Identity", "Trusted certificate", "Status", "Compatibility", "Depends on", "Access it can ask for", "Commands", "Floating Bubble", "Recent activity"),
             details().sections.map { it.heading }
         )
     }
@@ -126,5 +127,25 @@ class PluginDetailsViewTest {
         val entry = TrustEntry(m.packageName, cert, m)
         PluginDetailsView.build(entry, ExternalStatus.Ready, true, true, emptyList(), emptySet())
         assertEquals(TrustEntry(m.packageName, cert, m), entry)
+    }
+
+    @Test fun recentActivityShowsTimestampedEntriesAndAFallbackWhenEmpty() {
+        assertEquals(listOf("Nothing recorded for this plugin."), details().section("Recent activity"))
+        val shown = PluginDetailsView.build(
+            TrustEntry("com.example.notes", cert, manifest()), ExternalStatus.Ready, true, false, emptyList(), emptySet(),
+            recentActivity = listOf(ActivityEntry(5_000, "[com.example.notes] Failed (E_TIMEOUT): add_note"), ActivityEntry(0, "[com.example.notes] older")),
+            formatTime = { "t$it" }
+        ).section("Recent activity")
+        assertEquals(listOf("t5000: [com.example.notes] Failed (E_TIMEOUT): add_note", "[com.example.notes] older"), shown)
+    }
+
+    @Test fun recentActivityTextIsCleanedAndBoundedToTheDefaultLimit() {
+        val many = (1..25).map { ActivityEntry(it.toLong(), "[com.example.notes] event $it\u202E") }
+        val lines = PluginDetailsView.build(
+            TrustEntry("com.example.notes", cert, manifest()), ExternalStatus.Ready, true, false, emptyList(), emptySet(),
+            recentActivity = many, formatTime = { "t" }
+        ).section("Recent activity")
+        assertEquals(PluginActivityView.DEFAULT_LIMIT, lines.size)
+        assertTrue(lines.none { l -> l.any { it == '\u202E' } })
     }
 }
