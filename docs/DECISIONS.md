@@ -36,6 +36,6 @@
 
 ## Open decisions
 - **O3 — Stage 8 design defaults** (`docs/STAGE_8_DESIGN.md` §12): trust-on-first-use with fingerprint confirmation; declarative plugin UI only; minSdk 26. Proceeding with these unless the owner objects.
-- **O2 — Command card subtitle:** keep "Your AI command interface is being prepared." or retire it now the AI interface works? *(low impact; currently kept verbatim because the owner listed it as approved Home text. It reads inaccurately now that the interface works; one-line change to remove)*
+- **O2 — RESOLVED 2026-11-07: Command card subtitle retired.** The Command ONE card now reads "Ask ONE AI to help with your next task." (verified in `MainActivity.kt` 2026-11-08). Original question:  keep "Your AI command interface is being prepared." or retire it now the AI interface works? *(low impact; currently kept verbatim because the owner listed it as approved Home text. It reads inaccurately now that the interface works; one-line change to remove)*
 - **O4 — RESOLVED 2026-11-04: generic host-launched plugin screens via PendingIntent.** The API 2 contract, identity/approval broker and Bubble confirmation/send path are implemented in source; runtime success/failure remains a Stage 11 acceptance item. This is a capability-neutral SDK primitive. Any former references to it as a blocker for extracting individual example capabilities are historical and superseded by the 2026-11-07 owner-approved scope correction. No individual capability extraction is authorized or required.
 
