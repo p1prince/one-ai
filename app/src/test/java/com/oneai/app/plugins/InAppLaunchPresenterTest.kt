@@ -199,7 +199,10 @@ class InAppLaunchPresenterTest {
         listOf("src/main/java/com/oneai/app/", "app/src/main/java/com/oneai/app/").map { File(it + relative) }.first { it.isFile }.readText()
 
     @Test fun thePresenterIsPureAndSendsNothingItself() {
-        val presenter = source("plugins/InAppLaunchPresenter.kt")
+        // Code lines only: the class comment may name what the host does elsewhere.
+        val presenter = source("plugins/InAppLaunchPresenter.kt").lines()
+            .filterNot { line -> line.trimStart().let { it.startsWith("*") || it.startsWith("/*") || it.startsWith("//") } }
+            .joinToString("\n")
         assertFalse(presenter.contains("import android"))
         listOf("PendingIntent", "ActivityOptions", "hasBubbleAccess", "PluginManager", "FloatingBubbleService").forEach {
             assertFalse("the presenter must not touch $it", presenter.contains(it))
