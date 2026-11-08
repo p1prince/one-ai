@@ -32,6 +32,7 @@ sealed interface PluginCallState {
 class PluginCallFlow {
     private var counter = 0L
     private var current = 0L
+    private var approvedRun = 0L
     private var state: PluginCallState = PluginCallState.Idle
 
     @Synchronized fun state(): PluginCallState = state
@@ -55,11 +56,12 @@ class PluginCallFlow {
 
     /**
      * The executor answered that run [runId] needs the user's approval, so a running call moves to awaiting
-     * approval (the Bubble's real flow: invoke first, then ask). True only for the current running call.
+     * approval (the Bubble's real flow: invoke first, then ask). True only for the current running call, and
+     * only until that run has been approved once: an approved run can never go back to asking.
      */
     @Synchronized fun needApproval(runId: Long, review: String? = null): Boolean {
         val running = state as? PluginCallState.Running ?: return false
-        if (runId != current) return false
+        if (runId != current || runId == approvedRun) return false
         state = PluginCallState.AwaitingApproval(running.heading, review?.let { cleanText(it, MAX_REVIEW) })
         return true
     }
@@ -68,6 +70,7 @@ class PluginCallFlow {
     @Synchronized fun approve(runId: Long): Boolean {
         val waiting = state as? PluginCallState.AwaitingApproval ?: return false
         if (runId != current) return false
+        approvedRun = runId
         state = PluginCallState.Running(waiting.heading)
         return true
     }

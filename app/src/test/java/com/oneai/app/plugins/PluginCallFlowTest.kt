@@ -49,7 +49,8 @@ class PluginCallFlowTest {
         assertEquals(PluginCallState.AwaitingApproval("Running Reverse...", "text: abc"), flow.state())
         assertTrue(flow.approve(id))
         assertTrue(flow.state() is PluginCallState.Running)
-        assertFalse("only a running call can ask for approval", flow.needApproval(id))
+        assertFalse("an approved run can never go back to asking", flow.needApproval(id))
+        assertTrue(flow.state() is PluginCallState.Running)
     }
 
     @Test fun approvalRequestForACancelledOrOlderRunIsDropped() {

@@ -97,6 +97,19 @@ class InAppPluginControllerTest {
         assertNull(c.ui.value.approval)
     }
 
+    @Test fun anExecutorThatStillAsksAfterTheTicketEndsInAResultNotAnApprovalLoop() {
+        val executor = FakeExecutor()
+        executor.firstAnswer = { PluginInvocationResult.AwaitingApproval("needs approval") }
+        executor.ticketAnswer = { PluginInvocationResult.AwaitingApproval("still needs approval") }
+        val c = controller(executor)
+        c.press(call())
+        c.approve()
+        val done = c.ui.value.call as PluginCallState.Done
+        assertEquals(PluginCallOutcome.BLOCKED, done.outcome)
+        assertNull(c.ui.value.approval)
+        assertEquals("one ticket, one run", 1, executor.approveCalls)
+    }
+
     @Test fun rejectingNeverIssuesATicketOrRunsTheCommand() {
         val executor = FakeExecutor()
         executor.firstAnswer = { PluginInvocationResult.AwaitingApproval("needs approval") }
