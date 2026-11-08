@@ -1,5 +1,6 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.core.CoreReservedNames
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -85,7 +86,7 @@ class AppControlReferencePluginContractTest {
     }
 
     @Test fun appControlIsNotReintroducedAsAnInAppBuiltin() {
-        assertFalse(BuiltInCatalogue.templates.any { it.id == packageName || it.id == "one.app.control" })
-        assertFalse("app_control" in BuiltInCatalogue.bubbleBindings.values)
+        assertFalse(packageName in CoreReservedNames.pluginIds || "one.app.control" in CoreReservedNames.pluginIds)
+        assertFalse("app_control" in CoreReservedNames.bubbleServices)
     }
 }

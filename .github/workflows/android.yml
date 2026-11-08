@@ -26,10 +26,10 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
           accept-android-sdk-licenses: true
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon :app:assembleCoreDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: one-ai-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/core/debug/app-core-debug.apk
           if-no-files-found: error

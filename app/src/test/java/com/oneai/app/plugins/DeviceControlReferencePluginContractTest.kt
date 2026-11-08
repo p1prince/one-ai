@@ -1,6 +1,6 @@
 package com.oneai.app.plugins
 
-import com.oneai.app.builtin.BuiltInBubbleProviders
+import com.oneai.app.core.CoreReservedNames
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -88,8 +88,7 @@ class DeviceControlReferencePluginContractTest {
     }
 
     @Test fun retiredInterimHostDeviceControlIsNotRegistered() {
-        assertFalse(BuiltInCatalogue.templates.any { it.id == "one.device.actions" })
-        assertFalse("device_control" in BuiltInCatalogue.bubbleBindings.values)
-        assertFalse(BuiltInBubbleProviders.bindings.containsKey("one.device.actions"))
+        assertFalse("one.device.actions" in CoreReservedNames.pluginIds)
+        assertFalse("device_control" in CoreReservedNames.bubbleServices)
     }
 }

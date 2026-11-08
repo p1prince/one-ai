@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Capability-only manifest entries (D8 slice 2, decision D9). This file is merged into the `capabilities`
+  flavor only. The Core app (`core` flavor) declares none of these permissions, activities or services.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.aditsyal.autodroid" />
+    </queries>
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <application>
+        <activity android:name=".bubble.ScreenCaptureConsentActivity" android:exported="false" />
+        <activity android:name=".bubble.VoiceCaptureActivity" android:exported="false" />
+        <activity android:name=".bubble.ScreenRegionSelectionActivity" android:exported="false" />
+        <service
+            android:name=".bubble.ScreenProjectionCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+    </application>
+</manifest>

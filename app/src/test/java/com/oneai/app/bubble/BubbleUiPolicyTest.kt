@@ -1,12 +1,19 @@
 package com.oneai.app.bubble
 
-import com.oneai.app.plugins.BuiltInCatalogue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.Assert.assertTrue
 import java.io.File
 
 class BubbleUiPolicyTest {
+    /** Retained legacy plugin to Bubble service names (see CoreReservedNames); fixed here so Core tests do not depend on any capability code. */
+    private val legacyBindings = mapOf(
+        "one.web.research" to "web_research",
+        "one.screen.intelligence" to "screen_intelligence",
+        "one.voice.interface" to "voice_interface",
+        "one.automation.engine" to "automation"
+    )
+
     @Test fun sizeIsClampedToSupportedBounds() {
         assertEquals(40, BubbleUiPolicy.safeSize(12))
         assertEquals(58, BubbleUiPolicy.safeSize(58))
@@ -32,13 +39,13 @@ class BubbleUiPolicyTest {
     }
 
     @Test fun onlyInstalledEnabledPluginsExposeBubbleServices() {
-        val available = BubbleUiPolicy.availableServices(setOf("one.screen.intelligence"), BuiltInCatalogue.bubbleBindings)
+        val available = BubbleUiPolicy.availableServices(setOf("one.screen.intelligence"), legacyBindings)
         assertEquals(setOf("command_manager", "screen_intelligence"), available)
         assertEquals(
             setOf("command_manager"),
             BubbleUiPolicy.visibleServices(
                 setOf("command_manager", "screen_intelligence", "web_research"),
-                BubbleUiPolicy.availableServices(emptySet(), BuiltInCatalogue.bubbleBindings)
+                BubbleUiPolicy.availableServices(emptySet(), legacyBindings)
             )
         )
     }
@@ -54,20 +61,20 @@ class BubbleUiPolicyTest {
     }
 
     @Test fun zeroPluginsLeavesOnlyTheCoreCommandService() {
-        assertEquals(setOf("command_manager"), BubbleUiPolicy.availableServices(emptySet(), BuiltInCatalogue.bubbleBindings))
+        assertEquals(setOf("command_manager"), BubbleUiPolicy.availableServices(emptySet(), legacyBindings))
         assertEquals(setOf("command_manager"), BubbleUiPolicy.availableServices(emptySet(), emptyMap()))
     }
 
     @Test fun everyBoundPluginExposesItsServiceOnlyWhenEnabled() {
-        BuiltInCatalogue.bubbleBindings.forEach { (pluginId, service) ->
-            assertEquals(setOf("command_manager", service), BubbleUiPolicy.availableServices(setOf(pluginId), BuiltInCatalogue.bubbleBindings))
+        legacyBindings.forEach { (pluginId, service) ->
+            assertEquals(setOf("command_manager", service), BubbleUiPolicy.availableServices(setOf(pluginId), legacyBindings))
         }
     }
 
     @Test fun unknownOrUnboundPluginsNeverCreateServices() {
         assertEquals(
             setOf("command_manager"),
-            BubbleUiPolicy.availableServices(setOf("dev.example.notes", "one.command.tools"), BuiltInCatalogue.bubbleBindings)
+            BubbleUiPolicy.availableServices(setOf("dev.example.notes", "one.command.tools"), legacyBindings)
         )
     }
 

@@ -1,25 +1,30 @@
 package com.oneai.app.core
 
-import com.oneai.app.plugins.BuiltInCatalogue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** Stage 9.7b: the reserved names keep their exact previous values and no longer come from the built-in catalogue. */
+/** Stage 9.7b: the reserved names keep their exact previous values and do not come from any capability code. */
 class CoreReservedNamesTest {
     private fun source(relativePath: String): String {
         val candidates = listOf(File("src/main/java/$relativePath"), File("app/src/main/java/$relativePath"))
         return candidates.firstOrNull { it.isFile }?.readText() ?: error("Could not locate production source: $relativePath")
     }
 
-    @Test fun reservedPluginIdsEqualTheLegacyCatalogueIds() {
-        assertEquals(BuiltInCatalogue.templates.map { it.id }.toSet(), CoreReservedNames.pluginIds)
+    @Test fun reservedPluginIdsKeepTheirExactLegacyValues() {
+        assertEquals(
+            setOf("one.command.tools", "one.web.research", "one.screen.intelligence", "one.voice.interface", "one.automation.engine"),
+            CoreReservedNames.pluginIds
+        )
     }
 
-    @Test fun reservedBubbleServicesEqualTheLegacyCatalogueServices() {
-        assertEquals(BuiltInCatalogue.bubbleBindings.values.toSet(), CoreReservedNames.bubbleServices)
+    @Test fun reservedBubbleServicesKeepTheirExactLegacyValues() {
+        assertEquals(
+            setOf("web_research", "screen_intelligence", "voice_interface", "automation"),
+            CoreReservedNames.bubbleServices
+        )
     }
 
     @Test fun reservedNamesAreNotEmpty() {

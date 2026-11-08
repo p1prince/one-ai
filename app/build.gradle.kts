@@ -16,6 +16,17 @@ android {
         // Emulator/device tests (Stage 11 scaffolding); never run by CI, which only compiles them.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    // D9 / D8 slice 2: capability code lives only in the `capabilities` flavor (src/capabilities, src/testCapabilities).
+    // The `core` flavor is the Core app and ships none of it.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("core") { dimension = "edition" }
+        create("capabilities") {
+            dimension = "edition"
+            applicationIdSuffix = ".capabilities"
+            versionNameSuffix = "-capabilities"
+        }
+    }
     buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

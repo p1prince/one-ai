@@ -8,7 +8,7 @@ import com.oneai.app.core.NoOpPluginLifecycleController
 
 class PluginManager(
     private val store: PluginStore,
-    val catalogue: List<PluginTemplate> = BuiltInCatalogue.templates,
+    val catalogue: List<PluginTemplate> = emptyList(),
     private val onPluginRemoved: (String) -> Unit = {},
     /** Plugin ID to Bubble service ID for plugins that are not in [catalogue], such as installed external plugins. */
     private val bubbleBindings: () -> Map<String, String> = { emptyMap() },

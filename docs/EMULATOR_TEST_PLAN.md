@@ -22,7 +22,7 @@ Prerequisites on the target (emulator or device, API 26 or newer):
 2. Echo plugin debug build installed (`com.oneai.sample.echo`, from `samples/echo-plugin`). A debuggable plugin accepts the ONE AI package under any certificate; a release plugin currently rejects every caller until a release signing key exists (`OneAiHost.RELEASE_CERTIFICATES` is empty).
 3. If the echo plugin is missing the tests fail on purpose, so a missing prerequisite cannot look like a pass.
 
-Run (each needs owner authorisation because it builds APKs): `gradle :samples:echo-plugin:assembleDebug`, install it, then `gradle :app:connectedDebugAndroidTest`.
+Run (each needs owner authorisation because it builds APKs): `gradle :samples:echo-plugin:assembleDebug`, install it, then `gradle :app:connectedCoreDebugAndroidTest`.
 
 What the nine tests check:
 
