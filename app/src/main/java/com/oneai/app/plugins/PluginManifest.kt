@@ -1,5 +1,7 @@
 package com.oneai.app.plugins
 
+import com.oneai.app.core.CapabilityVocabulary
+
 /**
  * Versioned, declarative plugin contract. This describes capabilities only;
  * it never contains executable code or an entry-point class to load.
@@ -17,10 +19,8 @@ data class PluginManifest(
 }
 
 object PluginManifestValidator {
-    val supportedCapabilities = setOf(
-        "commands", "internet", "screen_capture", "microphone", "audio",
-        "device_actions", "accessibility", "automation", "files", "app_launch"
-    )
+    /** The closed capability vocabulary; one source of truth shared with `CapabilityPolicy`. */
+    val supportedCapabilities: Set<String> = CapabilityVocabulary.all
     private val pluginId = Regex("[a-z][a-z0-9]*(\\.[a-z0-9]+)+")
     private val semanticVersion = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?")
 

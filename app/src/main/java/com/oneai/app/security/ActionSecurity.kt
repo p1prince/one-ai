@@ -1,5 +1,6 @@
 package com.oneai.app.security
 
+import com.oneai.app.core.CapabilityVocabulary
 import java.util.UUID
 
 enum class ActionRisk { LOW, SENSITIVE, BLOCKED }
@@ -19,14 +20,8 @@ data class ActionAuthorization(
 )
 
 object CapabilityPolicy {
-    private val known = setOf(
-        "commands", "internet", "screen_capture", "microphone", "audio",
-        "device_actions", "accessibility", "automation", "files", "app_launch"
-    )
-    private val approvalRequired = setOf(
-        "screen_capture", "microphone", "device_actions", "accessibility",
-        "automation", "files", "internet", "app_launch"
-    )
+    private val known: Set<String> = CapabilityVocabulary.all
+    private val approvalRequired: Set<String> = CapabilityVocabulary.approvalRequired
 
     /** Whether using [capability] always asks the user first. The same rule [evaluate] applies, exposed so screens never keep their own copy. */
     fun requiresApproval(capability: String): Boolean = capability in approvalRequired

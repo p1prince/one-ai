@@ -51,7 +51,7 @@ Unknown elements and attributes are ignored, so a plugin built for a newer API c
 
 ### Capabilities and approval
 
-Supported: `commands`, `internet`, `screen_capture`, `microphone`, `audio`, `device_actions`, `accessibility`, `automation`, `files`, `app_launch`.
+Supported: `commands`, `internet`, `screen_capture`, `microphone`, `audio`, `device_actions`, `accessibility`, `automation`, `files`, `app_launch`. The list is closed and versioned: an identifier outside it makes your manifest invalid, and a new one is added only by a ONE AI release, noted against the plugin API level.
 
 ONE AI asks the user to approve each use (one-use, for the exact action) for every capability **except `commands` and `audio`**. Declaring a capability grants no Android permission: request any Android permission your plugin needs (for example `RECORD_AUDIO`) in your own app. Keep secrets such as API keys inside your plugin app; ONE AI never sends its own credentials to plugins.
 

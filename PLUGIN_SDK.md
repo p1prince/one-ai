@@ -44,7 +44,8 @@ The example is a schema illustration only. A descriptor does not itself implemen
 - `automation`
 - `files`
 - `app_launch`
-- `device_actions`
+
+This vocabulary is **closed and versioned** (decision D10). The host must know what approval and what Android permission each capability implies, so an identifier outside this list is rejected when a manifest is validated and again when an action is checked. The identifiers are capability classes, not plugins. A new identifier is added only by a ONE AI release, noted against the plugin API level. The single source in the app is `CapabilityVocabulary`.
 
 Declaring a capability does not grant Android permission or make the integration operational. A future integration must supply a reviewed adapter, explicit runtime permission flow, and capability-specific policy before the capability can perform actions.
 
