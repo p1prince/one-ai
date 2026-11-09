@@ -16,6 +16,8 @@ import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.GestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -44,6 +46,8 @@ class FloatingBubbleService : Service() {
     private var bubble: TextView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var panel: View? = null
+    private var panelParams: WindowManager.LayoutParams? = null
+    private var panelMaxHeightPx: Int = 0
     private val uiHandler = Handler(Looper.getMainLooper())
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
@@ -182,7 +186,6 @@ class FloatingBubbleService : Service() {
                 addButton(box, titleFor(service)) { showService(service) }
             }
         }
-        addButton(box, "Resize bubble") { resizeBubble() }
         addButton(box, "Hide bubble for 1 minute") { hideBubbleTemporarily() }
         addButton(box, "Close panel") { hidePanel() }
         attachPanel(box)
@@ -471,17 +474,28 @@ class FloatingBubbleService : Service() {
         attachPanel(box)
     }
 
+    /**
+     * The expanded interface is a separate overlay, but its position is anchored to the
+     * floating icon. Its dimensions are independent of the icon and can be changed by pinching.
+     */
     private fun attachPanel(box: LinearLayout) {
         hidePanel()
         panelToken++
-        // Keep large command/service lists inside the visible display instead of letting
-        // the overlay extend beyond the screen. The Bubble remains independently usable.
-        // The panel is as tall as its content and only grows to this cap, so a short message
-        // does not leave a large empty area; longer content scrolls.
-        val maxPanelHeight = BubbleUiPolicy.panelMaxHeightPx(resources.displayMetrics.heightPixels)
+        val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
+        val density = resources.displayMetrics.density
+        val screenWidthDp = (resources.displayMetrics.widthPixels / density).toInt()
+        val screenHeightDp = (resources.displayMetrics.heightPixels / density).toInt()
+        val widthDp = BubbleUiPolicy.safePanelWidthDp(
+            prefs.getInt("panel_width_dp", (screenWidthDp * 0.84f).toInt()), screenWidthDp
+        )
+        val heightDp = BubbleUiPolicy.safePanelHeightDp(
+            prefs.getInt("panel_height_dp", (screenHeightDp * 0.72f).toInt()), screenHeightDp
+        )
+        val widthPx = (widthDp * density).toInt()
+        panelMaxHeightPx = (heightDp * density).toInt()
         val scroll = object : ScrollView(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(maxPanelHeight, MeasureSpec.AT_MOST))
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(panelMaxHeightPx, MeasureSpec.AT_MOST))
             }
         }.apply {
             isFillViewport = false
@@ -490,24 +504,115 @@ class FloatingBubbleService : Service() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        val params = WindowManager.LayoutParams((resources.displayMetrics.widthPixels*0.84f).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT).apply {
-            gravity=Gravity.CENTER; x=0; y=0
+        val icon = bubbleParams
+        val anchoredX = if (icon == null) dp(16) else
+            if (icon.x + icon.width + widthPx <= resources.displayMetrics.widthPixels)
+                icon.x + icon.width + dp(8)
+            else icon.x - widthPx - dp(8)
+        val anchoredY = icon?.y ?: dp(80)
+        val savedPosition = if (prefs.contains("panel_x") && prefs.contains("panel_y")) {
+            BubblePosition(prefs.getInt("panel_x", anchoredX), prefs.getInt("panel_y", anchoredY))
+        } else BubblePosition(anchoredX, anchoredY)
+        val position = BubbleUiPolicy.clampPosition(
+            savedPosition.x, savedPosition.y, widthPx, panelMaxHeightPx,
+            resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+        )
+        val params = WindowManager.LayoutParams(
+            widthPx, WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = position.x; y = position.y
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
-        runCatching { windowManager.addView(scroll,params) }.onSuccess { panel=scroll }
+        // Pinch anywhere on the panel to resize both dimensions. One-finger gestures still
+        // scroll normally; double-tap restores the default panel dimensions.
+        val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val current = panelParams ?: return false
+                val nextWidthDp = BubbleUiPolicy.safePanelWidthDp(
+                    (current.width / density * detector.scaleFactor).toInt(), screenWidthDp
+                )
+                val nextHeightDp = BubbleUiPolicy.safePanelHeightDp(
+                    (panelMaxHeightPx / density * detector.scaleFactor).toInt(), screenHeightDp
+                )
+                current.width = (nextWidthDp * density).toInt()
+                panelMaxHeightPx = (nextHeightDp * density).toInt()
+                val safe = BubbleUiPolicy.clampPosition(
+                    current.x, current.y, current.width, panelMaxHeightPx,
+                    resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+                )
+                current.x = safe.x; current.y = safe.y
+                prefs.edit().putInt("panel_width_dp", nextWidthDp)
+                    .putInt("panel_height_dp", nextHeightDp)
+                    .putInt("panel_x", current.x).putInt("panel_y", current.y).apply()
+                scroll.requestLayout()
+                runCatching { windowManager.updateViewLayout(scroll, current) }
+                return true
+            }
+        })
+        val doubleTapDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val current = panelParams ?: return false
+                val defaultWidth = BubbleUiPolicy.safePanelWidthDp((screenWidthDp * 0.84f).toInt(), screenWidthDp)
+                val defaultHeight = BubbleUiPolicy.safePanelHeightDp((screenHeightDp * 0.72f).toInt(), screenHeightDp)
+                current.width = (defaultWidth * density).toInt()
+                panelMaxHeightPx = (defaultHeight * density).toInt()
+                val safe = BubbleUiPolicy.clampPosition(
+                    current.x, current.y, current.width, panelMaxHeightPx,
+                    resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+                )
+                current.x = safe.x; current.y = safe.y
+                prefs.edit().putInt("panel_width_dp", defaultWidth).putInt("panel_height_dp", defaultHeight)
+                    .putInt("panel_x", current.x).putInt("panel_y", current.y).apply()
+                scroll.requestLayout()
+                runCatching { windowManager.updateViewLayout(scroll, current) }
+                return true
+            }
+        })
+        scroll.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
+            doubleTapDetector.onTouchEvent(event)
+            scaleDetector.isInProgress
+        }
+        // Drag the title/header to reposition the open panel without moving the icon.
+        (box.getChildAt(0) as? TextView)?.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dragStartX = event.rawX; dragStartY = event.rawY
+                    panelStartX = params.x; panelStartY = params.y
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val safe = BubbleUiPolicy.clampPosition(
+                        panelStartX + (event.rawX - dragStartX).toInt(),
+                        panelStartY + (event.rawY - dragStartY).toInt(),
+                        params.width, panelMaxHeightPx,
+                        resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+                    )
+                    params.x = safe.x; params.y = safe.y
+                    runCatching { windowManager.updateViewLayout(scroll, params) }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    prefs.edit().putInt("panel_x", params.x).putInt("panel_y", params.y).apply()
+                    true
+                }
+                else -> false
+            }
+        }
+        runCatching { windowManager.addView(scroll, params) }.onSuccess {
+            panel = scroll
+            panelParams = params
+        }
     }
 
-    private fun resizeBubble() {
-        val view = bubble ?: return
-        val params = bubbleParams ?: return
-        val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
-        val next = if (params.width <= 58) 76 else 48
-        params.width = next; params.height = next
-        prefs.edit().putInt("bubble_size", next).apply()
-        runCatching { windowManager.updateViewLayout(view, params) }
-    }
+    private var dragStartX = 0f
+    private var dragStartY = 0f
+    private var panelStartX = 0
+    private var panelStartY = 0
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun hideBubbleTemporarily() {
         hidePanel()
@@ -542,7 +647,7 @@ class FloatingBubbleService : Service() {
         attachPanel(box)
     }
 
-    private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null }
+    private fun hidePanel() { panel?.let { runCatching { windowManager.removeView(it) } }; panel=null; panelParams=null }
     private fun overlayType() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

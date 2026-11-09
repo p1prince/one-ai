@@ -123,7 +123,7 @@ class BubbleUiPolicyTest {
         assertEquals("Some service", BubbleUiPolicy.serviceLabel("some_service", null))
     }
 
-    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
+    @Test fun panelDimensionsAreClampedIndependentlyOfTheBubbleIcon() {\n        assertEquals(180, BubbleUiPolicy.safePanelWidthDp(100, 400))\n        assertEquals(376, BubbleUiPolicy.safePanelWidthDp(900, 400))\n        assertEquals(180, BubbleUiPolicy.safePanelHeightDp(90, 800))\n        assertEquals(752, BubbleUiPolicy.safePanelHeightDp(900, 800))\n    }\n\n    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
         assertEquals(780, BubbleUiPolicy.panelMaxHeightPx(1000))
         assertEquals(320, BubbleUiPolicy.panelMaxHeightPx(100))
     }
@@ -132,7 +132,7 @@ class BubbleUiPolicyTest {
         val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
         val source = File(dir, "FloatingBubbleService.kt").readText()
         val panel = source.substringAfter("private fun attachPanel").substringBefore("private fun resizeBubble")
-        assertTrue(panel.contains("BubbleUiPolicy.panelMaxHeightPx"))
+        assertTrue(panel.contains("BubbleUiPolicy.safePanelWidthDp"))
         assertTrue(panel.contains("MeasureSpec.AT_MOST"))
         assertTrue(panel.contains("WindowManager.LayoutParams.WRAP_CONTENT, overlayType()"))
         assertTrue(!panel.contains("isFillViewport = true"))

@@ -7,8 +7,21 @@ object BubbleUiPolicy {
     const val MIN_SIZE_DP = 40
     const val MAX_SIZE_DP = 96
     const val DEFAULT_SIZE_DP = 58
+    const val MIN_PANEL_WIDTH_DP = 180
+    const val MAX_PANEL_WIDTH_DP = 560
+    const val MIN_PANEL_HEIGHT_DP = 180
 
     fun safeSize(savedSize: Int): Int = savedSize.coerceIn(MIN_SIZE_DP, MAX_SIZE_DP)
+
+    fun safePanelWidthDp(savedWidth: Int, screenWidthDp: Int): Int {
+        val maxWidth = (screenWidthDp - 24).coerceAtLeast(MIN_PANEL_WIDTH_DP)
+        return savedWidth.coerceIn(MIN_PANEL_WIDTH_DP, minOf(MAX_PANEL_WIDTH_DP, maxWidth))
+    }
+
+    fun safePanelHeightDp(savedHeight: Int, screenHeightDp: Int): Int {
+        val maxHeight = (screenHeightDp - 48).coerceAtLeast(MIN_PANEL_HEIGHT_DP)
+        return savedHeight.coerceIn(MIN_PANEL_HEIGHT_DP, maxHeight)
+    }
 
     fun clampPosition(
         x: Int,
