@@ -670,6 +670,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
 }
 
 @Composable private fun SettingsPage(modifier:Modifier,store:OneAiStore,profiles:ProviderProfiles,env:com.oneai.app.ai.ProviderSettingsEnv,externalBindings:()->Map<String,String>,accessOverview:()->AccessOverviewData,restorationReady:Boolean,onBubbleToggle:(Boolean)->Unit,refresh:()->Unit) {
+    var section by remember { mutableStateOf<String?>(null) }
+    BackHandler(enabled=section!=null) { section=null }
     var bubble by remember{mutableStateOf(store.bubbleEnabled())};var services by remember{mutableStateOf(store.bubbleServices())}
     var version by remember{mutableStateOf(0)}
     val profileList = remember(version){profiles.list()}
@@ -696,8 +698,32 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
     val providerReady = activeState.usable
     val bump = { version += 1; refresh() }
     LazyColumn(modifier.fillMaxSize().padding(horizontal=20.dp),contentPadding=PaddingValues(top=24.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item { Header("Settings","Configure the core, AI provider and floating interface.") }
-        item { CardBox {
+        item {
+            if(section==null) Header("Settings","Choose a settings area to manage.")
+            else Row(verticalAlignment=Alignment.CenterVertically) {
+                IconButton(onClick={section=null}) { Icon(Icons.Default.ArrowBack,"Back",tint=Gold) }
+                Column { Text(section!!,color=White,fontSize=23.sp,fontWeight=FontWeight.Bold); Text("Settings",color=Muted,fontSize=12.sp) }
+            }
+        }
+        if(section==null) item { CardBox {
+            val categories = listOf(
+                "System Status" to "Provider readiness and core activity",
+                "Floating Bubble" to "Bubble controls and enabled services",
+                "AI Providers" to "Provider profiles, credentials and sign-in",
+                "Access View" to "Review plugin access and permissions"
+            )
+            categories.forEachIndexed { index, entry ->
+                Row(Modifier.fillMaxWidth().clickable { section=entry.first }.padding(vertical=13.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(entry.first,color=White,fontWeight=FontWeight.SemiBold,fontSize=15.sp)
+                        Text(entry.second,color=Muted,fontSize=11.sp)
+                    }
+                    Icon(Icons.Default.ChevronRight,"Open",tint=Gold)
+                }
+                if(index<categories.lastIndex) HorizontalDivider(color=Muted.copy(alpha=.18f))
+            }
+        } }
+        if(section=="System Status") item { CardBox {
             Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("AI provider","${activeProfile.name} (${activeDescriptor.title}) \u2022 ${activeState.label}") {
                 Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
@@ -707,7 +733,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             }
             Text(com.oneai.app.core.SettingsText.enabledSummary(store.plugins().count { it.enabled },store.commands().count { it.enabled }),color=Muted,fontSize=11.sp)
         } }
-        item { CardBox {
+        }
+        if(section=="Floating Bubble") item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text(if(restorationReady) "Services appear only after you explicitly enable them below. Newly available services start off." else "Restoring trusted plugin services… service controls will unlock when startup restoration finishes.",color=Muted,fontSize=11.sp)
@@ -725,7 +752,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             }
             if (availableOptions.size == 1) Text("Install and enable optional plugins in Plugin Centre to expose their bubble services here.",color=Muted,fontSize=11.sp)
         } }
-        item { CardBox {
+        }
+        if(section=="AI Providers") item { CardBox {
             Text("AI PROVIDER",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             Text("Saved provider profiles. The active one answers your requests in Chat, Commands and the Floating Bubble; each profile keeps its own credentials.",color=Muted,fontSize=11.sp)
             profileList.forEach { p ->
@@ -778,7 +806,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             TextButton(onClick={confirmDeleteProfile=true},enabled=profileList.size>1){Text("Delete this profile",color=Color(0xFFFF8A80))}
             if(status.isNotBlank())Text(status,color=Gold)
         } }
-        item {
+        }
+        if(section=="Access View") item {
             // Stage 10.1: read-only overview of what each trusted plugin may ask for; it changes nothing.
             val overview = accessOverview()
             CardBox {
@@ -795,6 +824,8 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             }
         }
     }
+        }
+
     if(confirmClearAiKey) AlertDialog(
         onDismissRequest={confirmClearAiKey=false},
         title={Text("Remove AI provider key?")},
