@@ -113,14 +113,16 @@ class BubbleUiPolicyTest {
         assertEquals(376, BubbleUiPolicy.safePanelWidthDp(900, 400))
         assertEquals(180, BubbleUiPolicy.safePanelHeightDp(90, 800))
         assertEquals(752, BubbleUiPolicy.safePanelHeightDp(900, 800))
-    }\n\n    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
+    }
+
+    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
         assertEquals(780, BubbleUiPolicy.panelMaxHeightPx(1000))
         assertEquals(320, BubbleUiPolicy.panelMaxHeightPx(100))
     }
     @Test fun quickPanelUsesResizableViewportDimensions() {
         val dir = listOf("src/main/java/com/oneai/app/bubble", "app/src/main/java/com/oneai/app/bubble").map(::File).first { it.isDirectory }
         val source = File(dir, "FloatingBubbleService.kt").readText()
-        val panel = source.substringAfter("private fun attachPanel").substringBefore("private fun resizeBubble")
+        val panel = source.substringAfter("private fun attachPanel").substringBefore("private fun hidePanel")
         assertTrue(panel.contains("BubbleUiPolicy.safePanelWidthDp"))
         assertTrue(panel.contains("widthPx, panelMaxHeightPx, overlayType()"))
         assertTrue(panel.contains("isFillViewport = true"))
