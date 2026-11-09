@@ -110,16 +110,41 @@ class FloatingBubbleService : Service() {
         }
         view.setOnTouchListener(object : android.view.View.OnTouchListener {
             var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
+            var panelOx = 0; var panelOy = 0
             override fun onTouch(v: android.view.View, e: MotionEvent): Boolean {
                 when (e.action) {
-                    MotionEvent.ACTION_DOWN -> { sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false; return true }
-                    MotionEvent.ACTION_MOVE -> { val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt(); if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true; val position = BubbleUiPolicy.clampPosition(
+                    MotionEvent.ACTION_DOWN -> {
+                        sx=e.rawX; sy=e.rawY; ox=params.x; oy=params.y; moved=false
+                        panelParams?.let { panelOx = it.x; panelOy = it.y }
+                        return true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx=(e.rawX-sx).toInt(); val dy=(e.rawY-sy).toInt()
+                        if (kotlin.math.abs(dx)+kotlin.math.abs(dy)>8) moved=true
+                        val position = BubbleUiPolicy.clampPosition(
                             ox + dx, oy + dy, params.width, params.height,
                             resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
-                        ); params.x = position.x; params.y = position.y
-                        runCatching { windowManager.updateViewLayout(view,params) }; return true }
+                        )
+                        params.x = position.x; params.y = position.y
+                        runCatching { windowManager.updateViewLayout(view,params) }
+                        // The icon and expanded panel form one movable Bubble. Dragging the
+                        // icon translates the open panel by the same delta, preserving its
+                        // spacing and keeping both overlays together.
+                        panelParams?.let { expanded ->
+                            val panelPosition = BubbleUiPolicy.clampPosition(
+                                panelOx + dx, panelOy + dy, expanded.width, expanded.height,
+                                resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
+                            )
+                            expanded.x = panelPosition.x; expanded.y = panelPosition.y
+                            panel?.let { runCatching { windowManager.updateViewLayout(it, expanded) } }
+                        }
+                        return true
+                    }
                     MotionEvent.ACTION_UP -> {
-                        getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE).edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
+                        val prefs = getSharedPreferences("one_ai_bubble_ui", MODE_PRIVATE)
+                        prefs.edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y)
+                            .apply()
+                        panelParams?.let { prefs.edit().putInt("panel_x", it.x).putInt("panel_y", it.y).apply() }
                         if (!moved) v.performClick()
                         return true
                     }
@@ -606,42 +631,11 @@ class FloatingBubbleService : Service() {
             doubleTapDetector.onTouchEvent(event)
             scaleDetector.isInProgress
         }
-        // Drag the title/header to reposition the open panel without moving the icon.
-        (box.getChildAt(0) as? TextView)?.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    dragStartX = event.rawX; dragStartY = event.rawY
-                    panelStartX = params.x; panelStartY = params.y
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val safe = BubbleUiPolicy.clampPosition(
-                        panelStartX + (event.rawX - dragStartX).toInt(),
-                        panelStartY + (event.rawY - dragStartY).toInt(),
-                        params.width, panelMaxHeightPx,
-                        resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
-                    )
-                    params.x = safe.x; params.y = safe.y
-                    runCatching { windowManager.updateViewLayout(scroll, params) }
-                    true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    prefs.edit().putInt("panel_x", params.x).putInt("panel_y", params.y).apply()
-                    true
-                }
-                else -> false
-            }
-        }
         runCatching { windowManager.addView(scroll, params) }.onSuccess {
             panel = scroll
             panelParams = params
         }
     }
-
-    private var dragStartX = 0f
-    private var dragStartY = 0f
-    private var panelStartX = 0
-    private var panelStartY = 0
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
