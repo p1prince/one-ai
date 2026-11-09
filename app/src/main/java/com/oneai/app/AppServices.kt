@@ -9,6 +9,11 @@ import com.oneai.app.bubble.ExternalBubbleProvider
 import com.oneai.app.ai.AiOrchestrator
 import com.oneai.app.ai.AiProvider
 import com.oneai.app.ai.AiProviders
+import com.oneai.app.ai.ChatGptAccounts
+import com.oneai.app.ai.ChatGptSignInController
+import com.oneai.app.ai.ProviderSettingsEnv
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import com.oneai.app.ai.ActiveAiProvider
 import com.oneai.app.ai.ProviderProfiles
 import com.oneai.app.ai.VaultProfileSecrets
@@ -68,10 +73,15 @@ class AppServices private constructor(private val app: Application) {
     /** AI and saved-command services are process-scoped and shared by Home and Floating Bubble. */
     val vault = SecretVault(app)
     private val profileSecrets = VaultProfileSecrets(vault)
-    private val aiRegistry = AiProviders.registry(profileSecrets)
+    /** The one ChatGPT-account sign-in of this process; its tokens live apart from every API key. */
+    val chatGptAccount = ChatGptAccounts.forContext(app) { store.log(it) }
+    val chatGptSignIn = ChatGptSignInController(chatGptAccount, CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    private val aiRegistry = AiProviders.registry(profileSecrets, chatGpt = chatGptAccount)
     /** Saved AI service profiles and the active one (decision D-V / V1). Home, Bubble and Settings share this. */
     val providerProfiles = ProviderProfiles(store, profileSecrets, aiRegistry::kinds) { store.log(it) }
     val aiProvider: AiProvider = ActiveAiProvider(providerProfiles, aiRegistry)
+    fun providerSettingsEnv(openBrowser: (String) -> Unit) =
+        ProviderSettingsEnv(aiRegistry::kinds, chatGptAccount, chatGptSignIn, openBrowser)
     val aiOrchestrator = AiOrchestrator(RetryingAiProvider(aiProvider), store)
     val commandRouter = CommandRouter(store, aiOrchestrator)
     val commandExecutor = CommandExecutor(

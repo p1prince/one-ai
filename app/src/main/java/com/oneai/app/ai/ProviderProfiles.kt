@@ -64,6 +64,16 @@ class ProviderProfiles(
         return true
     }
 
+    /** A name that no existing profile uses, built from a provider's title ("Google Gemini", then "Google Gemini 2"). */
+    @Synchronized fun suggestName(title: String): String {
+        val used = load().map { it.name.lowercase() }.toSet()
+        val base = ProviderProfileRules.cleanName(title).ifEmpty { "Provider" }
+        if (base.lowercase() !in used) return base
+        var n = 2
+        while (ProviderProfileRules.cleanName("$base $n").lowercase() in used) n++
+        return ProviderProfileRules.cleanName("$base $n")
+    }
+
     /** A name that no existing profile uses, for the "Add profile" button. */
     @Synchronized fun suggestName(): String {
         val used = load().map { it.name.lowercase() }.toSet()
@@ -83,13 +93,13 @@ class ProviderProfiles(
             return ProfileOutcome.Refused("You can keep up to ${ProviderProfileRules.MAX_PROFILES} provider profiles.")
         }
         if (kind !in knownKinds()) return ProfileOutcome.Refused("This version of ONE AI does not support that provider type.")
-        fieldProblem(profiles, null, name, endpoint, model)?.let { return ProfileOutcome.Refused(it) }
+        fieldProblem(profiles, null, kind, name, endpoint, model)?.let { return ProfileOutcome.Refused(it) }
         val id = nextId(profiles)
         val profile = AiProviderProfile(
             id = id,
             name = ProviderProfileRules.cleanName(name),
             kind = kind,
-            endpoint = endpoint.trim(),
+            endpoint = ProviderProfileRules.storedEndpoint(kind, endpoint),
             model = model.trim(),
             secretName = ProviderProfileRules.secretNameFor(id)
         )
@@ -101,10 +111,10 @@ class ProviderProfiles(
     @Synchronized fun update(id: String, name: String, endpoint: String, model: String): ProfileOutcome {
         val profiles = load()
         val current = profiles.firstOrNull { it.id == id } ?: return ProfileOutcome.Refused("That provider profile no longer exists.")
-        fieldProblem(profiles, id, name, endpoint, model)?.let { return ProfileOutcome.Refused(it) }
+        fieldProblem(profiles, id, current.kind, name, endpoint, model)?.let { return ProfileOutcome.Refused(it) }
         val changed = current.copy(
             name = ProviderProfileRules.cleanName(name),
-            endpoint = endpoint.trim(),
+            endpoint = ProviderProfileRules.storedEndpoint(current.kind, endpoint),
             model = model.trim()
         )
         persist(profiles.map { if (it.id == id) changed else it }, activeIdOf(profiles))
@@ -148,11 +158,12 @@ class ProviderProfiles(
     private fun fieldProblem(
         profiles: List<AiProviderProfile>,
         selfId: String?,
+        kind: String,
         name: String,
         endpoint: String,
         model: String
     ): String? {
-        ProviderProfileRules.fieldError(name, endpoint, model)?.let { return it }
+        ProviderProfileRules.fieldError(kind, name, endpoint, model)?.let { return it }
         val clean = ProviderProfileRules.cleanName(name)
         if (profiles.any { it.id != selfId && it.name.equals(clean, ignoreCase = true) }) {
             return "A provider profile with that name already exists."

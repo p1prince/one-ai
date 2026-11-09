@@ -7,17 +7,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * OpenAI-compatible chat-completions adapter for one provider profile (decision D-V / V1, slice S1).
- * The endpoint, model and display name come from [profile]; the key is read from [secrets] for that profile only.
- * Credentials are never logged.
+ * It serves OpenAI with an API key, DeepSeek, Groq, OpenRouter and any compatible custom endpoint: the endpoint, model
+ * and display name come from [profile]; the key is read from [secrets] for that profile only.
+ * Credentials are never logged. All network traffic goes through [http], so tests need no real key.
  */
 class AiProviderClient(
     private val profile: AiProviderProfile,
-    private val secrets: ProfileSecrets
+    private val secrets: ProfileSecrets,
+    private val http: AiHttp = HttpUrlConnectionAiHttp()
 ) : AiProvider {
     suspend fun ask(prompt: String): String {
         require(prompt.isNotBlank()) { "Enter a message before sending it." }
@@ -25,74 +25,50 @@ class AiProviderClient(
     }
 
     override suspend fun complete(messages: List<AiMessage>): AiCompletion = withContext(Dispatchers.IO) {
-        require(messages.isNotEmpty()) { "At least one message is required." }
-        require(messages.all { it.role in ALLOWED_ROLES && it.content.isNotBlank() }) {
-            "Messages must have a supported role and non-empty content."
-        }
+        ProviderSupport.checkMessages(messages)
         val stored = secrets.read(profile.secretName)
         if (stored === SecretRead.Unreadable) throw AiProviderException("CREDENTIALS_UNREADABLE", CredentialStatus.UNREADABLE_MESSAGE)
         val key = (stored as? SecretRead.Present)?.value?.takeIf { it.isNotBlank() }
             ?: throw AiProviderException("MISSING_CREDENTIALS", "Add an API key in Settings before using the AI provider.")
-        val endpoint = profile.endpoint.trim()
-        val url = runCatching { URL(endpoint) }.getOrElse {
-            throw AiProviderException("INVALID_ENDPOINT", "The provider endpoint is not a valid URL.")
-        }
-        require(url.protocol.equals("https", ignoreCase = true)) { "Provider endpoint must use HTTPS." }
-        require(url.host.isNotBlank()) { "Provider endpoint must include a host." }
-        require(url.userInfo == null && url.ref == null) { "Provider endpoint cannot contain embedded credentials or a fragment." }
+        val endpoint = ProviderSupport.endpointOf(profile)
 
-        val connection = url.openConnection() as? HttpURLConnection
-            ?: throw AiProviderException("CONNECTION_FAILED", "Could not open the provider connection.")
         try {
-            connection.instanceFollowRedirects = false
-            connection.requestMethod = "POST"
-            connection.connectTimeout = CONNECT_TIMEOUT_MS
-            connection.readTimeout = READ_TIMEOUT_MS
-            connection.doOutput = true
-            connection.setRequestProperty("Authorization", "Bearer $key")
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "ONE-AI-Android")
-
             val payload = JSONObject()
                 .put("model", profile.model)
                 .put("messages", JSONArray().apply {
                     messages.forEach { put(JSONObject().put("role", it.role).put("content", it.content)) }
                 })
-                .put("temperature", 0.4)
-            connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
-
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val raw = stream?.use { AiResponseBodyReader.readUtf8(it, MAX_RESPONSE_BYTES) }
-                ?: if (stream == null) "" else throw AiProviderException(
-                    "RESPONSE_TOO_LARGE",
-                    "The AI provider response exceeded the 1 MiB safety limit."
-                )
-            if (status !in 200..299) {
-                val detail = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }
-                    .getOrNull()?.takeIf { it.isNotBlank() }
-                throw AiProviderException("HTTP_$status", detail?.take(300) ?: "The AI provider returned HTTP $status.")
+            if (acceptsTemperature(profile.model)) payload.put("temperature", 0.4)
+            val request = AiHttpRequest(
+                endpoint,
+                mapOf(
+                    "Authorization" to "Bearer $key",
+                    "Content-Type" to "application/json; charset=utf-8",
+                    "Accept" to "application/json",
+                    "User-Agent" to "ONE-AI-Android"
+                ),
+                payload.toString()
+            )
+            http.open(request).use { response ->
+                val raw = ProviderSupport.body(response)
+                if (response.status !in 200..299) throw ProviderSupport.httpFailure(response.status, raw, profile.name, key)
+                val json = ProviderSupport.json(raw)
+                val choice = json.optJSONArray("choices")?.optJSONObject(0)
+                    ?: throw AiProviderException("EMPTY_RESPONSE", "The provider returned no completion.")
+                val message = choice.optJSONObject("message")
+                    ?: throw AiProviderException("INVALID_RESPONSE", "The provider response did not contain a message.")
+                val answer = extractContent(message.opt("content"))
+                if (answer.isBlank()) throw AiProviderException("EMPTY_RESPONSE", "The provider returned an empty answer.")
+                AiCompletion(answer, json.optString("model", profile.model), profile.name)
             }
-
-            val json = runCatching { JSONObject(raw) }.getOrElse {
-                throw AiProviderException("INVALID_RESPONSE", "The provider returned an unreadable response.")
-            }
-            val choice = json.optJSONArray("choices")?.optJSONObject(0)
-                ?: throw AiProviderException("EMPTY_RESPONSE", "The provider returned no completion.")
-            val message = choice.optJSONObject("message")
-                ?: throw AiProviderException("INVALID_RESPONSE", "The provider response did not contain a message.")
-            val answer = extractContent(message.opt("content"))
-            if (answer.isBlank()) throw AiProviderException("EMPTY_RESPONSE", "The provider returned an empty answer.")
-            AiCompletion(answer, json.optString("model", profile.model), profile.name)
         } catch (e: AiProviderException) {
             throw e
         } catch (e: CancellationException) {
             throw e
+        } catch (e: java.io.IOException) {
+            throw ProviderSupport.networkFailure(e)
         } catch (e: Exception) {
-            throw AiProviderException("REQUEST_FAILED", e.message?.take(250) ?: "The AI request failed.", e)
-        } finally {
-            connection.disconnect()
+            throw AiProviderException("REQUEST_FAILED", ProviderSupport.scrub(e.message ?: "The AI request failed.", key).take(250), e)
         }
     }
 
@@ -111,9 +87,9 @@ class AiProviderClient(
     }
 
     companion object {
-        private const val CONNECT_TIMEOUT_MS = 20_000
-        private const val READ_TIMEOUT_MS = 60_000
-        private const val MAX_RESPONSE_BYTES = 1024 * 1024
-        private val ALLOWED_ROLES = setOf("system", "user", "assistant")
+        private val REASONING_MODEL = Regex("o\\d.*|gpt-5.*")
+
+        /** OpenAI's reasoning models reject a custom temperature; every other model accepts it. */
+        fun acceptsTemperature(model: String): Boolean = !REASONING_MODEL.matches(model.trim().substringAfterLast('/'))
     }
 }

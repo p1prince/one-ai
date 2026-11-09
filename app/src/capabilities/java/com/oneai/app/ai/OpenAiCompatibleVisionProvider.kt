@@ -26,6 +26,13 @@ class OpenAiCompatibleVisionProvider(
             require(mimeType in SUPPORTED_MIME_TYPES) { "Selected image format is not supported." }
             // Follows the active AI provider profile and that profile's own key (decision D-V / V1, slice S1).
             val profile = profiles.active()
+            // Image requests are built in the OpenAI chat-completions format, so only providers that speak it are used.
+            if (profile.kind !in ProviderCatalog.OPENAI_COMPATIBLE) {
+                throw AiProviderException(
+                    "VISION_UNSUPPORTED",
+                    "Image analysis is not available for ${profile.name} yet. Switch to an OpenAI-compatible provider in Settings."
+                )
+            }
             val key = (profiles.keyResult(profile.id) as? SecretRead.Present)?.value?.takeIf { it.isNotBlank() }
                 ?: throw AiProviderException("MISSING_CREDENTIALS", "Add an API key in Settings before using image analysis.")
             val url = runCatching { URL(profile.endpoint.trim()) }.getOrElse {

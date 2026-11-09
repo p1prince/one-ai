@@ -37,15 +37,32 @@ object ProviderProfileRules {
     /** Removes control characters, trims and bounds a display name. */
     fun cleanName(raw: String): String = raw.filter { !it.isISOControl() }.trim().take(MAX_NAME)
 
-    /** The first problem with the editable fields, or null. Names are compared case-insensitively by the caller. */
-    fun fieldError(name: String, endpoint: String, model: String): String? {
+    /** The first problem with the editable fields of a custom (HTTPS chat-completions) profile, or null. */
+    fun fieldError(name: String, endpoint: String, model: String): String? =
+        fieldError(ProviderCatalog.CUSTOM, name, endpoint, model)
+
+    /**
+     * The first problem with the editable fields of a profile of [kind], or null. Each kind has its own endpoint rule
+     * (HTTPS only, local HTTP allowed for Ollama, or a fixed address that is not read from the user at all).
+     * Names are compared case-insensitively by the caller.
+     */
+    fun fieldError(kind: String, name: String, endpoint: String, model: String): String? {
         if (cleanName(name).isEmpty()) return "Enter a profile name."
-        ProviderSettingsPolicy.endpointError(endpoint)?.let { return it }
-        if (endpoint.trim().length > MAX_ENDPOINT) return "The provider endpoint is too long."
+        if (ProviderCatalog.descriptorOrCustom(kind).endpointEditable) {
+            ProviderCatalog.endpointError(kind, endpoint)?.let { return it }
+            if (endpoint.trim().length > MAX_ENDPOINT) return "The provider endpoint is too long."
+        }
         val cleanModel = model.trim()
         if (cleanModel.isEmpty()) return "Enter a model name."
         if (cleanModel.length > MAX_MODEL) return "The model name is too long."
+        ProviderCatalog.modelError(kind, cleanModel)?.let { return it }
         return null
+    }
+
+    /** The endpoint to store: the user's text, or the provider's fixed address when it has one. */
+    fun storedEndpoint(kind: String, entered: String): String {
+        val descriptor = ProviderCatalog.descriptorOrCustom(kind)
+        return if (descriptor.endpointEditable) entered.trim() else descriptor.defaultEndpoint
     }
 
     /** True when a stored entry is structurally usable. It does not judge the endpoint; that fails at request time. */

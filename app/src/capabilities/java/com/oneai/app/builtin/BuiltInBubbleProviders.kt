@@ -170,7 +170,7 @@ class VoiceBubbleProvider(runtime: PluginAdapterRegistrar) : BuiltInBubbleProvid
         VoiceInterfaceAdapter(
             inputProvider = VoiceInputProvider { VoiceCaptureBridge.capture(context) },
             outputProvider = VoiceOutputProvider { VoiceSpeaker.speak(context, it) },
-            orchestrator = AiOrchestrator(RetryingAiProvider(AiProviders.active(store, SecretVault(context))), store)
+            orchestrator = AiOrchestrator(RetryingAiProvider(AiProviders.active(store, SecretVault(context), com.oneai.app.ai.ChatGptAccounts.forContext(context))), store)
         )
     }
 
