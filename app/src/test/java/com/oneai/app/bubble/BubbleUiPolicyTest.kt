@@ -108,7 +108,12 @@ class BubbleUiPolicyTest {
         assertEquals("Echo", BubbleUiPolicy.serviceLabel("echo", "Echo"))
         assertEquals("Some service", BubbleUiPolicy.serviceLabel("some_service", null))
     }
-    @Test fun panelDimensionsAreClampedIndependentlyOfTheBubbleIcon() {\n        assertEquals(180, BubbleUiPolicy.safePanelWidthDp(100, 400))\n        assertEquals(376, BubbleUiPolicy.safePanelWidthDp(900, 400))\n        assertEquals(180, BubbleUiPolicy.safePanelHeightDp(90, 800))\n        assertEquals(752, BubbleUiPolicy.safePanelHeightDp(900, 800))\n    }\n\n    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
+    @Test fun panelDimensionsAreClampedIndependentlyOfTheBubbleIcon() {
+        assertEquals(180, BubbleUiPolicy.safePanelWidthDp(100, 400))
+        assertEquals(376, BubbleUiPolicy.safePanelWidthDp(900, 400))
+        assertEquals(180, BubbleUiPolicy.safePanelHeightDp(90, 800))
+        assertEquals(752, BubbleUiPolicy.safePanelHeightDp(900, 800))
+    }\n\n    @Test fun panelCapIsAFractionOfTheScreenWithAFloor() {
         assertEquals(780, BubbleUiPolicy.panelMaxHeightPx(1000))
         assertEquals(320, BubbleUiPolicy.panelMaxHeightPx(100))
     }
