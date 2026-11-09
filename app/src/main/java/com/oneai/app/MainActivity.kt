@@ -723,7 +723,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
                 if(index<categories.lastIndex) HorizontalDivider(color=Muted.copy(alpha=.18f))
             }
         } }
-        if(section=="System Status") item { CardBox {
+        if(section=="System Status") { item { CardBox {
             Text("SYSTEM STATUS",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("AI provider","${activeProfile.name} (${activeDescriptor.title}) \u2022 ${activeState.label}") {
                 Text(if(providerReady) "READY" else "SETUP",color=if(providerReady) Gold else Muted,fontSize=11.sp,fontWeight=FontWeight.Bold)
@@ -734,7 +734,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             Text(com.oneai.app.core.SettingsText.enabledSummary(store.plugins().count { it.enabled },store.commands().count { it.enabled }),color=Muted,fontSize=11.sp)
         } }
         }
-        if(section=="Floating Bubble") item { CardBox {
+        if(section=="Floating Bubble") { item { CardBox {
             Text("FLOATING BUBBLE",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             ActionRow("Enable floating bubble","Requires Android overlay permission"){Switch(bubble,{bubble=it;onBubbleToggle(it);bubble=store.bubbleEnabled()})}
             Text(if(restorationReady) "Services appear only after you explicitly enable them below. Newly available services start off." else "Restoring trusted plugin services… service controls will unlock when startup restoration finishes.",color=Muted,fontSize=11.sp)
@@ -753,7 +753,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             if (availableOptions.size == 1) Text("Install and enable optional plugins in Plugin Centre to expose their bubble services here.",color=Muted,fontSize=11.sp)
         } }
         }
-        if(section=="AI Providers") item { CardBox {
+        if(section=="AI Providers") { item { CardBox {
             Text("AI PROVIDER",color=Gold,fontWeight=FontWeight.Bold,fontSize=11.sp)
             Text("Saved provider profiles. The active one answers your requests in Chat, Commands and the Floating Bubble; each profile keeps its own credentials.",color=Muted,fontSize=11.sp)
             profileList.forEach { p ->
@@ -807,7 +807,7 @@ private fun openListedPage(context:Context,url:String):Boolean = try {
             if(status.isNotBlank())Text(status,color=Gold)
         } }
         }
-        if(section=="Access View") item {
+        if(section=="Access View") { item {
             // Stage 10.1: read-only overview of what each trusted plugin may ask for; it changes nothing.
             val overview = accessOverview()
             CardBox {
