@@ -493,12 +493,8 @@ class FloatingBubbleService : Service() {
         )
         val widthPx = (widthDp * density).toInt()
         panelMaxHeightPx = (heightDp * density).toInt()
-        val scroll = object : ScrollView(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(panelMaxHeightPx, MeasureSpec.AT_MOST))
-            }
-        }.apply {
-            isFillViewport = false
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
             addView(box, ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -518,7 +514,7 @@ class FloatingBubbleService : Service() {
             resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
         )
         val params = WindowManager.LayoutParams(
-            widthPx, WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
+            widthPx, panelMaxHeightPx, overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -538,6 +534,7 @@ class FloatingBubbleService : Service() {
                 )
                 current.width = (nextWidthDp * density).toInt()
                 panelMaxHeightPx = (nextHeightDp * density).toInt()
+                current.height = panelMaxHeightPx
                 val safe = BubbleUiPolicy.clampPosition(
                     current.x, current.y, current.width, panelMaxHeightPx,
                     resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
@@ -558,6 +555,7 @@ class FloatingBubbleService : Service() {
                 val defaultHeight = BubbleUiPolicy.safePanelHeightDp((screenHeightDp * 0.72f).toInt(), screenHeightDp)
                 current.width = (defaultWidth * density).toInt()
                 panelMaxHeightPx = (defaultHeight * density).toInt()
+                current.height = panelMaxHeightPx
                 val safe = BubbleUiPolicy.clampPosition(
                     current.x, current.y, current.width, panelMaxHeightPx,
                     resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels
