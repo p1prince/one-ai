@@ -39,6 +39,7 @@ import java.text.DateFormat
 import java.util.Date
 import androidx.lifecycle.lifecycleScope
 import com.oneai.app.ai.AiProvider
+import com.oneai.app.ai.forProfile
 import com.oneai.app.ai.ProviderProfiles
 import com.oneai.app.ai.ProfileOutcome
 import com.oneai.app.ai.AiConversation
