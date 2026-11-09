@@ -21,7 +21,6 @@ import android.view.GestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -132,18 +131,52 @@ class FloatingBubbleService : Service() {
     }
 
     private fun basePanel(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(22,18,22,18)
-        background = GradientDrawable().apply { setColor(Color.rgb(26,28,32)); cornerRadius=28f; setStroke(2,Color.rgb(214,174,88)) }
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = GradientDrawable().apply {
+            setColor(Color.rgb(26, 28, 32))
+            cornerRadius = dp(20).toFloat()
+            setStroke(dp(1), Color.rgb(150, 119, 58))
+        }
     }
 
     private fun addLabel(box: LinearLayout, text: String, size: Float = 14f): TextView {
-        val label = TextView(this).apply { this.text=text; setTextColor(Color.WHITE); textSize=size; setPadding(0,8,0,8) }
+        val label = TextView(this).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            textSize = size
+            includeFontPadding = false
+            setPadding(0, dp(4), 0, dp(4))
+        }
         box.addView(label)
         return label
     }
 
+    /** Compact shell-native action: no default Android button surface, insets or oversized minimum height. */
     private fun addButton(box: LinearLayout, title: String, action: () -> Unit) {
-        box.addView(Button(this).apply { text=title; setOnClickListener { action() } })
+        val control = TextView(this).apply {
+            text = title
+            textSize = 13f
+            includeFontPadding = false
+            gravity = Gravity.CENTER
+            setTextColor(Color.rgb(230, 196, 125))
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(38, 40, 44))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.rgb(92, 76, 49))
+            }
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { action() }
+        }
+        box.addView(control, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(3)
+            bottomMargin = dp(3)
+        })
     }
 
     private fun titleFor(service: String): String =
